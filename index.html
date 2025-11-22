@@ -10,6 +10,8 @@
     :root {
         --on-color: #00ff5a;
         --bg: #000;
+        --scale-numeric: 1;
+        --scale-alpha: 1;
     }
 
     body {
@@ -20,6 +22,7 @@
         align-items: center;
         height: 100vh;
         color: var(--on-color);
+        font-family: monospace;
     }
 
     #clock {
@@ -46,7 +49,15 @@
         border-radius: 8px;
         display: none;
         color: var(--on-color);
+        font-size: 12px;
+        max-width: 230px;
+    }
+
+    #menuPanel h3 {
         font-size: 13px;
+        margin: 6px 0 4px;
+        border-bottom: 1px solid #333;
+        padding-bottom: 2px;
     }
 
     #menuPanel label {
@@ -65,6 +76,34 @@
         margin-bottom: 6px;
     }
 
+    input[type="range"] {
+        width: 190px;
+        background: #000;
+    }
+
+    input[type="color"] {
+        background: #000;
+        border: 1px solid #333;
+        width: 50px;
+        height: 24px;
+        padding: 0;
+        margin-right: 4px;
+        vertical-align: middle;
+    }
+
+    .slider-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 4px;
+    }
+
+    .slider-row span.value-label {
+        width: 36px;
+        text-align: right;
+        font-size: 11px;
+    }
+
     #date {
         font-size: 4vmin;
         margin-bottom: 4vmin;
@@ -76,15 +115,25 @@
         white-space: nowrap;
     }
 
+    /* Seconds: relative to #time font-size, so line-size slider affects both */
     #sec {
-        font-size: 11vmin;
-        padding-left: 2vmin;
+        font-size: 0.44em;     /* 11 / 25 ≈ 0.44 */
+        padding-left: 0.08em;  /* 2 / 25 ≈ 0.08 */
     }
 
-    /* default groups (JS will override with actual font-family) */
+    /* Groups – JS applies font-family and we scale with CSS variables */
     .numeric,
     .alpha {
-        font-family: monospace;
+        display: inline-block;
+        transform-origin: center bottom;
+    }
+
+    .numeric {
+        transform: scale(var(--scale-numeric));
+    }
+
+    .alpha {
+        transform: scale(var(--scale-alpha));
     }
 </style>
 </head>
@@ -94,11 +143,48 @@
 <div id="menuButton">≡</div>
 
 <div id="menuPanel">
+    <h3>Fonts</h3>
     <label for="fontSelectNumeric">Numeric font:</label>
     <select id="fontSelectNumeric"></select>
 
     <label for="fontSelectAlpha">Alphabetic font:</label>
     <select id="fontSelectAlpha"></select>
+
+    <h3>Group Scale</h3>
+    <label for="numericScale">Numeric scale ( % ):</label>
+    <div class="slider-row">
+        <input type="range" id="numericScale" min="50" max="200" step="10">
+        <span class="value-label" id="numericScaleValue"></span>
+    </div>
+
+    <label for="alphaScale">Alpha scale ( % ):</label>
+    <div class="slider-row">
+        <input type="range" id="alphaScale" min="50" max="200" step="10">
+        <span class="value-label" id="alphaScaleValue"></span>
+    </div>
+
+    <h3>Line Styles</h3>
+    <!-- Date line style -->
+    <label>Date line:</label>
+    <div class="slider-row">
+        <input type="color" id="dateColor">
+        <span>Color</span>
+    </div>
+    <div class="slider-row">
+        <input type="range" id="dateSize" min="1" max="60" step="1">
+        <span class="value-label" id="dateSizeValue"></span>
+    </div>
+
+    <!-- Time line style -->
+    <label>Time line:</label>
+    <div class="slider-row">
+        <input type="color" id="timeColor">
+        <span>Color</span>
+    </div>
+    <div class="slider-row">
+        <input type="range" id="timeSize" min="1" max="60" step="1">
+        <span class="value-label" id="timeSizeValue"></span>
+    </div>
 </div>
 
 <div id="clock">
@@ -143,23 +229,20 @@ function updateClock() {
 setInterval(updateClock, 250);
 updateClock();
 
-
-// ---- MENU ----
+// ---- MENU TOGGLE ----
 document.getElementById("menuButton").onclick = () => {
     const p = document.getElementById("menuPanel");
     p.style.display = (p.style.display === "block" ? "none" : "block");
 };
 
-
-// ---- FONT GROUP APPLICATION ----
+// ---- FONT APPLICATION ----
 function applyFontToGroup(selector, family) {
     document.querySelectorAll(selector).forEach(el => {
         el.style.fontFamily = `"${family}", monospace`;
     });
 }
 
-// ---- DYNAMIC FONT DISCOVERY ----
-// Load fonts.css as text and extract each font-family:
+// ---- LOAD FONTS.CSS AND POPULATE FONT CHOICES ----
 fetch("fonts/fonts.css")
     .then(r => r.text())
     .then(cssText => {
@@ -168,9 +251,14 @@ fetch("fonts/fonts.css")
         ).map(m => m[1]);
 
         populateFontMenus(fontFamilies);
+        initGroupScaleControls();
+        initLineStyleControls();
     })
     .catch(err => {
         console.error("Error loading fonts.css", err);
+        // even if fonts fail, at least init the non-font controls
+        initGroupScaleControls();
+        initLineStyleControls();
     });
 
 function populateFontMenus(fontFamilies) {
@@ -187,19 +275,25 @@ function populateFontMenus(fontFamilies) {
         });
     }
 
+    if (fontFamilies.length === 0) {
+        // No fonts: keep defaults
+        numericSelect.disabled = true;
+        alphaSelect.disabled = true;
+        return;
+    }
+
     fillSelect(numericSelect);
     fillSelect(alphaSelect);
 
-    // Optional: choose smarter defaults if known font names exist
-    const defaultNumeric = fontFamilies.find(f => f.includes("DSEG7Classic")) || fontFamilies[0] || "";
-    const defaultAlpha   = fontFamilies[0] || "";
+    // Preferred defaults if available
+    const defaultNumeric = fontFamilies.find(f => f.includes("DSEG7Classic")) || fontFamilies[0];
+    const defaultAlpha   = fontFamilies[0];
 
-    if (defaultNumeric) numericSelect.value = defaultNumeric;
-    if (defaultAlpha)   alphaSelect.value   = defaultAlpha;
+    numericSelect.value = defaultNumeric;
+    alphaSelect.value   = defaultAlpha;
 
-    // Apply initial fonts
-    if (defaultNumeric) applyFontToGroup(".numeric", defaultNumeric);
-    if (defaultAlpha)   applyFontToGroup(".alpha",   defaultAlpha);
+    applyFontToGroup(".numeric", defaultNumeric);
+    applyFontToGroup(".alpha",   defaultAlpha);
 
     numericSelect.onchange = () => {
         applyFontToGroup(".numeric", numericSelect.value);
@@ -207,6 +301,82 @@ function populateFontMenus(fontFamilies) {
     alphaSelect.onchange = () => {
         applyFontToGroup(".alpha", alphaSelect.value);
     };
+}
+
+// ---- GROUP SCALE CONTROLS ----
+function initGroupScaleControls() {
+    const rootStyle = document.documentElement.style;
+    const numRange  = document.getElementById("numericScale");
+    const alphaRange = document.getElementById("alphaScale");
+    const numLabel  = document.getElementById("numericScaleValue");
+    const alphaLabel = document.getElementById("alphaScaleValue");
+
+    // defaults 100%
+    numRange.value = 100;
+    alphaRange.value = 100;
+    numLabel.textContent = "100%";
+    alphaLabel.textContent = "100%";
+
+    rootStyle.setProperty("--scale-numeric", "1");
+    rootStyle.setProperty("--scale-alpha", "1");
+
+    numRange.oninput = () => {
+        const v = parseInt(numRange.value, 10) || 100;
+        rootStyle.setProperty("--scale-numeric", (v / 100).toString());
+        numLabel.textContent = v + "%";
+    };
+
+    alphaRange.oninput = () => {
+        const v = parseInt(alphaRange.value, 10) || 100;
+        rootStyle.setProperty("--scale-alpha", (v / 100).toString());
+        alphaLabel.textContent = v + "%";
+    };
+}
+
+// ---- LINE STYLE CONTROLS (DATE/TIME) ----
+function initLineStyleControls() {
+    const dateEl = document.getElementById("date");
+    const timeEl = document.getElementById("time");
+
+    const dateColorInput = document.getElementById("dateColor");
+    const timeColorInput = document.getElementById("timeColor");
+    const dateSizeRange  = document.getElementById("dateSize");
+    const timeSizeRange  = document.getElementById("timeSize");
+    const dateSizeLabel  = document.getElementById("dateSizeValue");
+    const timeSizeLabel  = document.getElementById("timeSizeValue");
+
+    function rgbToHex(rgbStr) {
+        const m = rgbStr.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
+        if (!m) return "#00ff5a"; // fallback to on-color
+        const r = parseInt(m[1], 10);
+        const g = parseInt(m[2], 10);
+        const b = parseInt(m[3], 10);
+        const toHex = n => n.toString(16).padStart(2,"0");
+        return "#" + toHex(r) + toHex(g) + toHex(b);
+    }
+
+    function initLine(el, colorInput, sizeRange, sizeLabel) {
+        const cs = getComputedStyle(el);
+        const colorHex = rgbToHex(cs.color);
+        const fontSizePx = parseFloat(cs.fontSize) || 20;
+
+        colorInput.value = colorHex;
+        sizeRange.value = Math.max(1, Math.min(60, Math.round(fontSizePx)));
+        sizeLabel.textContent = sizeRange.value + "px";
+
+        colorInput.oninput = () => {
+            el.style.color = colorInput.value;
+        };
+
+        sizeRange.oninput = () => {
+            const v = parseInt(sizeRange.value, 10) || fontSizePx;
+            el.style.fontSize = v + "px";
+            sizeLabel.textContent = v + "px";
+        };
+    }
+
+    initLine(dateEl, dateColorInput, dateSizeRange, dateSizeLabel);
+    initLine(timeEl, timeColorInput, timeSizeRange, timeSizeLabel);
 }
 </script>
 </body>
