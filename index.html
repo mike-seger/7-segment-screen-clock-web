@@ -20,7 +20,6 @@
         align-items: center;
         height: 100vh;
         color: var(--on-color);
-        /* font-family: "DSEG7Classic", monospace; */
     }
 
     #clock {
@@ -47,19 +46,29 @@
         border-radius: 8px;
         display: none;
         color: var(--on-color);
+        font-size: 13px;
     }
 
-    #fontSelect {
+    #menuPanel label {
+        display: block;
+        margin-top: 4px;
+        margin-bottom: 2px;
+    }
+
+    #fontSelectNumeric,
+    #fontSelectAlpha {
         background: #000;
         color: var(--on-color);
         border: 1px solid #333;
         padding: 4px;
-        width: 180px;
+        width: 190px;
+        margin-bottom: 6px;
     }
 
     #date {
         font-size: 4vmin;
         margin-bottom: 4vmin;
+        white-space: nowrap;
     }
 
     #time {
@@ -71,6 +80,12 @@
         font-size: 11vmin;
         padding-left: 2vmin;
     }
+
+    /* default groups (JS will override with actual font-family) */
+    .numeric,
+    .alpha {
+        font-family: monospace;
+    }
 </style>
 </head>
 
@@ -79,17 +94,37 @@
 <div id="menuButton">≡</div>
 
 <div id="menuPanel">
-    <label>Font:</label><br>
-    <select id="fontSelect"></select>
+    <label for="fontSelectNumeric">Numeric font:</label>
+    <select id="fontSelectNumeric"></select>
+
+    <label for="fontSelectAlpha">Alphabetic font:</label>
+    <select id="fontSelectAlpha"></select>
 </div>
 
 <div id="clock">
-    <div id="date"></div>
-    <div id="time"><span id="main"></span><span id="sec"></span></div>
+    <!-- Date parts split into alpha / numeric spans -->
+    <div id="date">
+        <span id="weekday" class="alpha"></span>
+        &nbsp;&nbsp;
+        <span id="daynum" class="numeric"></span>
+        &nbsp;
+        <span id="month" class="alpha"></span>
+        &nbsp;
+        <span id="year" class="numeric"></span>
+    </div>
+
+    <!-- Time: HH:MM (numeric) + :SS (numeric) -->
+    <div id="time">
+        <span id="main" class="numeric"></span>
+        <span id="sec" class="numeric"></span>
+    </div>
 </div>
 
 <script>
 // ---- TIME UPDATE ----
+const days   = ["SUN","MON","TUE","WED","THU","FRI","SAT"];
+const months = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
+
 function updateClock() {
     const now = new Date();
     const h = String(now.getHours()).padStart(2,"0");
@@ -99,12 +134,12 @@ function updateClock() {
     document.getElementById("main").textContent = `${h}:${m}`;
     document.getElementById("sec").textContent  = `:${s}`;
 
-    const days  = ["SUN","MON","TUE","WED","THU","FRI","SAT"];
-    const months= ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
-
-    document.getElementById("date").textContent =
-        `${days[now.getDay()]}  ${String(now.getDate()).padStart(2,"0")} ${months[now.getMonth()]} ${now.getFullYear()}`;
+    document.getElementById("weekday").textContent = days[now.getDay()];
+    document.getElementById("daynum").textContent  = String(now.getDate()).padStart(2,"0");
+    document.getElementById("month").textContent   = months[now.getMonth()];
+    document.getElementById("year").textContent    = String(now.getFullYear());
 }
+
 setInterval(updateClock, 250);
 updateClock();
 
@@ -116,31 +151,61 @@ document.getElementById("menuButton").onclick = () => {
 };
 
 
+// ---- FONT GROUP APPLICATION ----
+function applyFontToGroup(selector, family) {
+    document.querySelectorAll(selector).forEach(el => {
+        el.style.fontFamily = `"${family}", monospace`;
+    });
+}
+
 // ---- DYNAMIC FONT DISCOVERY ----
 // Load fonts.css as text and extract each font-family:
 fetch("fonts/fonts.css")
     .then(r => r.text())
     .then(cssText => {
-        const fontFamilies = Array.from(cssText.matchAll(/font-family:\s*["']([^"']+)["']/g))
-                                  .map(m => m[1]);
-        populateFontMenu(fontFamilies);
+        const fontFamilies = Array.from(
+            cssText.matchAll(/font-family:\s*["']([^"']+)["']/g)
+        ).map(m => m[1]);
+
+        populateFontMenus(fontFamilies);
+    })
+    .catch(err => {
+        console.error("Error loading fonts.css", err);
     });
 
-function populateFontMenu(list) {
-    const select = document.getElementById("fontSelect");
-    select.innerHTML = "";
+function populateFontMenus(fontFamilies) {
+    const numericSelect = document.getElementById("fontSelectNumeric");
+    const alphaSelect   = document.getElementById("fontSelectAlpha");
 
-    list.forEach(font => {
-        const opt = document.createElement("option");
-        opt.value = font;
-        opt.textContent = font;
-        select.appendChild(opt);
-    });
+    function fillSelect(select) {
+        select.innerHTML = "";
+        fontFamilies.forEach(font => {
+            const opt = document.createElement("option");
+            opt.value = font;
+            opt.textContent = font;
+            select.appendChild(opt);
+        });
+    }
 
-    select.value = getComputedStyle(document.body).fontFamily.replace(/["']/g,"");
+    fillSelect(numericSelect);
+    fillSelect(alphaSelect);
 
-    select.onchange = () => {
-        document.body.style.fontFamily = `"${select.value}", monospace`;
+    // Optional: choose smarter defaults if known font names exist
+    const defaultNumeric = fontFamilies.find(f => f.includes("DSEG7Classic")) || fontFamilies[0] || "";
+    const defaultAlpha   = fontFamilies[0] || "";
+
+    if (defaultNumeric) numericSelect.value = defaultNumeric;
+    if (defaultAlpha)   alphaSelect.value   = defaultAlpha;
+
+    // Apply initial fonts
+    if (defaultNumeric) applyFontToGroup(".numeric", defaultNumeric);
+    if (defaultAlpha)   applyFontToGroup(".alpha",   defaultAlpha);
+
+    numericSelect.onchange = () => {
+        applyFontToGroup(".numeric", numericSelect.value);
+    };
+    alphaSelect.onchange = () => {
+        applyFontToGroup(".alpha", alphaSelect.value);
     };
 }
 </script>

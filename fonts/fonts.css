@@ -9,6 +9,15 @@
     }
 
     @font-face {
+        font-family: "DSEG14Classic";
+        src:
+            url("DSEG14Classic-Regular.woff2") format("woff2"),
+            url("DSEG14Classic-Regular.woff")  format("woff"),
+            url("DSEG14Classic-Regular.ttf")   format("truetype");
+        font-display: swap;
+    }
+
+    @font-face {
         font-family: "DSEG7ClassicMini";
         src:
             url("DSEG7ClassicMini-Regular.woff2") format("woff2"),
@@ -21,6 +30,13 @@
     @font-face {
         font-family: "FourteenSegment";
         src: url("14 Segment LED.ttf") format("truetype");
+        font-display: swap;
+    }
+
+    /* Optional 14-segment font if you keep it in the same folder */
+    @font-face {
+        font-family: "Seven Segment";
+        src: url("Seven Segment.ttf") format("truetype");
         font-display: swap;
     }
     
