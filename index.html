@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>AMOLED Clock</title>
+<style>
+    :root {
+        --on-color: #00ff5a;
+        --off-color: #00411a;
+        --bg-color: #000000;
+    }
+
+    * {
+        box-sizing: border-box;
+        padding: 0;
+        margin: 0;
+    }
+
+    html, body {
+        width: 100%;
+        height: 100%;
+    }
+
+    body {
+        background: var(--bg-color);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        font-family: monospace;
+        overflow: hidden;
+    }
+
+    #clock {
+        width: 90vw;
+        max-width: 2000px;
+        text-align: center;
+    }
+
+    #date {
+        color: var(--on-color);
+        font-size: 3.7vmin;
+        letter-spacing: 0.35em;
+        margin-bottom: 4vmin;
+    }
+
+    #time-row {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .digit {
+        position: relative;
+        margin: 0 1vmin;
+    }
+
+    .digit.big {
+        width: 18vmin;
+        height: 36vmin;
+    }
+
+    .digit.small {
+        width: 8.5vmin;
+        height: 17vmin;
+        margin-left: 1vmin;
+    }
+
+    .segment {
+        position: absolute;
+        background: var(--off-color);
+        transition: background 80ms linear;
+    }
+
+    .segment.on {
+        background: var(--on-color);
+    }
+
+    /* Horizontal hex segment */
+    .segment-h {
+        clip-path: polygon(
+            10% 0%,
+            90% 0%,
+            100% 50%,
+            90% 100%,
+            10% 100%,
+            0% 50%
+        );
+    }
+
+    /* Vertical hex segment */
+    .segment-v {
+        clip-path: polygon(
+            0% 10%,
+            50% 0%,
+            100% 10%,
+            100% 90%,
+            50% 100%,
+            0% 90%
+        );
+    }
+
+    /* Positions within a digit (percentage layout) */
+
+    /* 0: top */
+    .seg-0 {
+        top: 0%;
+        left: 16%;
+        width: 68%;
+        height: 18%;
+    }
+
+    /* 3: bottom */
+    .seg-3 {
+        bottom: 0%;
+        left: 16%;
+        width: 68%;
+        height: 18%;
+    }
+
+    /* 6: middle */
+    .seg-6 {
+        top: 41%;
+        left: 16%;
+        width: 68%;
+        height: 18%;
+    }
+
+    /* 5: top-left */
+    .seg-5 {
+        top: 4%;
+        left: 0%;
+        width: 20%;
+        height: 44%;
+    }
+
+    /* 4: bottom-left */
+    .seg-4 {
+        bottom: 4%;
+        left: 0%;
+        width: 20%;
+        height: 44%;
+    }
+
+    /* 1: top-right */
+    .seg-1 {
+        top: 4%;
+        right: 0%;
+        width: 20%;
+        height: 44%;
+    }
+
+    /* 2: bottom-right */
+    .seg-2 {
+        bottom: 4%;
+        right: 0%;
+        width: 20%;
+        height: 44%;
+    }
+
+    /* Colon between HH and MM, and between MM and SS */
+    .colon {
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .colon.big {
+        height: 32vmin;
+        margin: 0 1.5vmin;
+    }
+
+    .colon.small {
+        height: 14vmin;
+        margin: 0 1vmin 0 2vmin;
+    }
+
+    .colon .dot {
+        background: var(--on-color);
+    }
+
+    .colon.big .dot {
+        width: 3.3vmin;
+        height: 3.3vmin;
+        border-radius: 20%;
+    }
+
+    .colon.small .dot {
+        width: 1.6vmin;
+        height: 1.6vmin;
+        border-radius: 20%;
+    }
+
+    /* Make layout stable on very small screens */
+    @media (max-width: 700px) {
+        #date { font-size: 4vmin; }
+        .digit.big { width: 22vmin; height: 40vmin; }
+    }
+</style>
+</head>
+<body>
+<div id="clock">
+    <div id="date"></div>
+    <div id="time-row">
+        <div class="digit big" data-role="h1"></div>
+        <div class="digit big" data-role="h2"></div>
+
+        <div class="colon big">
+            <div class="dot"></div>
+            <div class="dot"></div>
+        </div>
+
+        <div class="digit big" data-role="m1"></div>
+        <div class="digit big" data-role="m2"></div>
+
+        <div class="colon small">
+            <div class="dot"></div>
+            <div class="dot"></div>
+        </div>
+
+        <div class="digit small" data-role="s1"></div>
+        <div class="digit small" data-role="s2"></div>
+    </div>
+</div>
+
+<script>
+/**
+ * Segment indices:
+ *  0: top
+ *  1: top-right
+ *  2: bottom-right
+ *  3: bottom
+ *  4: bottom-left
+ *  5: top-left
+ *  6: middle
+ */
+const DIGIT_SEGMENTS = {
+    "0": [0, 1, 2, 3, 4, 5],
+    "1": [1, 2],
+    "2": [0, 1, 6, 4, 3],
+    "3": [0, 1, 6, 2, 3],
+    "4": [5, 6, 1, 2],
+    "5": [0, 5, 6, 2, 3],
+    "6": [0, 5, 6, 2, 3, 4],
+    "7": [0, 1, 2],
+    "8": [0, 1, 2, 3, 4, 5, 6],
+    "9": [0, 1, 2, 3, 5, 6]
+};
+
+// Create the segments for all digit containers
+function initDigits() {
+    document.querySelectorAll(".digit").forEach(digitEl => {
+        for (let i = 0; i < 7; i++) {
+            const seg = document.createElement("div");
+            seg.classList.add("segment", `seg-${i}`);
+            // horizontal vs vertical
+            if ([0, 3, 6].includes(i)) {
+                seg.classList.add("segment-h");
+            } else {
+                seg.classList.add("segment-v");
+            }
+            digitEl.appendChild(seg);
+        }
+    });
+}
+
+// Light up the segments for a given digit element
+function setDigit(digitEl, value) {
+    const active = DIGIT_SEGMENTS[value] || [];
+    const segments = digitEl.querySelectorAll(".segment");
+    segments.forEach((seg, idx) => {
+        if (active.includes(idx)) {
+            seg.classList.add("on");
+        } else {
+            seg.classList.remove("on");
+        }
+    });
+}
+
+const dayNames = ["SUN","MON","TUE","WED","THU","FRI","SAT"];
+const monthNames = ["JAN","FEB","MAR","APR","MAY","JUN",
+                    "JUL","AUG","SEP","OCT","NOV","DEC"];
+
+function updateClock() {
+    const now = new Date();
+
+    // Time
+    const h = now.getHours().toString().padStart(2, "0");
+    const m = now.getMinutes().toString().padStart(2, "0");
+    const s = now.getSeconds().toString().padStart(2, "0");
+
+    setDigit(document.querySelector('[data-role="h1"]'), h[0]);
+    setDigit(document.querySelector('[data-role="h2"]'), h[1]);
+    setDigit(document.querySelector('[data-role="m1"]'), m[0]);
+    setDigit(document.querySelector('[data-role="m2"]'), m[1]);
+    setDigit(document.querySelector('[data-role="s1"]'), s[0]);
+    setDigit(document.querySelector('[data-role="s2"]'), s[1]);
+
+    // Date: "SAT  22 NOV 2025"
+    const dayStr = dayNames[now.getDay()];
+    const dd = now.getDate().toString().padStart(2, "0");
+    const monthStr = monthNames[now.getMonth()];
+    const year = now.getFullYear();
+    document.getElementById("date").textContent =
+        `${dayStr}  ${dd} ${monthStr} ${year}`;
+}
+
+// Initialize and start
+initDigits();
+updateClock();
+setInterval(updateClock, 250);
+</script>
+</body>
+</html>
