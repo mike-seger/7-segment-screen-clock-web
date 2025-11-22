@@ -2,12 +2,16 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>AMOLED Clock (Local Font)</title>
+<title>AMOLED Clock – DSEG7ClassicMini</title>
 
 <style>
     @font-face {
-        font-family: "FourteenSegment";
-        src: url("14 Segment LED.ttf") format("truetype");
+        font-family: "DSEG7ClassicMini";
+        src: url("DSEG7ClassicMini-Regular.woff2") format("woff2"),
+             url("DSEG7ClassicMini-Regular.woff")  format("woff"),
+             url("DSEG7ClassicMini-Regular.ttf")   format("truetype");
+        font-weight: normal;
+        font-style: normal;
         font-display: swap;
     }
 
@@ -33,19 +37,18 @@
         justify-content: center;
         align-items: center;
         overflow: hidden;
-        font-family: "FourteenSegment", monospace;
-    }
-
-    #clock {
-        width: 95vw;
-        max-width: 2200px;
-        text-align: center;
+        font-family: "DSEG7ClassicMini", monospace;
         color: var(--on-color);
     }
 
+    #clock {
+        text-align: center;
+        width: 95vw;
+    }
+
     #date {
-        font-size: 3.6vmin;
-        letter-spacing: 0.45em;
+        font-size: 3.8vmin;
+        letter-spacing: 0.28em;
         margin-bottom: 5vmin;
     }
 
@@ -57,14 +60,15 @@
     }
 
     #time-main {
-        font-size: 24vmin;  /* HH:MM */
+        font-size: 26vmin; /* HH:MM */
     }
 
     #time-sec {
-        font-size: 11vmin;  /* :SS   */
-        padding-left: 2vmin;
+        font-size: 11vmin; /* :SS */
+        padding-left: 2.2vmin;
     }
 </style>
+
 </head>
 <body>
 <div id="clock">
@@ -76,7 +80,7 @@
 </div>
 
 <script>
-const dayNames   = ["SUN","MON","TUE","WED","THU","FRI","SAT"];
+const dayNames = ["SUN","MON","TUE","WED","THU","FRI","SAT"];
 const monthNames = ["JAN","FEB","MAR","APR","MAY","JUN",
                     "JUL","AUG","SEP","OCT","NOV","DEC"];
 
@@ -102,5 +106,6 @@ function updateClock() {
 updateClock();
 setInterval(updateClock, 200);
 </script>
+
 </body>
 </html>
