@@ -1,0 +1,26 @@
+    /* --- Local fonts ---------------------------------------------------- */
+    @font-face {
+        font-family: "DSEG7Classic";
+        src:
+            url("DSEG7Classic-Regular.woff2") format("woff2"),
+            url("DSEG7Classic-Regular.woff")  format("woff"),
+            url("DSEG7Classic-Regular.ttf")   format("truetype");
+        font-display: swap;
+    }
+
+    @font-face {
+        font-family: "DSEG7ClassicMini";
+        src:
+            url("DSEG7ClassicMini-Regular.woff2") format("woff2"),
+            url("DSEG7ClassicMini-Regular.woff")  format("woff"),
+            url("DSEG7ClassicMini-Regular.ttf")   format("truetype");
+        font-display: swap;
+    }
+
+    /* Optional 14-segment font if you keep it in the same folder */
+    @font-face {
+        font-family: "FourteenSegment";
+        src: url("14 Segment LED.ttf") format("truetype");
+        font-display: swap;
+    }
+    
