@@ -2,23 +2,24 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>AMOLED Clock (Font Version)</title>
-
-<!-- 7-segment-like font -->
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Wallpoet&display=swap" rel="stylesheet">
+<title>AMOLED Clock (Local Font)</title>
 
 <style>
+    @font-face {
+        font-family: "FourteenSegment";
+        src: url("14 Segment LED.ttf") format("truetype");
+        font-display: swap;
+    }
+
     :root {
         --on-color: #00ff5a;
         --bg-color: #000000;
     }
 
     * {
-        box-sizing: border-box;
         margin: 0;
         padding: 0;
+        box-sizing: border-box;
     }
 
     html, body {
@@ -32,6 +33,7 @@
         justify-content: center;
         align-items: center;
         overflow: hidden;
+        font-family: "FourteenSegment", monospace;
     }
 
     #clock {
@@ -39,7 +41,6 @@
         max-width: 2200px;
         text-align: center;
         color: var(--on-color);
-        font-family: 'Wallpoet', monospace;
     }
 
     #date {
@@ -56,18 +57,12 @@
     }
 
     #time-main {
-        font-size: 24vmin;      /* big HH:MM */
+        font-size: 24vmin;  /* HH:MM */
     }
 
     #time-sec {
-        font-size: 11vmin;      /* smaller seconds */
+        font-size: 11vmin;  /* :SS   */
         padding-left: 2vmin;
-    }
-
-    @media (max-width: 900px) {
-        #time-main { font-size: 28vmin; }
-        #time-sec  { font-size: 13vmin; }
-        #date      { font-size: 4.2vmin; }
     }
 </style>
 </head>
@@ -88,26 +83,24 @@ const monthNames = ["JAN","FEB","MAR","APR","MAY","JUN",
 function updateClock() {
     const now = new Date();
 
-    // Time
-    const h = now.getHours().toString().padStart(2, "0");
-    const m = now.getMinutes().toString().padStart(2, "0");
-    const s = now.getSeconds().toString().padStart(2, "0");
+    const h = now.getHours().toString().padStart(2,"0");
+    const m = now.getMinutes().toString().padStart(2,"0");
+    const s = now.getSeconds().toString().padStart(2,"0");
 
     document.getElementById("time-main").textContent = `${h}:${m}`;
     document.getElementById("time-sec").textContent  = `:${s}`;
 
-    // Date: "SAT  22 NOV 2025" with extra spacing between day and date
-    const dayStr   = dayNames[now.getDay()];
-    const dd       = now.getDate().toString().padStart(2, "0");
+    const dayStr = dayNames[now.getDay()];
+    const dd = now.getDate().toString().padStart(2,"0");
     const monthStr = monthNames[now.getMonth()];
-    const year     = now.getFullYear();
+    const year = now.getFullYear();
 
     document.getElementById("date").textContent =
         `${dayStr}  ${dd} ${monthStr} ${year}`;
 }
 
 updateClock();
-setInterval(updateClock, 250);
+setInterval(updateClock, 200);
 </script>
 </body>
 </html>
