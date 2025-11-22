@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 
-<!-- Load font definitions -->
+<!-- Load font definitions from /fonts/fonts.css -->
 <link rel="stylesheet" href="fonts/fonts.css">
 
 <style>
@@ -11,7 +11,7 @@
         --on-color: #00ff5a;
         --bg: #000;
 
-        /* group scales (1 = 100%) */
+        /* scaling factors for groups */
         --numeric-scale: 1;
         --alpha-scale: 1;
     }
@@ -19,441 +19,415 @@
     body {
         background: var(--bg);
         margin: 0;
-        padding: 0;
-        color: var(--on-color);
-        font-family: monospace;
         display: flex;
         justify-content: center;
         align-items: center;
         height: 100vh;
+        color: var(--on-color);
+        font-family: monospace;
+        /* allow the content to extend a bit without harsh clipping */
         overflow: hidden;
     }
 
     #clock {
-        width: 95vw;
-        max-width: 2200px;
         text-align: center;
+        overflow: visible;
     }
 
-    /* Lines */
-    #date-line {
-        margin-bottom: 5vmin;
-        font-size: 36px; /* default, will be overridden by slider */
-    }
-
-    #time-line {
-        display: inline-flex;
-        align-items: baseline;
-        justify-content: center;
-        white-space: nowrap;
-    }
-
-    #time-main {
-        font-size: 180px; /* default, overridden by slider */
-    }
-
-    #time-sec {
-        font-size: 80px; /* default, overridden by slider */
-        padding-left: 15px;
-    }
-
-    /* font groups */
-    .numeric,
-    .alpha {
-        display: inline-block;
-        transform-origin: center bottom;
-    }
-
-    .numeric {
-        transform: scale(var(--numeric-scale));
-    }
-    .alpha {
-        transform: scale(var(--alpha-scale));
-    }
-
-    /* Control panel toggle button */
-    #panel-toggle {
+    #menuButton {
         position: fixed;
-        top: 10px;
-        right: 10px;
-        width: 32px;
-        height: 32px;
-        border-radius: 4px;
-        border: 1px solid #444;
-        background: #111;
-        color: #ccc;
-        font-size: 18px;
+        right: 20px;
+        top: 20px;
+        font-size: 34px;
         cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        z-index: 1000;
+        user-select: none;
+        color: var(--on-color);
     }
 
-    #panel-toggle:hover {
-        background: #222;
-    }
-
-    /* Control panel */
-    #control-panel {
+    #menuPanel {
         position: fixed;
-        top: 50px;
-        right: 10px;
-        width: 270px;
-        max-height: 80vh;
+        right: 20px;
+        top: 70px;
         background: #111;
-        color: #ddd;
         border: 1px solid #333;
-        border-radius: 6px;
         padding: 10px 12px;
-        font-family: system-ui, sans-serif;
+        color: var(--on-color);
         font-size: 12px;
-        box-shadow: 0 0 20px rgba(0,0,0,0.8);
+        font-family: system-ui, sans-serif;
         display: none;
-        overflow-y: auto;
-        z-index: 999;
+        max-width: 260px;
+        z-index: 10;
     }
 
-    #control-panel h3 {
+    #menuPanel label {
+        font-size: 11px;
+    }
+
+    #menuPanel select,
+    #menuPanel input[type="range"],
+    #menuPanel input[type="color"] {
+        width: 100%;
+        margin: 4px 0 8px;
+        background: #000;
+        color: var(--on-color);
+        border: 1px solid #333;
+    }
+
+    #menuPanel input[type="range"] {
+        accent-color: var(--on-color);
+    }
+
+    #menuPanel input[type="color"] {
+        padding: 0;
+        border-radius: 2px;
+        height: 22px;
+    }
+
+    .section-title {
+        font-weight: bold;
+        margin-top: 4px;
+        margin-bottom: 4px;
         font-size: 12px;
-        margin: 8px 0 4px;
-        color: #9fd;
         border-bottom: 1px solid #333;
         padding-bottom: 2px;
     }
 
-    #control-panel label {
-        display: block;
-        margin: 4px 0 2px;
-    }
-
-    #control-panel select,
-    #control-panel input[type="color"],
-    #control-panel input[type="range"] {
-        width: 100%;
-        margin-bottom: 4px;
-        background: #222;
-        color: #ddd;
-        border: 1px solid #444;
-        border-radius: 3px;
+    .subsection-title {
+        font-weight: 600;
+        margin-top: 6px;
+        margin-bottom: 2px;
         font-size: 11px;
     }
 
-    #control-panel input[type="range"] {
-        background: transparent;
-    }
-
-    .small-note {
-        font-size: 10px;
-        color: #888;
-        margin-bottom: 4px;
-    }
-
-    .row-inline {
+    .inline-label {
         display: flex;
         justify-content: space-between;
         align-items: center;
         gap: 6px;
     }
 
-    .row-inline span.val {
-        min-width: 40px;
-        text-align: right;
-        font-size: 10px;
-        color: #aaa;
+    #date {
+        font-size: 4vmin;
+        margin-bottom: 4vmin;
+        line-height: 1.1;
+        padding: 0.2em 0;
     }
 
+    #time {
+        font-size: 25vmin;
+        white-space: nowrap;
+        line-height: 1.1;
+        padding: 0.2em 0;
+    }
+
+    #sec {
+        font-size: 11vmin;
+        padding-left: 2vmin;
+    }
+
+    /* group wrappers for scaling */
+    .numeric-group,
+    .alpha-group {
+        display: inline-block;
+        transform-origin: center center;
+    }
+
+    .numeric-group {
+        transform: scale(var(--numeric-scale));
+    }
+
+    .alpha-group {
+        transform: scale(var(--alpha-scale));
+    }
+
+    .spacer {
+        display: inline-block;
+        width: 0.7em;
+    }
 </style>
 </head>
+
 <body>
 
-<div id="clock">
-    <!-- Date line: alpha + numeric groups -->
-    <div id="date-line">
-        <span id="weekday" class="alpha"></span>
-        <span>&nbsp;&nbsp;</span>
-        <span id="day" class="numeric"></span>
-        <span>&nbsp;</span>
-        <span id="month" class="alpha"></span>
-        <span>&nbsp;</span>
-        <span id="year" class="numeric"></span>
+<div id="menuButton">≡</div>
+
+<div id="menuPanel">
+    <div class="section">
+        <div class="section-title">Fonts</div>
+        <label for="numericFontSelect">Numeric (time, day, year)</label>
+        <select id="numericFontSelect"></select>
+
+        <label for="alphaFontSelect">Alphabetic (weekday, month)</label>
+        <select id="alphaFontSelect"></select>
     </div>
 
-    <!-- Time line: numeric groups -->
-    <div id="time-line">
-        <span id="time-main" class="numeric"></span>
-        <span id="time-sec" class="numeric"></span>
+    <div class="section">
+        <div class="section-title">Group scale</div>
+
+        <div class="subsection">
+            <div class="subsection-title">Numeric group</div>
+            <div class="inline-label">
+                <span>Scale</span>
+                <span id="numericScaleLabel">100%</span>
+            </div>
+            <input type="range" id="numericScale" min="50" max="200" step="1" value="100">
+        </div>
+
+        <div class="subsection">
+            <div class="subsection-title">Alphabetic group</div>
+            <div class="inline-label">
+                <span>Scale</span>
+                <span id="alphaScaleLabel">100%</span>
+            </div>
+            <input type="range" id="alphaScale" min="50" max="200" step="1" value="100">
+        </div>
+    </div>
+
+    <div class="section">
+        <div class="section-title">Lines & seconds</div>
+
+        <div class="subsection">
+            <div class="subsection-title">Date line</div>
+            <label>Color</label>
+            <input type="color" id="dateColor">
+            <div class="inline-label">
+                <span>Font size</span>
+                <span id="dateFontSizeLabel"></span>
+            </div>
+            <input type="range" id="dateFontSize" min="1" max="400" step="1">
+        </div>
+
+        <div class="subsection">
+            <div class="subsection-title">Time line</div>
+            <label>Color</label>
+            <input type="color" id="timeColor">
+            <div class="inline-label">
+                <span>Font size</span>
+                <span id="timeFontSizeLabel"></span>
+            </div>
+            <input type="range" id="timeFontSize" min="1" max="400" step="1">
+        </div>
+
+        <div class="subsection">
+            <div class="subsection-title">Seconds</div>
+            <label>Color</label>
+            <input type="color" id="secColor">
+            <div class="inline-label">
+                <span>Font size</span>
+                <span id="secFontSizeLabel"></span>
+            </div>
+            <input type="range" id="secFontSize" min="1" max="400" step="1">
+        </div>
     </div>
 </div>
 
-<!-- Burger toggle -->
-<button id="panel-toggle" title="Show settings">≡</button>
-
-<!-- Control panel -->
-<div id="control-panel">
-    <h3>Font families</h3>
-    <label for="fontSelectNumeric">Numeric (HH, MM, SS, day, year)</label>
-    <select id="fontSelectNumeric"></select>
-
-    <label for="fontSelectAlpha">Alphabetic (weekday, month)</label>
-    <select id="fontSelectAlpha"></select>
-
-    <div class="small-note">
-        Fonts are loaded from <code>fonts/fonts.css</code>.
+<div id="clock">
+    <div id="date">
+        <span id="weekday" class="alpha-group"></span>
+        <span class="spacer"></span>
+        <span id="dayNum" class="numeric-group"></span>
+        <span class="spacer"></span>
+        <span id="monthName" class="alpha-group"></span>
+        <span class="spacer"></span>
+        <span id="yearNum" class="numeric-group"></span>
     </div>
 
-    <h3>Group scaling</h3>
-
-    <label for="numericScale">Numeric scale (%)</label>
-    <div class="row-inline">
-        <input id="numericScale" type="range" min="50" max="200" step="1">
-        <span class="val" id="numericScaleVal"></span>
-    </div>
-
-    <label for="alphaScale">Alphabetic scale (%)</label>
-    <div class="row-inline">
-        <input id="alphaScale" type="range" min="50" max="200" step="1">
-        <span class="val" id="alphaScaleVal"></span>
-    </div>
-
-    <h3>Date line style</h3>
-    <label for="dateColor">Color</label>
-    <input id="dateColor" type="color">
-
-    <label for="dateFontSize">Font size (px)</label>
-    <div class="row-inline">
-        <input id="dateFontSize" type="range" min="1" max="400" step="1">
-        <span class="val" id="dateFontSizeVal"></span>
-    </div>
-
-    <h3>Time (HH:MM) style</h3>
-    <label for="timeColor">Color</label>
-    <input id="timeColor" type="color">
-
-    <label for="timeFontSize">Font size (px)</label>
-    <div class="row-inline">
-        <input id="timeFontSize" type="range" min="1" max="400" step="1">
-        <span class="val" id="timeFontSizeVal"></span>
-    </div>
-
-    <h3>Seconds (:SS) style</h3>
-    <label for="secColor">Color</label>
-    <input id="secColor" type="color">
-
-    <label for="secFontSize">Font size (px)</label>
-    <div class="row-inline">
-        <input id="secFontSize" type="range" min="1" max="400" step="1">
-        <span class="val" id="secFontSizeVal"></span>
+    <div id="time">
+        <span id="main" class="numeric-group"></span>
+        <span id="sec" class="numeric-group"></span>
     </div>
 </div>
 
 <script>
-const dayNames   = ["SUN","MON","TUE","WED","THU","FRI","SAT"];
-const monthNames = ["JAN","FEB","MAR","APR","MAY","JUN",
-                    "JUL","AUG","SEP","OCT","NOV","DEC"];
-
+// ---- TIME UPDATE ----
 function updateClock() {
     const now = new Date();
+    const h = String(now.getHours()).padStart(2,"0");
+    const m = String(now.getMinutes()).padStart(2,"0");
+    const s = String(now.getSeconds()).padStart(2,"0");
 
-    const h = now.getHours().toString().padStart(2,"0");
-    const m = now.getMinutes().toString().padStart(2,"0");
-    const s = now.getSeconds().toString().padStart(2,"0");
+    document.getElementById("main").textContent = `${h}:${m}`;
+    document.getElementById("sec").textContent  = `:${s}`;
 
-    document.getElementById("time-main").textContent = `${h}:${m}`;
-    document.getElementById("time-sec").textContent  = `:${s}`;
+    const days  = ["SUN","MON","TUE","WED","THU","FRI","SAT"];
+    const months= ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
 
-    const dayStr   = dayNames[now.getDay()];
-    const dd       = now.getDate().toString().padStart(2,"0");
-    const monthStr = monthNames[now.getMonth()];
-    const year     = now.getFullYear();
-
-    document.getElementById("weekday").textContent = dayStr;
-    document.getElementById("day").textContent     = dd;
-    document.getElementById("month").textContent   = monthStr;
-    document.getElementById("year").textContent    = year;
+    document.getElementById("weekday").textContent  = days[now.getDay()];
+    document.getElementById("dayNum").textContent   = String(now.getDate()).padStart(2,"0");
+    document.getElementById("monthName").textContent= months[now.getMonth()];
+    document.getElementById("yearNum").textContent  = now.getFullYear();
 }
+setInterval(updateClock, 250);
+updateClock();
 
-// ---- FONT GROUP APPLICATION ----
-function applyFontToGroup(selector, family) {
-    document.querySelectorAll(selector).forEach(el => {
-        el.style.fontFamily = `"${family}", monospace`;
-    });
-}
+
+// ---- MENU TOGGLE ----
+document.getElementById("menuButton").onclick = () => {
+    const p = document.getElementById("menuPanel");
+    p.style.display = (p.style.display === "block" ? "none" : "block");
+};
+
 
 // ---- DYNAMIC FONT DISCOVERY ----
 // Load fonts.css as text and extract each font-family:
 fetch("fonts/fonts.css")
     .then(r => r.text())
     .then(cssText => {
-        const fontFamilies = Array.from(
-            cssText.matchAll(/font-family:\s*["']([^"']+)["']/g)
-        ).map(m => m[1]);
-
-        populateFontMenus(fontFamilies);
-    })
-    .catch(err => {
-        console.error("Error loading fonts.css", err);
+        const fontFamilies = Array.from(cssText.matchAll(/font-family:\s*["']([^"']+)["']/g))
+                                  .map(m => m[1]);
+        populateFontMenu(fontFamilies);
     });
 
-function populateFontMenus(fontFamilies) {
-    const numericSelect = document.getElementById("fontSelectNumeric");
-    const alphaSelect   = document.getElementById("fontSelectAlpha");
+function populateFontMenu(list) {
+    const numericSelect = document.getElementById("numericFontSelect");
+    const alphaSelect   = document.getElementById("alphaFontSelect");
 
-    function fillSelect(select) {
-        select.innerHTML = "";
-        fontFamilies.forEach(font => {
+    numericSelect.innerHTML = "";
+    alphaSelect.innerHTML   = "";
+
+    list.forEach(font => {
+        const makeOpt = () => {
             const opt = document.createElement("option");
             opt.value = font;
             opt.textContent = font;
-            select.appendChild(opt);
+            return opt;
+        };
+        numericSelect.appendChild(makeOpt());
+        alphaSelect.appendChild(makeOpt());
+    });
+
+    const applyNumericFont = () => {
+        document.querySelectorAll(".numeric-group").forEach(el => {
+            el.style.fontFamily = `"${numericSelect.value}", monospace`;
+        });
+    };
+    const applyAlphaFont = () => {
+        document.querySelectorAll(".alpha-group").forEach(el => {
+            el.style.fontFamily = `"${alphaSelect.value}", monospace`;
+        });
+    };
+
+    numericSelect.onchange = applyNumericFont;
+    alphaSelect.onchange   = applyAlphaFont;
+
+    // Initial defaults: use first font if available
+    if (list.length > 0) {
+        numericSelect.value = list[0];
+        alphaSelect.value   = list[0];
+    }
+    applyNumericFont();
+    applyAlphaFont();
+}
+
+
+// ---- SCALE CONTROLS ----
+const numericScaleSlider = document.getElementById("numericScale");
+const alphaScaleSlider   = document.getElementById("alphaScale");
+const numericScaleLabel  = document.getElementById("numericScaleLabel");
+const alphaScaleLabel    = document.getElementById("alphaScaleLabel");
+
+function applyNumericScale(v) {
+    const s = v / 100;
+    document.documentElement.style.setProperty("--numeric-scale", s);
+    numericScaleLabel.textContent = `${v}%`;
+}
+function applyAlphaScale(v) {
+    const s = v / 100;
+    document.documentElement.style.setProperty("--alpha-scale", s);
+    alphaScaleLabel.textContent = `${v}%`;
+}
+
+numericScaleSlider.addEventListener("input", e => applyNumericScale(e.target.value));
+alphaScaleSlider.addEventListener("input",  e => applyAlphaScale(e.target.value));
+
+// init
+applyNumericScale(numericScaleSlider.value);
+applyAlphaScale(alphaScaleSlider.value);
+
+
+// ---- LINE & SECONDS STYLE CONTROLS ----
+function rgbToHex(rgb) {
+    const m = rgb.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+    if (!m) return "#00ff5a";
+    return "#" + [m[1], m[2], m[3]].map(x => {
+        const n = parseInt(x, 10);
+        return n.toString(16).padStart(2, "0");
+    }).join("");
+}
+
+function initLineStyleControls() {
+    const dateEl = document.getElementById("date");
+    const timeEl = document.getElementById("time");
+    const secEl  = document.getElementById("sec");
+
+    const dateColorInput = document.getElementById("dateColor");
+    const timeColorInput = document.getElementById("timeColor");
+    const secColorInput  = document.getElementById("secColor");
+
+    const dateSizeSlider = document.getElementById("dateFontSize");
+    const timeSizeSlider = document.getElementById("timeFontSize");
+    const secSizeSlider  = document.getElementById("secFontSize");
+
+    const dateSizeLabel = document.getElementById("dateFontSizeLabel");
+    const timeSizeLabel = document.getElementById("timeFontSizeLabel");
+    const secSizeLabel  = document.getElementById("secFontSizeLabel");
+
+    // DATE
+    if (dateEl) {
+        const cs = getComputedStyle(dateEl);
+        dateColorInput.value = rgbToHex(cs.color);
+        const px = parseFloat(cs.fontSize) || 16;
+        dateSizeSlider.value = Math.round(px);
+        dateSizeLabel.textContent = `${Math.round(px)}px`;
+
+        dateColorInput.addEventListener("input", e => {
+            dateEl.style.color = e.target.value;
+        });
+        dateSizeSlider.addEventListener("input", e => {
+            const v = e.target.value;
+            dateEl.style.fontSize = `${v}px`;
+            dateSizeLabel.textContent = `${v}px`;
         });
     }
 
-    fillSelect(numericSelect);
-    fillSelect(alphaSelect);
+    // TIME (HH:MM + seconds inherit unless overridden)
+    if (timeEl) {
+        const cs = getComputedStyle(timeEl);
+        timeColorInput.value = rgbToHex(cs.color);
+        const px = parseFloat(cs.fontSize) || 80;
+        timeSizeSlider.value = Math.round(px);
+        timeSizeLabel.textContent = `${Math.round(px)}px`;
 
-    // Try to pick sensible defaults if present
-    const preferNumeric = fontFamilies.find(f =>
-        /DSEG7/i.test(f) || /7seg/i.test(f)
-    );
-    const preferAlpha = fontFamilies.find(f =>
-        !(/DSEG7/i.test(f)) && !(/7seg/i.test(f))
-    );
-
-    const defaultNumeric = preferNumeric || fontFamilies[0] || "";
-    const defaultAlpha   = preferAlpha   || fontFamilies[0] || "";
-
-    if (defaultNumeric) numericSelect.value = defaultNumeric;
-    if (defaultAlpha)   alphaSelect.value   = defaultAlpha;
-
-    // Apply initial fonts
-    if (defaultNumeric) applyFontToGroup(".numeric", defaultNumeric);
-    if (defaultAlpha)   applyFontToGroup(".alpha",   defaultAlpha);
-
-    numericSelect.onchange = () => {
-        applyFontToGroup(".numeric", numericSelect.value);
-    };
-    alphaSelect.onchange = () => {
-        applyFontToGroup(".alpha", alphaSelect.value);
-    };
-}
-
-// ---- PANEL & CONTROLS ----
-document.addEventListener("DOMContentLoaded", () => {
-    const toggleBtn    = document.getElementById("panel-toggle");
-    const panel        = document.getElementById("control-panel");
-    const rootStyle    = document.documentElement.style;
-
-    toggleBtn.addEventListener("click", () => {
-        panel.style.display = (panel.style.display === "block") ? "none" : "block";
-    });
-
-    // Group scale sliders
-    const numericScale    = document.getElementById("numericScale");
-    const alphaScale      = document.getElementById("alphaScale");
-    const numericScaleVal = document.getElementById("numericScaleVal");
-    const alphaScaleVal   = document.getElementById("alphaScaleVal");
-
-    // default 100%
-    numericScale.value = 100;
-    alphaScale.value   = 100;
-    numericScaleVal.textContent = "100%";
-    alphaScaleVal.textContent   = "100%";
-
-    numericScale.addEventListener("input", () => {
-        const v = numericScale.value;
-        rootStyle.setProperty("--numeric-scale", (v / 100).toString());
-        numericScaleVal.textContent = v + "%";
-    });
-
-    alphaScale.addEventListener("input", () => {
-        const v = alphaScale.value;
-        rootStyle.setProperty("--alpha-scale", (v / 100).toString());
-        alphaScaleVal.textContent = v + "%";
-    });
-
-    // Line style controls
-    const dateLine      = document.getElementById("date-line");
-    const timeMain      = document.getElementById("time-main");
-    const timeSec       = document.getElementById("time-sec");
-
-    const dateColor     = document.getElementById("dateColor");
-    const timeColor     = document.getElementById("timeColor");
-    const secColor      = document.getElementById("secColor");
-
-    const dateFontSize  = document.getElementById("dateFontSize");
-    const timeFontSize  = document.getElementById("timeFontSize");
-    const secFontSize   = document.getElementById("secFontSize");
-
-    const dateFontSizeVal = document.getElementById("dateFontSizeVal");
-    const timeFontSizeVal = document.getElementById("timeFontSizeVal");
-    const secFontSizeVal  = document.getElementById("secFontSizeVal");
-
-    // Helper to get computed px font size as number
-    function getPxSize(el, fallback) {
-        const cs = window.getComputedStyle(el);
-        const px = parseFloat(cs.fontSize);
-        return isNaN(px) ? fallback : px;
+        timeColorInput.addEventListener("input", e => {
+            timeEl.style.color = e.target.value;
+        });
+        timeSizeSlider.addEventListener("input", e => {
+            const v = e.target.value;
+            timeEl.style.fontSize = `${v}px`;
+            timeSizeLabel.textContent = `${v}px`;
+        });
     }
 
-    // Initialise font sizes from computed values
-    const initDateSize = getPxSize(dateLine, 36);
-    const initTimeSize = getPxSize(timeMain, 180);
-    const initSecSize  = getPxSize(timeSec, 80);
+    // SECONDS (override if desired)
+    if (secEl) {
+        const csSec = getComputedStyle(secEl);
+        secColorInput.value = rgbToHex(csSec.color);
+        const pxSec = parseFloat(csSec.fontSize) || 40;
+        secSizeSlider.value = Math.round(pxSec);
+        secSizeLabel.textContent = `${Math.round(pxSec)}px`;
 
-    dateFontSize.value = Math.round(initDateSize);
-    timeFontSize.value = Math.round(initTimeSize);
-    secFontSize.value  = Math.round(initSecSize);
-
-    dateFontSizeVal.textContent = dateFontSize.value + "px";
-    timeFontSizeVal.textContent = timeFontSize.value + "px";
-    secFontSizeVal.textContent  = secFontSize.value  + "px";
-
-    // Color defaults
-    const defaultColor = getComputedStyle(document.body).color || "#00ff5a";
-    dateColor.value = rgbToHex(getComputedStyle(dateLine).color || defaultColor);
-    timeColor.value = rgbToHex(getComputedStyle(timeMain).color || defaultColor);
-    secColor.value  = rgbToHex(getComputedStyle(timeSec).color  || defaultColor);
-
-    dateColor.addEventListener("input", () => {
-        dateLine.style.color = dateColor.value;
-    });
-    timeColor.addEventListener("input", () => {
-        timeMain.style.color = timeColor.value;
-    });
-    secColor.addEventListener("input", () => {
-        timeSec.style.color = secColor.value;
-    });
-
-    dateFontSize.addEventListener("input", () => {
-        const v = dateFontSize.value;
-        dateLine.style.fontSize = v + "px";
-        dateFontSizeVal.textContent = v + "px";
-    });
-    timeFontSize.addEventListener("input", () => {
-        const v = timeFontSize.value;
-        timeMain.style.fontSize = v + "px";
-        timeFontSizeVal.textContent = v + "px";
-    });
-    secFontSize.addEventListener("input", () => {
-        const v = secFontSize.value;
-        timeSec.style.fontSize = v + "px";
-        secFontSizeVal.textContent = v + "px";
-    });
-});
-
-// helper for color conversion
-function rgbToHex(rgb) {
-    const m = rgb.match(/^rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
-    if (!m) return "#00ff5a";
-    const r = parseInt(m[1], 10).toString(16).padStart(2,"0");
-    const g = parseInt(m[2], 10).toString(16).padStart(2,"0");
-    const b = parseInt(m[3], 10).toString(16).padStart(2,"0");
-    return "#" + r + g + b;
+        secColorInput.addEventListener("input", e => {
+            secEl.style.color = e.target.value;
+        });
+        secSizeSlider.addEventListener("input", e => {
+            const v = e.target.value;
+            secEl.style.fontSize = `${v}px`;
+            secSizeLabel.textContent = `${v}px`;
+        });
+    }
 }
 
-updateClock();
-setInterval(updateClock, 250);
+initLineStyleControls();
 </script>
 </body>
 </html>
