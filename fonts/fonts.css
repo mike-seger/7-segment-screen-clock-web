@@ -1,42 +1,110 @@
-    /* --- Local fonts ---------------------------------------------------- */
-    @font-face {
-        font-family: "DSEG7Classic";
-        src:
-            url("DSEG7Classic-Regular.woff2") format("woff2"),
-            url("DSEG7Classic-Regular.woff")  format("woff"),
-            url("DSEG7Classic-Regular.ttf")   format("truetype");
-        font-display: swap;
-    }
+/* --- Local fonts ---------------------------------------------------- */
+/* 
+    https://fontstruct.com/fontstructions/ 
+    https://fontmeme.com/
+*/
 
-    @font-face {
-        font-family: "DSEG14Classic";
-        src:
-            url("DSEG14Classic-Regular.woff2") format("woff2"),
-            url("DSEG14Classic-Regular.woff")  format("woff"),
-            url("DSEG14Classic-Regular.ttf")   format("truetype");
-        font-display: swap;
-    }
+@font-face {
+    font-family: "DSEG7Classic";
+    src:
+        url("DSEG7Classic-Regular.woff2") format("woff2"),
+        url("DSEG7Classic-Regular.woff")  format("woff"),
+        url("DSEG7Classic-Regular.ttf")   format("truetype");
+    font-display: swap;
+}
 
-    @font-face {
-        font-family: "DSEG7ClassicMini";
-        src:
-            url("DSEG7ClassicMini-Regular.woff2") format("woff2"),
-            url("DSEG7ClassicMini-Regular.woff")  format("woff"),
-            url("DSEG7ClassicMini-Regular.ttf")   format("truetype");
-        font-display: swap;
-    }
+@font-face {
+    font-family: "DSEG14Classic";
+    src:
+        url("DSEG14Classic-Regular.woff2") format("woff2"),
+        url("DSEG14Classic-Regular.woff")  format("woff"),
+        url("DSEG14Classic-Regular.ttf")   format("truetype");
+    font-display: swap;
+}
 
-    /* Optional 14-segment font if you keep it in the same folder */
-    @font-face {
-        font-family: "FourteenSegment";
-        src: url("14 Segment LED.ttf") format("truetype");
-        font-display: swap;
-    }
+@font-face {
+    font-family: "DSEG7ClassicMini";
+    src:
+        url("DSEG7ClassicMini-Regular.woff2") format("woff2"),
+        url("DSEG7ClassicMini-Regular.woff")  format("woff"),
+        url("DSEG7ClassicMini-Regular.ttf")   format("truetype");
+    font-display: swap;
+}
 
-    /* Optional 14-segment font if you keep it in the same folder */
-    @font-face {
-        font-family: "Seven Segment";
-        src: url("Seven Segment.ttf") format("truetype");
-        font-display: swap;
-    }
-    
+/* Optional 14-segment font if you keep it in the same folder */
+@font-face {
+    font-family: "FourteenSegment";
+    src: url("14 Segment LED.ttf") format("truetype");
+    font-display: swap;
+}
+
+/* Optional 14-segment font if you keep it in the same folder */
+@font-face {
+    font-family: "Seven Segment";
+    src: url("Seven Segment.ttf") format("truetype");
+    font-display: swap;
+}
+
+@font-face {
+    font-family: "G7Segment7a";
+    src: url("G7_Segment_7a.ttf") format("truetype");
+    font-display: swap;
+}
+
+@font-face {
+    font-family: "G7Segment7S5";
+    src: url("G7_Segment7_S5.ttf") format("truetype");
+    font-display: swap;
+}
+
+@font-face {
+    font-family: "STF9SegmentRound";
+    src: url("stf-9-segment-lcd-round.otf.woff2") format("woff2"),
+            url("stf-9-segment-lcd-round.otf") format("opentype");
+    font-display: swap;
+}
+
+@font-face {
+    font-family: "CurvedSevenSegment2";
+    src: url("curved-seven-segment-2.otf.woff2") format("woff2"),
+            url("curved-seven-segment-2.otf") format("opentype");
+    font-display: swap;
+}
+
+@font-face {
+    font-family: "CurvedSevenSegment";
+    src: url("curved-seven-segment.otf.woff2") format("woff2"),
+            url("curved-seven-segment.otf") format("opentype");
+    font-display: swap;
+}
+
+
+@font-face {
+    font-family: "Digits";
+    src: url("digits.otf.woff2") format("woff2"),
+            url("digits.otf") format("opentype");
+    font-display: swap;
+}
+
+
+@font-face {
+    font-family: "LCDDot";
+    src: url("lcddot.otf.woff2") format("woff2"),
+            url("lcddot.otf") format("opentype");
+    font-display: swap;
+}
+
+@font-face {
+    font-family: "DigitalDisplay";
+    src: url("digital-display.otf.woff2") format("woff2"),
+            url("digital-display.otf") format("opentype");
+    font-display: swap;
+}
+
+
+@font-face {
+    font-family: "AlarmClock";
+    src: url("alarm-clock.otf.woff2") format("woff2"),
+            url("alarm-clock.otf") format("opentype");
+    font-display: swap;
+}

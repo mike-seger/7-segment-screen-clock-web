@@ -1,0 +1,117 @@
+:root {
+    --on-color: #04fb62;
+    --bg: #000;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+@font-face {
+    font-family: "Digital7Mono";
+    src: url("fonts/digital-7 (mono).ttf") format("truetype");
+    font-display: swap;
+}
+
+body {
+    background: var(--bg);
+    color: var(--on-color);
+    font-family: monospace;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+#clock {
+    text-align: center;
+}
+
+/* Lines */
+
+#dateLine,
+#timeLine {
+    white-space: nowrap;
+    overflow: visible;
+}
+
+#dateLine {
+    /* margin-bottom: 4vmin; */
+    /* default; overridden by JS */
+    line-height: 1.8em;
+    font-size: 4vmin;
+}
+
+#timeLine {
+    /* default; overridden by JS */
+    line-height: 0.9em;
+    font-size: 25vmin;
+}
+
+#dateLine, #timeLine {
+    display: flex;
+    gap: 0;  
+    justify-content: center;   /* centers the whole line */
+    align-items: baseline;  
+}
+
+/* Grouped parts */
+
+.numeric-group,
+.alpha-group {
+    display: inline-block;
+    letter-spacing: 0.1em;
+    /* transform-origin: 50% 70%; */
+    /* small padding to mitigate clipping when scaled */
+    /* padding-top: 0.1em; */
+    /* padding-bottom: 0.1em; */
+    font-family: Digital7Mono, monospace;
+}
+
+.numeric-group {
+    letter-spacing: 0.05em;
+}
+
+#colon {
+    display: inline-block;
+    /* transform: scaleX(0.55);   compress horizontally */
+    margin: 0 -0.15em;          /* pull it tighter */
+}
+
+/* #timeMain {
+    margin-right: 0.5vmin;
+} */
+
+#sec {
+    /* default smaller; overridden by JS */
+    font-size: 12vmin;
+    line-height: 0.1em;
+    color: #00aaff;
+    /* padding-left: 2vmin; */
+}
+
+/* Weekday / spacing feel */
+#weekday, #day, #month, #year {
+    margin-right: 1.5ch;
+}
+
+#menuButton {
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    width: 32px;
+    height: 32px;
+    line-height: 32px;
+    text-align: center;
+    background: #111;
+    color: var(--on-color);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 20px;
+    z-index: 1000;
+    user-select: none;
+    display: none;
+}

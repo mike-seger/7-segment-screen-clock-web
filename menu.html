@@ -1,0 +1,102 @@
+<!-- menu.html -->
+<div id="menuPanel">
+    <div class="section">
+        <h3>Fonts</h3>
+        <label>
+            Numeric font
+        </label>
+        <select id="numericFontSelect"></select>
+
+        <label>
+            Alpha font
+        </label>
+        <select id="alphaFontSelect"></select>
+    </div>
+
+    <div class="section">
+        <h3>Group scale & offset</h3>
+
+        <label>
+            Numeric scale
+            <span class="valueBadge" id="numericScaleValue"></span>
+        </label>
+        <input type="range" id="numericScale" min="50" max="200" step="1">
+
+        <label>
+            Numeric offset (px)
+            <span class="valueBadge" id="numericOffsetValue"></span>
+        </label>
+        <input type="range" id="numericOffset" min="-100" max="100" step="1">
+
+        <label>
+            Alpha scale
+            <span class="valueBadge" id="alphaScaleValue"></span>
+        </label>
+        <input type="range" id="alphaScale" min="50" max="200" step="1">
+
+        <label>
+            Alpha offset (px)
+            <span class="valueBadge" id="alphaOffsetValue"></span>
+        </label>
+        <input type="range" id="alphaOffset" min="-100" max="100" step="1">
+    </div>
+
+    <div class="section">
+        <h3>Date line</h3>
+        <label>
+            Color
+            <input type="color" id="dateColor">
+        </label>
+        <label>
+            Font size
+            <span class="valueBadge" id="dateFontSizeValue"></span>
+        </label>
+        <input type="range" id="dateFontSize" min="1" max="400" step="1">
+    </div>
+
+    <div class="section">
+        <h3>Time (HH:MM)</h3>
+        <label>
+            Color
+            <input type="color" id="timeColor">
+        </label>
+        <label>
+            Font size
+            <span class="valueBadge" id="timeFontSizeValue"></span>
+        </label>
+        <input type="range" id="timeFontSize" min="1" max="400" step="1">
+    </div>
+
+    <div class="section">
+        <h3>Seconds (:SS)</h3>
+        <label>
+            Color
+            <input type="color" id="secColor">
+        </label>
+        <label>
+            Font size
+            <span class="valueBadge" id="secFontSizeValue"></span>
+        </label>
+        <input type="range" id="secFontSize" min="1" max="400" step="1">
+    </div>
+
+    <div class="section">
+        <h3>Profiles</h3>
+        <label>
+            Profile name
+        </label>
+        <input type="text" id="profileName" placeholder="e.g. AMOLED big">
+
+        <button id="saveProfileBtn">Save</button>
+        <button id="deleteProfileBtn">Delete</button>
+
+        <label>
+            Load profile
+        </label>
+        <select id="profileSelect"></select>
+        <button id="loadProfileBtn">Load</button>
+    </div>
+</div>
+
+<script src="persistedState.js"></script>
+<script src="cofiguration.js"></script>
