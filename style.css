@@ -39,16 +39,16 @@ body {
 }
 
 #dateLine {
-    /* margin-bottom: 4vmin; */
     /* default; overridden by JS */
-    line-height: 1.8em;
-    font-size: 4vmin;
+    line-height: 2em;
+    font-size: 10.8vmin;
+    color: #fb04ad
 }
 
 #timeLine {
     /* default; overridden by JS */
     line-height: 0.9em;
-    font-size: 25vmin;
+    font-size: 75vmin;
 }
 
 #dateLine, #timeLine {
@@ -72,30 +72,29 @@ body {
 }
 
 .numeric-group {
-    letter-spacing: 0.05em;
+    letter-spacing: 0.09em;
 }
 
-#colon {
+#colon-min, #colon-sec {
     display: inline-block;
     /* transform: scaleX(0.55);   compress horizontally */
-    margin: 0 -0.15em;          /* pull it tighter */
+    margin: 0 -0.14em;          /* pull it tighter */
 }
 
-/* #timeMain {
-    margin-right: 0.5vmin;
-} */
-
-#sec {
+#sec, #colon-sec {
     /* default smaller; overridden by JS */
-    font-size: 12vmin;
+    font-size: 38vmin;
     line-height: 0.1em;
     color: #00aaff;
-    /* padding-left: 2vmin; */
 }
 
 /* Weekday / spacing feel */
-#weekday, #day, #month, #year {
+#day, #month, #year {
     margin-right: 1.5ch;
+}
+
+#weekday {
+    margin-right: 2.5ch;
 }
 
 #menuButton {

@@ -39,6 +39,7 @@ async function loadMenuPanel() {
 document.getElementById('menuButton').addEventListener('click', async () => {
     if (!menuLoaded) {
         await loadMenuPanel();
+        initConfiguration()
     }
 
     const panel = document.getElementById('menuPanel');

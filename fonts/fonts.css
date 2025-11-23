@@ -5,6 +5,12 @@
 */
 
 @font-face {
+    font-family: "Digital7Mono";
+    src: url("digital-7 (mono).ttf") format("truetype");
+    font-display: swap;
+}
+
+@font-face {
     font-family: "DSEG7Classic";
     src:
         url("DSEG7Classic-Regular.woff2") format("woff2"),
