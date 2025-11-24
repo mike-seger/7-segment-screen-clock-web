@@ -4,7 +4,10 @@ This is a simple 7-segment clock for the web.
 
 <img src="screens/960x540.png">
 
-Simply open [index.html](./index.html) with your web browser.
+Simply open [index.html](https://mike-seger.github.io/7-segment-screen-clock-web/) with your web browser.
+
+<a href="./index.html" target="_blank">Open index</a>
+
 
 ## Run a local webserver in the directory
 
