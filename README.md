@@ -6,7 +6,7 @@ This is a simple 7-segment clock for the web.
 
 Simply open [index.html](https://mike-seger.github.io/7-segment-screen-clock-web/) with your web browser.
 
-<a href="./index.html" target="_blank">Open index</a>
+<a href="https://mike-seger.github.io/7-segment-screen-clock-web/" target="_blank">Screen Clock</a>
 
 
 ## Run a local webserver in the directory
