@@ -232,7 +232,7 @@ function initConfiguration() {
         applyState();
     }
 
-    fetch("fonts/fonts.css")
+    fetch("../fonts/fonts.css")
         .then(r => r.text())
         .then(cssText => {
             const fontFamilies = Array.from(cssText.matchAll(/font-family:\s*["']([^"']+)["']/g))
