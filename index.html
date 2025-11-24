@@ -50,16 +50,35 @@ function updateClock() {
 }
 
 async function toggleFullscreen() {
-  // If already in fullscreen → exit
-  if (document.fullscreenElement) {
-    await document.exitFullscreen();
+  const doc = document;
+  const docEl = document.documentElement;
+
+  const isFull =
+    doc.fullscreenElement ||
+    doc.webkitFullscreenElement ||
+    doc.msFullscreenElement;
+
+  if (isFull) {
+    if (doc.exitFullscreen) {
+      await doc.exitFullscreen();
+    } else if (doc.webkitExitFullscreen) {
+      doc.webkitExitFullscreen();
+    } else if (doc.msExitFullscreen) {
+      doc.msExitFullscreen();
+    }
     return;
   }
 
-  // If not in fullscreen → enter
-  const el = document.documentElement;   // whole page, or choose a smaller element
-  if (el.requestFullscreen) {
-    await el.requestFullscreen();
+  // enter
+  if (docEl.requestFullscreen) {
+    await docEl.requestFullscreen();
+  } else if (docEl.webkitRequestFullscreen) {
+    // Safari
+    docEl.webkitRequestFullscreen();
+  } else if (docEl.msRequestFullscreen) {
+    docEl.msRequestFullscreen();
+  } else {
+    console.warn("Fullscreen API not supported on this device/browser");
   }
 }
 
