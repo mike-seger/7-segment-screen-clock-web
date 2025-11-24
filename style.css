@@ -36,6 +36,7 @@ html, body {
 }
 
 #clock {
+    display: none;
     text-align: center;
 }
 

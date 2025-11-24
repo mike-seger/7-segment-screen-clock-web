@@ -68,6 +68,31 @@ updateClock();
 document.getElementById("year").addEventListener("click", toggleFullscreen);
 document.addEventListener("contextmenu", e => { e.preventDefault(); });
 
+(async function showClockWhenFontReady() {
+  // Ensure full page has loaded
+  if (document.readyState !== "complete") {
+    await new Promise(resolve =>
+      window.addEventListener("load", resolve, { once: true })
+    );
+  }
+
+  // Now explicitly request the font used in #clock
+  try {
+    // size can be anything, but must be realistic CSS font-size syntax
+    await document.fonts.load('80px "Digital7Mono"');
+    // Optionally, you can wait for *all* fonts as well:
+    // await document.fonts.ready;
+  } catch (e) {
+    console.warn("Digital7Mono load error (API-level):", e);
+  }
+
+  // Finally show the clock
+  const clock = document.getElementById("clock");
+  if (clock) {
+    clock.style.display = "block";
+  }
+})();
+
 </script>
 
 <!-- Configuration -->
