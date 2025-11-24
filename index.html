@@ -2,8 +2,8 @@
 <html>
 <head>
     <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=0.67,
-            maximum-scale=0.67, minimum-scale=0.67, user-scalable=no" />
+    <meta name="viewport" content="width=device-width, initial-scale=0.67,
+      maximum-scale=0.67, minimum-scale=0.67, user-scalable=no" />
     <!-- <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"> -->
     <link rel="stylesheet" href="style.css">
 </head>
@@ -33,8 +33,6 @@
 
 
 <script>
-// ---------------- CLOCK UPDATE ----------------
-
 const days   = ["SUN","MON","TUE","WED","THU","FRI","SAT"];
 const months = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
 
@@ -55,31 +53,15 @@ function updateClock() {
 }
 
 let rotation = 0;
-
 function rotateClock() {
     const clock = document.getElementById("clock");
-
-    // Advance rotation counter-clockwise by 90°
     rotation = (rotation + 90) % 360;
-
-    // --- FIT TO VIEWPORT AFTER ROTATION ---
-
     const vw = window.innerWidth;
     const vh = window.innerHeight;
-
     let scale;
-
-    if (rotation % 180 === 0) {
-        // 0° or 180°  → normal orientation
-        scale = 1;
-    } else {
-        // 90° or 270° → width/height swap
-        // Fit the rotated bounding box inside the viewport
-        scale = Math.min(vw / vh, vh / vw);
-    }
-
-    clock.style.transform =
-        `rotate(${rotation}deg) scale(${scale})`;
+    if (rotation % 180 === 0) scale = 1;
+    else scale = Math.min(vw / vh, vh / vw);
+    clock.style.transform = `rotate(${rotation}deg) scale(${scale})`;
 }
 
 async function toggleFullscreen() {
@@ -92,27 +74,16 @@ async function toggleFullscreen() {
     doc.msFullscreenElement;
 
   if (isFull) {
-    if (doc.exitFullscreen) {
-      await doc.exitFullscreen();
-    } else if (doc.webkitExitFullscreen) {
-      doc.webkitExitFullscreen();
-    } else if (doc.msExitFullscreen) {
-      doc.msExitFullscreen();
-    }
+    if (doc.exitFullscreen) await doc.exitFullscreen();
+    else if (doc.webkitExitFullscreen) doc.webkitExitFullscreen();
+    else if (doc.msExitFullscreen) doc.msExitFullscreen();
     return;
   }
 
-  // enter
-  if (docEl.requestFullscreen) {
-    await docEl.requestFullscreen();
-  } else if (docEl.webkitRequestFullscreen) {
-    // Safari
-    docEl.webkitRequestFullscreen();
-  } else if (docEl.msRequestFullscreen) {
-    docEl.msRequestFullscreen();
-  } else {
-    console.warn("Fullscreen API not supported on this device/browser");
-  }
+  if (docEl.requestFullscreen) await docEl.requestFullscreen();
+  else if (docEl.webkitRequestFullscreen) docEl.webkitRequestFullscreen();
+  else if (docEl.msRequestFullscreen) docEl.msRequestFullscreen();
+  else console.warn("Fullscreen API not supported on this device/browser");
 }
 
 setInterval(updateClock, 250);
@@ -122,28 +93,17 @@ document.getElementById("weekday").addEventListener("click", rotateClock);
 document.addEventListener("contextmenu", e => { e.preventDefault(); });
 
 (async function showClockWhenFontReady() {
-  // Ensure full page has loaded
   if (document.readyState !== "complete") {
     await new Promise(resolve =>
       window.addEventListener("load", resolve, { once: true })
     );
   }
 
-  // Now explicitly request the font used in #clock
-  try {
-    // size can be anything, but must be realistic CSS font-size syntax
-    await document.fonts.load('80px "Digital7Mono"');
-    // Optionally, you can wait for *all* fonts as well:
-    // await document.fonts.ready;
-  } catch (e) {
-    console.warn("Digital7Mono load error (API-level):", e);
-  }
+  try { await document.fonts.load('80px "Digital7Mono"');
+  } catch (e) { console.warn("Digital7Mono load error (API-level):", e);}
 
-  // Finally show the clock
   const clock = document.getElementById("clock");
-  if (clock) {
-    clock.style.display = "flex";
-  }
+  if (clock) clock.style.display = "flex";
 })();
 
 </script>

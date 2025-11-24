@@ -11,7 +11,7 @@
 
 @font-face {
     font-family: "Digital7Mono";
-    src: url("fonts/digital-7 (mono).ttf") format("truetype");
+    src: url("digital-7 (mono).ttf") format("truetype");
     font-display: swap;
 }
 
@@ -31,7 +31,6 @@ html, body {
     -moz-user-select: none;  /* Firefox */
     -ms-user-select: none;  /* old IE / Edge */
     user-select: none;  /* standard */
-
     -webkit-touch-callout: none; /* iOS only but harmless */
 }
 
@@ -62,20 +61,14 @@ html, body {
 }
 
 #dateLine {
-    /* default; overridden by JS */
     line-height: 1.5em;
-    /* font-size: 20.8vmin; */
     font-size: min(16vh, 9vw);
-    /* color: #fb04ad; */
     color: #ff006c;
     margin-left: 0 2em
-     /* color: #e6000f; */
 }
 
 #timeLine {
-    /* default; overridden by JS */
     line-height: 0.9em;
-    /* font-size: 75vmin; */
     font-size: min(48vh, 27vw);
 }
 
@@ -92,10 +85,6 @@ html, body {
 .alpha-group {
     display: inline-block;
     letter-spacing: 0.1em;
-    /* transform-origin: 50% 70%; */
-    /* small padding to mitigate clipping when scaled */
-    /* padding-top: 0.1em; */
-    /* padding-bottom: 0.1em; */
     font-family: Digital7Mono, monospace;
 }
 
@@ -110,14 +99,11 @@ html, body {
 }
 
 #sec, #colon-sec {
-    /* default smaller; overridden by JS */
-    /* font-size: 38vmin; */
     font-size: min(32vh, 18vw);
     line-height: 0.1em;
     color: #00aaff;
 }
 
-/* Weekday / spacing feel */
 #day, #month, #year {
     margin-right: 1ch;
 }
