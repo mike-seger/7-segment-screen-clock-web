@@ -35,16 +35,22 @@ html, body {
     -webkit-touch-callout: none; /* iOS only but harmless */
 }
 
+/* This is still the element you hide/show after fonts load */
 #clock {
-    transform-origin: center center;
-    transition: transform 0.35s ease;
-    position: fixed;      /* prevents clipping on iOS */
+    position: fixed;
     top: 0;
     left: 0;
     width: 100vw;
     height: 100vh;
+
     display: none;
-    text-align: center;
+    align-items: center;     /* vertical center */
+    justify-content: center; /* horizontal center */
+}
+
+#clockInner {
+    transform-origin: center center;
+    transition: transform 0.35s ease;
 }
 
 /* Lines */

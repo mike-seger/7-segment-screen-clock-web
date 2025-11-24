@@ -13,21 +13,24 @@
 <div id="menuPlaceholder"></div>
 
 <div id="clock">
-    <div id="dateLine">
-        <span id="weekday" class="alpha-group"></span>
-        <span id="day" class="numeric-group"></span>
-        <span id="month" class="alpha-group"></span>
-        <span id="year" class="numeric-group"></span>
-    </div>
+    <div id="clockInner">
+        <div id="dateLine">
+            <span id="weekday" class="alpha-group"></span>
+            <span id="day" class="numeric-group"></span>
+            <span id="month" class="alpha-group"></span>
+            <span id="year" class="numeric-group"></span>
+        </div>
 
-    <div id="timeLine">
-        <span id="hour" class="numeric-group"></span>
-        <span id="colon-min" class="numeric-group">:</span>
-        <span id="minute" class="numeric-group"></span>
-        <span id="colon-sec" class="numeric-group">:</span>
-        <span id="sec" class="numeric-group"></span>
+        <div id="timeLine">
+            <span id="hour" class="numeric-group"></span>
+            <span id="colon-min" class="numeric-group">:</span>
+            <span id="minute" class="numeric-group"></span>
+            <span id="colon-sec" class="numeric-group">:</span>
+            <span id="sec" class="numeric-group"></span>
+        </div>
     </div>
 </div>
+
 
 <script>
 // ---------------- CLOCK UPDATE ----------------
@@ -139,7 +142,7 @@ document.addEventListener("contextmenu", e => { e.preventDefault(); });
   // Finally show the clock
   const clock = document.getElementById("clock");
   if (clock) {
-    clock.style.display = "block";
+    clock.style.display = "flex";
   }
 })();
 
