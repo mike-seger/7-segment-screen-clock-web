@@ -2,7 +2,9 @@
 
 This is a simple 7-segment clock for the web.
 
-Simply open index.html with your web browser.
+<img src="screens/960x540.png">
+
+Simply open [index.html](./index.html) with your web browser.
 
 ## Run a local webserver in the directory
 
