@@ -26,6 +26,15 @@ body {
     overflow: hidden;
 }
 
+html, body {
+    -webkit-user-select: none;  /* Chrome, Android, Safari */
+    -moz-user-select: none;  /* Firefox */
+    -ms-user-select: none;  /* old IE / Edge */
+    user-select: none;  /* standard */
+
+    -webkit-touch-callout: none; /* iOS only but harmless */
+}
+
 #clock {
     text-align: center;
 }
@@ -40,15 +49,20 @@ body {
 
 #dateLine {
     /* default; overridden by JS */
-    line-height: 2em;
-    font-size: 10.8vmin;
-    color: #fb04ad
+    line-height: 1.5em;
+    /* font-size: 20.8vmin; */
+    font-size: min(16vh, 9vw);
+    /* color: #fb04ad; */
+    color: #ff006c;
+    margin-left: 2em
+     /* color: #e6000f; */
 }
 
 #timeLine {
     /* default; overridden by JS */
     line-height: 0.9em;
-    font-size: 75vmin;
+    /* font-size: 75vmin; */
+    font-size: min(48vh, 27vw);
 }
 
 #dateLine, #timeLine {
@@ -83,18 +97,19 @@ body {
 
 #sec, #colon-sec {
     /* default smaller; overridden by JS */
-    font-size: 38vmin;
+    /* font-size: 38vmin; */
+    font-size: min(32vh, 18vw);
     line-height: 0.1em;
     color: #00aaff;
 }
 
 /* Weekday / spacing feel */
 #day, #month, #year {
-    margin-right: 1.5ch;
+    margin-right: 1ch;
 }
 
 #weekday {
-    margin-right: 2.5ch;
+    margin-right: 1.5ch;
 }
 
 #menuButton {

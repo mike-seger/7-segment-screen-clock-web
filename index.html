@@ -1,8 +1,9 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta charset="UTF-8">
-<link rel="stylesheet" href="style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
@@ -48,8 +49,24 @@ function updateClock() {
     document.getElementById("year").textContent     = String(now.getFullYear());
 }
 
+async function toggleFullscreen() {
+  // If already in fullscreen → exit
+  if (document.fullscreenElement) {
+    await document.exitFullscreen();
+    return;
+  }
+
+  // If not in fullscreen → enter
+  const el = document.documentElement;   // whole page, or choose a smaller element
+  if (el.requestFullscreen) {
+    await el.requestFullscreen();
+  }
+}
+
 setInterval(updateClock, 250);
 updateClock();
+document.getElementById("year").addEventListener("click", toggleFullscreen);
+document.addEventListener("contextmenu", e => { e.preventDefault(); });
 
 </script>
 

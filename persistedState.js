@@ -17,9 +17,9 @@ const DEFAULT_STATE = {
 
 let state = { ...DEFAULT_STATE };
 
-const STORAGE_KEY_CURRENT  = "amoledClock_state";
-const STORAGE_KEY_PROFILES = "amoledClock_profiles";   // JSON array of names
-const PROFILE_PREFIX       = "amoledClock_profile_";
+const STORAGE_KEY_CURRENT  = "screenClock_state";
+const STORAGE_KEY_PROFILES = "screenClock_profiles";   // JSON array of names
+const PROFILE_PREFIX       = "screenClock_profile_";
 
 function loadCurrentState() {
     try {
