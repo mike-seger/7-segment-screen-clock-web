@@ -36,6 +36,13 @@ html, body {
 }
 
 #clock {
+    transform-origin: center center;
+    transition: transform 0.35s ease;
+    position: fixed;      /* prevents clipping on iOS */
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
     display: none;
     text-align: center;
 }

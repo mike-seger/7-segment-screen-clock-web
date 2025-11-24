@@ -51,6 +51,34 @@ function updateClock() {
     document.getElementById("year").textContent     = String(now.getFullYear());
 }
 
+let rotation = 0;
+
+function rotateClock() {
+    const clock = document.getElementById("clock");
+
+    // Advance rotation counter-clockwise by 90°
+    rotation = (rotation + 90) % 360;
+
+    // --- FIT TO VIEWPORT AFTER ROTATION ---
+
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+
+    let scale;
+
+    if (rotation % 180 === 0) {
+        // 0° or 180°  → normal orientation
+        scale = 1;
+    } else {
+        // 90° or 270° → width/height swap
+        // Fit the rotated bounding box inside the viewport
+        scale = Math.min(vw / vh, vh / vw);
+    }
+
+    clock.style.transform =
+        `rotate(${rotation}deg) scale(${scale})`;
+}
+
 async function toggleFullscreen() {
   const doc = document;
   const docEl = document.documentElement;
@@ -87,6 +115,7 @@ async function toggleFullscreen() {
 setInterval(updateClock, 250);
 updateClock();
 document.getElementById("year").addEventListener("click", toggleFullscreen);
+document.getElementById("weekday").addEventListener("click", rotateClock);
 document.addEventListener("contextmenu", e => { e.preventDefault(); });
 
 (async function showClockWhenFontReady() {
