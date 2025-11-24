@@ -6,6 +6,8 @@ This is a simple 7-segment clock for the web.
 
 Simply open [7-segment-screen-clock-web](https://mike-seger.github.io/7-segment-screen-clock-web/) to see it live.
 
+Clicking on the year toggles the full screen mode.
+
 ## Run a local webserver for extended functionality
 
 In order to run the clock with configuration functionality without CORS issues, you need to run a local web
