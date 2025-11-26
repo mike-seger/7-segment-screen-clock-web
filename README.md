@@ -17,3 +17,14 @@ server.
 python3 ./no-cache-server.py
 ```
 
+## embedded clock page on android device
+
+### Push the html file to the device
+This works oob if only a single device is connected to your computer.  
+Otherwise check the adb docs.
+
+```
+adb shell mkdir /sdcard/Download/clock
+adb push index-embedded.html /sdcard/Download/clock/index-embedded.html
+```
+
