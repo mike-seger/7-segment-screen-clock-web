@@ -26,30 +26,8 @@ body {
     overflow: hidden;
 }
 
-html, body {
-    -webkit-user-select: none;  /* Chrome, Android, Safari */
-    -moz-user-select: none;  /* Firefox */
-    -ms-user-select: none;  /* old IE / Edge */
-    user-select: none;  /* standard */
-    -webkit-touch-callout: none; /* iOS only but harmless */
-}
-
-/* This is still the element you hide/show after fonts load */
 #clock {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-
-    display: none;
-    align-items: center;     /* vertical center */
-    justify-content: center; /* horizontal center */
-}
-
-#clockInner {
-    transform-origin: center center;
-    transition: transform 0.35s ease;
+    text-align: center;
 }
 
 /* Lines */
@@ -61,21 +39,19 @@ html, body {
 }
 
 #dateLine {
-    line-height: 1.5em;
-    font-size: min(16vh, 9vw);
-    color: #ff006c;
-    margin-left: 0 2em
+    line-height: 2em;
+    font-size: 10.8vmin;
 }
 
 #timeLine {
     line-height: 0.9em;
-    font-size: min(48vh, 27vw);
+    font-size: 75vmin;
 }
 
 #dateLine, #timeLine {
     display: flex;
     gap: 0;  
-    justify-content: center;   /* centers the whole line */
+    justify-content: center;
     align-items: baseline;  
 }
 
@@ -94,38 +70,19 @@ html, body {
 
 #colon-min, #colon-sec {
     display: inline-block;
-    /* transform: scaleX(0.55);   compress horizontally */
-    margin: 0 -0.14em;          /* pull it tighter */
+    margin: 0 -0.14em;
 }
 
 #sec, #colon-sec {
-    font-size: min(32vh, 18vw);
+    font-size: 38vmin;
     line-height: 0.1em;
     color: #00aaff;
 }
 
 #day, #month, #year {
-    margin-right: 1ch;
-}
-
-#weekday {
     margin-right: 1.5ch;
 }
 
-#menuButton {
-    position: fixed;
-    top: 10px;
-    right: 10px;
-    width: 32px;
-    height: 32px;
-    line-height: 32px;
-    text-align: center;
-    background: #111;
-    color: var(--on-color);
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 20px;
-    z-index: 1000;
-    user-select: none;
-    display: none;
+#weekday {
+    margin-right: 2.5ch;
 }
