@@ -26,8 +26,30 @@ body {
     overflow: hidden;
 }
 
+html, body {
+    -webkit-user-select: none;  /* Chrome, Android, Safari */
+    -moz-user-select: none;  /* Firefox */
+    -ms-user-select: none;  /* old IE / Edge */
+    user-select: none;  /* standard */
+    -webkit-touch-callout: none; /* iOS only but harmless */
+}
+
+/* This is still the element you hide/show after fonts load */
 #clock {
-    text-align: center;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+
+    display: none;
+    align-items: center;     /* vertical center */
+    justify-content: center; /* horizontal center */
+}
+
+#clockInner {
+    transform-origin: center center;
+    transition: transform 0.35s ease;
 }
 
 /* Lines */
@@ -39,19 +61,21 @@ body {
 }
 
 #dateLine {
-    line-height: 2em;
-    font-size: 10.8vmin;
+    line-height: 1.5em;
+    font-size: min(16vh, 9vw);
+    color: #ff006c;
+    margin-left: 0 2em
 }
 
 #timeLine {
     line-height: 0.9em;
-    font-size: 75vmin;
+    font-size: min(48vh, 27vw);
 }
 
 #dateLine, #timeLine {
     display: flex;
     gap: 0;  
-    justify-content: center;
+    justify-content: center;   /* centers the whole line */
     align-items: baseline;  
 }
 
@@ -70,19 +94,38 @@ body {
 
 #colon-min, #colon-sec {
     display: inline-block;
-    margin: 0 -0.14em;
+    /* transform: scaleX(0.55);   compress horizontally */
+    margin: 0 -0.14em;          /* pull it tighter */
 }
 
 #sec, #colon-sec {
-    font-size: 38vmin;
+    font-size: min(32vh, 18vw);
     line-height: 0.1em;
     color: #00aaff;
 }
 
 #day, #month, #year {
-    margin-right: 1.5ch;
+    margin-right: 1ch;
 }
 
 #weekday {
-    margin-right: 2.5ch;
+    margin-right: 1.5ch;
+}
+
+#menuButton {
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    width: 32px;
+    height: 32px;
+    line-height: 32px;
+    text-align: center;
+    background: #111;
+    color: var(--on-color);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 20px;
+    z-index: 1000;
+    user-select: none;
+    display: none;
 }

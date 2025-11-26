@@ -1,28 +1,36 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta charset="UTF-8">
-<link rel="stylesheet" href="style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=0.67,
+      maximum-scale=0.67, minimum-scale=0.67, user-scalable=no" />
+    <!-- <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"> -->
+    <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
+<div id="menuButton">≡</div>
+<div id="menuPlaceholder"></div>
 
 <div id="clock">
-    <div id="dateLine">
-        <span id="weekday" class="alpha-group"></span>
-        <span id="day" class="numeric-group"></span>
-        <span id="month" class="alpha-group"></span>
-        <span id="year" class="numeric-group"></span>
-    </div>
+    <div id="clockInner">
+        <div id="dateLine">
+            <span id="weekday" class="alpha-group"></span>
+            <span id="day" class="numeric-group"></span>
+            <span id="month" class="alpha-group"></span>
+            <span id="year" class="numeric-group"></span>
+        </div>
 
-    <div id="timeLine">
-        <span id="hour" class="numeric-group"></span>
-        <span id="colon-min" class="numeric-group">:</span>
-        <span id="minute" class="numeric-group"></span>
-        <span id="colon-sec" class="numeric-group">:</span>
-        <span id="sec" class="numeric-group"></span>
+        <div id="timeLine">
+            <span id="hour" class="numeric-group"></span>
+            <span id="colon-min" class="numeric-group">:</span>
+            <span id="minute" class="numeric-group"></span>
+            <span id="colon-sec" class="numeric-group">:</span>
+            <span id="sec" class="numeric-group"></span>
+        </div>
     </div>
 </div>
+
 
 <script>
 const days   = ["SUN","MON","TUE","WED","THU","FRI","SAT"];
@@ -44,10 +52,67 @@ function updateClock() {
     document.getElementById("year").textContent     = String(now.getFullYear());
 }
 
+let rotation = 0;
+function rotateClock() {
+    const clock = document.getElementById("clock");
+    rotation = (rotation + 90) % 360;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    let scale;
+    if (rotation % 180 === 0) scale = 1;
+    else scale = Math.min(vw / vh, vh / vw);
+    clock.style.transform = `rotate(${rotation}deg) scale(${scale})`;
+}
+
+async function toggleFullscreen() {
+  const doc = document;
+  const docEl = document.documentElement;
+
+  const isFull =
+    doc.fullscreenElement ||
+    doc.webkitFullscreenElement ||
+    doc.msFullscreenElement;
+
+  if (isFull) {
+    if (doc.exitFullscreen) await doc.exitFullscreen();
+    else if (doc.webkitExitFullscreen) doc.webkitExitFullscreen();
+    else if (doc.msExitFullscreen) doc.msExitFullscreen();
+    return;
+  }
+
+  if (docEl.requestFullscreen) await docEl.requestFullscreen();
+  else if (docEl.webkitRequestFullscreen) docEl.webkitRequestFullscreen();
+  else if (docEl.msRequestFullscreen) docEl.msRequestFullscreen();
+  else console.warn("Fullscreen API not supported on this device/browser");
+}
+
 setInterval(updateClock, 250);
 updateClock();
+document.getElementById("year").addEventListener("click", toggleFullscreen);
+document.getElementById("weekday").addEventListener("click", rotateClock);
+document.addEventListener("contextmenu", e => { e.preventDefault(); });
+
+(async function showClockWhenFontReady() {
+  if (document.readyState !== "complete") {
+    await new Promise(resolve =>
+      window.addEventListener("load", resolve, { once: true })
+    );
+  }
+
+  try { await document.fonts.load('80px "Digital7Mono"');
+  } catch (e) { console.warn("Digital7Mono load error (API-level):", e);}
+
+  const clock = document.getElementById("clock");
+  if (clock) clock.style.display = "flex";
+})();
 
 </script>
+
+<!-- Configuration -->
+<!-- <script src="configuration/persistedState.js"></script>
+<script src="configuration/cofiguration.js"></script>
+<script src="configuration/menu.js"></script>
+<link rel="stylesheet" href="fonts/fonts.css"> -->
 
 </body>
 </html>
