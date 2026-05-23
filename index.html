@@ -54,15 +54,32 @@ function updateClock() {
 }
 
 let rotation = 0;
-function rotateClock() {
-    const clock = document.getElementById("clock");
-    rotation = (rotation + 90) % 360;
+function applyClockTransform() {
+  const clock = document.getElementById("clock");
+  const clockInner = document.getElementById("clockInner");
+  if (!clock || !clockInner) return;
+
     const vw = window.innerWidth;
     const vh = window.innerHeight;
-    let scale;
-    if (rotation % 180 === 0) scale = 1;
-    else scale = Math.min(vw / vh, vh / vw);
-    clock.style.transform = `rotate(${rotation}deg) scale(${scale})`;
+  const innerWidth = clockInner ? clockInner.offsetWidth : vw;
+  const innerHeight = clockInner ? clockInner.offsetHeight : vh;
+  if (!innerWidth || !innerHeight) return;
+  let scale = 1;
+
+  if (rotation % 180 === 0) {
+    scale = Math.min(vw / innerWidth, vh / innerHeight);
+  } else {
+    // After a 90/270 degree turn, the content's width/height swap.
+    // Use the real rendered size so the rotated clock stays inside the viewport.
+    scale = Math.min(vw / innerHeight, vh / innerWidth);
+  }
+
+  clockInner.style.transform = `rotate(${rotation}deg) scale(${scale})`;
+}
+
+function rotateClock() {
+  rotation = (rotation + 90) % 360;
+  applyClockTransform();
 }
 
 async function toggleFullscreen() {
@@ -89,8 +106,11 @@ async function toggleFullscreen() {
 
 setInterval(updateClock, 250);
 updateClock();
+applyClockTransform();
 document.getElementById("year").addEventListener("click", toggleFullscreen);
 document.getElementById("weekday").addEventListener("click", rotateClock);
+window.addEventListener("resize", applyClockTransform);
+window.addEventListener("orientationchange", applyClockTransform);
 document.addEventListener("contextmenu", e => { e.preventDefault(); });
 
 (async function showClockWhenFontReady() {
@@ -104,7 +124,10 @@ document.addEventListener("contextmenu", e => { e.preventDefault(); });
   } catch (e) { console.warn("Digital7Mono load error (API-level):", e);}
 
   const clock = document.getElementById("clock");
-  if (clock) clock.style.display = "flex";
+  if (clock) {
+    clock.style.display = "flex";
+    applyClockTransform();
+  }
 })();
 
 </script>
