@@ -45,8 +45,9 @@ function fitDateLineToWidth(dateLine, targetWidth) {
   const baseWidth = dateLine.offsetWidth || 0;
   if (!baseWidth) return;
 
-  const scaleX = Math.max(1, targetWidth / baseWidth);
-  dateLine.style.transform = `scaleX(${scaleX})`;
+  const scaleX = targetWidth / baseWidth;
+  if (!Number.isFinite(scaleX) || scaleX <= 0) return;
+  dateLine.style.transform = `scale(${scaleX})`;
 }
 
 function ensureTimeScaleProbe() {
