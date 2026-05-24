@@ -70,6 +70,7 @@ function computeSizingWeights(weightGap, fr) {
 function initConfiguration() {
     const els = {
         numericFontSelect: document.getElementById("numericFontSelect"),
+        dualFont:         document.getElementById("dualFont"),
         alphaFontSelect:   document.getElementById("alphaFontSelect"),
         numericScale:      document.getElementById("numericScale"),
         alphaScale:        document.getElementById("alphaScale"),
@@ -110,6 +111,22 @@ function initConfiguration() {
         els.weightGapValue.textContent    = sizing.weightGap.toFixed(2) + "x";
         els.frValue.textContent           = sizing.fr.toFixed(2) + "x";
         els.secFontFactorValue.textContent = state.secFontFactor.toFixed(2) + "x";
+    }
+
+    function syncDualFontUi() {
+        const dualEnabled = state.dualFont !== false;
+        if (els.dualFont) {
+            els.dualFont.checked = dualEnabled;
+        }
+        if (els.alphaFontSelect) {
+            els.alphaFontSelect.disabled = !dualEnabled;
+        }
+        if (!dualEnabled) {
+            state.alphaFont = state.numericFont;
+            if (els.alphaFontSelect && els.numericFontSelect) {
+                els.alphaFontSelect.value = els.numericFontSelect.value;
+            }
+        }
     }
 
     function normalizeSecFontFactor(value) {
@@ -206,6 +223,7 @@ function initConfiguration() {
     }
 
     function initFormFromState() {
+        state.dualFont = state.dualFont !== false;
         state.numericOffset = normalizeOffsetFactor(state.numericOffset);
         state.alphaOffset = normalizeOffsetFactor(state.alphaOffset);
         state.weightGap = normalizeSizingWeight(state.weightGap, 0.07);
@@ -226,12 +244,15 @@ function initConfiguration() {
         els.secColor.value      = state.secColor;
         els.secFontFactor.value = state.secFontFactor;
 
+        syncDualFontUi();
+
         updateBadgesFromState();
 
         // font selects are set after fonts are loaded (see populateFontSelects)
     }
 
     function readFormIntoState() {
+        state.dualFont = els.dualFont ? els.dualFont.checked : true;
         state.numericScale  = Number(els.numericScale.value);
         state.alphaScale    = Number(els.alphaScale.value);
         state.numericOffset = normalizeOffsetFactor(els.numericOffset.value);
@@ -249,9 +270,13 @@ function initConfiguration() {
         if (els.numericFontSelect.value) {
             state.numericFont = els.numericFontSelect.value;
         }
-        if (els.alphaFontSelect.value) {
+        if (state.dualFont && els.alphaFontSelect.value) {
             state.alphaFont = els.alphaFontSelect.value;
+        } else {
+            state.alphaFont = state.numericFont;
         }
+
+        syncDualFontUi();
 
         updateBadgesFromState();
     }
@@ -356,7 +381,8 @@ function initConfiguration() {
             els.dateColor,
             els.timeColor,
             els.secColor, els.secFontFactor,
-            els.numericFontSelect, els.alphaFontSelect
+            els.numericFontSelect, els.alphaFontSelect,
+            els.dualFont
         ];
 
         function attachSelectArrowKeys(selectEl) {
@@ -481,9 +507,18 @@ function initConfiguration() {
             alphaSel.value = state.alphaFont;
         }
 
+        if (state.dualFont === false) {
+            state.alphaFont = state.numericFont;
+            alphaSel.value = numericSel.value;
+        }
+
         // ensure state uses whatever select currently shows
         state.numericFont = numericSel.value || state.numericFont;
-        state.alphaFont   = alphaSel.value || state.alphaFont;
+        state.alphaFont   = state.dualFont === false
+            ? state.numericFont
+            : (alphaSel.value || state.alphaFont);
+
+        syncDualFontUi();
 
         applyState();
     }

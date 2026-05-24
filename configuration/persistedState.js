@@ -3,6 +3,7 @@
 const DEFAULT_STATE = {
     numericFont: "Digital7Mono",
     alphaFont: "Digital7Mono",
+    dualFont: true,
     numericScale: 100,
     alphaScale: 100,
     numericOffset: 0,
@@ -34,6 +35,8 @@ function normalizeWeight(value, fallback) {
 function normalizeSizingState(inputState) {
     const source = inputState && typeof inputState === "object" ? inputState : {};
     const next = { ...DEFAULT_STATE, ...source };
+
+    next.dualFont = source.dualFont !== false;
 
     const legacyDateFontSize = Number(source.dateFontSize);
     const legacyTimeFontSize = Number(source.timeFontSize);
