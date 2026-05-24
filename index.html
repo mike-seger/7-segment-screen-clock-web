@@ -99,41 +99,19 @@ function fitDateLineToWidth(dateLine, targetWidth) {
   dateLine.style.fontSize = `${fittedFontSize}px`;
 }
 
-function syncVisualRowGap(dateLine, timeLine) {
+function applyRowGap(dateLine, timeLine) {
   if (!dateLine || !timeLine) return;
 
   const rowGapFactor = Number.parseFloat(dateLine.dataset.rowGapFactor || "0");
   const effectiveDateFontSize = Number.parseFloat(getComputedStyle(dateLine).fontSize || "0");
-  if (!Number.isFinite(effectiveDateFontSize) || effectiveDateFontSize <= 0) return;
+  if (!Number.isFinite(effectiveDateFontSize) || effectiveDateFontSize <= 0) {
+    timeLine.style.marginTop = "0px";
+    return;
+  }
 
-  timeLine.style.marginTop = "0px";
-
-  const visualBounds = (lineEl) => {
-    const spans = Array.from(lineEl.querySelectorAll("span"));
-    if (spans.length === 0) {
-      const rect = lineEl.getBoundingClientRect();
-      return { top: rect.top, bottom: rect.bottom };
-    }
-
-    let top = Number.POSITIVE_INFINITY;
-    let bottom = Number.NEGATIVE_INFINITY;
-
-    spans.forEach((span) => {
-      const rect = span.getBoundingClientRect();
-      if (rect.top < top) top = rect.top;
-      if (rect.bottom > bottom) bottom = rect.bottom;
-    });
-
-    return { top, bottom };
-  };
-
-  const dateBounds = visualBounds(dateLine);
-  const timeBounds = visualBounds(timeLine);
-  const currentVisualGap = timeBounds.top - dateBounds.bottom;
-  const desiredVisualGap = effectiveDateFontSize * rowGapFactor;
-  const compensation = desiredVisualGap - currentVisualGap;
-
-  timeLine.style.marginTop = `${compensation}px`;
+  const gapPx = effectiveDateFontSize * rowGapFactor;
+  timeLine.style.marginTop = `${gapPx}px`;
+  dateLine.style.marginBottom = "0px";
 }
 
 function ensureTimeScaleProbe() {
@@ -263,21 +241,23 @@ function applyClockTransform() {
   const baseTimeWidth = Math.max(worstTimeWidth, liveTimeWidth) || vw;
   const dateTargetWidth = baseTimeWidth * 0.7;
   fitDateLineToWidth(dateLine, dateTargetWidth);
-  syncVisualRowGap(dateLine, timeLine);
+  applyRowGap(dateLine, timeLine);
 
   const fittedDateWidth = dateLine ? dateLine.offsetWidth : 0;
   const effectiveBlockWidth = Math.max(baseTimeWidth, fittedDateWidth) || vw;
   const blockHeight = clockInner.offsetHeight || vh;
   if (!effectiveBlockWidth || !blockHeight) return;
+  // Small safety factor avoids sub-pixel overflow at the right/bottom edge.
+  const SAFETY = 0.98;
   let scale = 1;
   const orientation = ((rotation % 360) + 360) % 360;
 
   if (orientation % 180 === 0) {
     // Scale against worst-case (all 8s) writing width so the 8-case always fits.
-    scale = Math.min(vw / effectiveBlockWidth, vh / blockHeight);
+    scale = Math.min(vw / effectiveBlockWidth, vh / blockHeight) * SAFETY;
   } else {
     // After 90/270 rotation, width/height are effectively swapped.
-    scale = Math.min(vw / blockHeight, vh / effectiveBlockWidth);
+    scale = Math.min(vw / blockHeight, vh / effectiveBlockWidth) * SAFETY;
   }
 
   clockInner.style.transform = `rotate(${rotation}deg) scale(${scale})`;

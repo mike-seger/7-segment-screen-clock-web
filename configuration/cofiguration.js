@@ -262,6 +262,8 @@ function initConfiguration() {
         dateLine.dataset.rowGapFactor = String(rowGapFactor);
         dateLine.style.transform = "";
         dateLine.style.marginBottom = "0px";
+        // Row gap is applied deterministically inside applyClockTransform()
+        // using rowGapFactor * fitted-date-font-size.
         if (timeLine) {
             timeLine.style.marginTop = "0px";
         }
