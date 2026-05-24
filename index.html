@@ -119,6 +119,16 @@ function setSimulationModeByKey(key) {
   applyClockTransform();
 }
 
+function handleKeyDown(e) {
+  const key = e.key;
+  if (key === "r" || key === "R") {
+    rotateClock();
+    return;
+  }
+
+  setSimulationModeByKey(key);
+}
+
 let rotation = 0;
 function applyClockTransform() {
   const clock = document.getElementById("clock");
@@ -136,8 +146,9 @@ function applyClockTransform() {
   const blockHeight = clockInner.offsetHeight || vh;
   if (!effectiveBlockWidth || !blockHeight) return;
   let scale = 1;
+  const orientation = ((rotation % 360) + 360) % 360;
 
-  if (rotation % 180 === 0) {
+  if (orientation % 180 === 0) {
     // Scale against worst-case (all 8s) writing width so the 8-case always fits.
     scale = Math.min(vw / effectiveBlockWidth, vh / blockHeight);
   } else {
@@ -149,8 +160,23 @@ function applyClockTransform() {
 }
 
 function rotateClock() {
-  rotation = (rotation + 90) % 360;
+  rotation += 90;
   applyClockTransform();
+}
+
+function normalizeRotationIfNeeded() {
+  const clockInner = document.getElementById("clockInner");
+  if (!clockInner) return;
+
+  const normalized = ((rotation % 360) + 360) % 360;
+  if (normalized !== 0 || rotation === 0) return;
+
+  // Snap 360, 720, ... back to 0 without an extra animated jump.
+  clockInner.style.transition = "none";
+  rotation = 0;
+  applyClockTransform();
+  void clockInner.offsetWidth;
+  clockInner.style.transition = "";
 }
 
 async function toggleFullscreen() {
@@ -180,10 +206,15 @@ updateClock();
 applyClockTransform();
 document.getElementById("year").addEventListener("click", toggleFullscreen);
 document.getElementById("weekday").addEventListener("click", rotateClock);
+document.getElementById("clockInner").addEventListener("transitionend", e => {
+  if (e.propertyName === "transform") {
+    normalizeRotationIfNeeded();
+  }
+});
 window.addEventListener("resize", applyClockTransform);
 window.addEventListener("orientationchange", applyClockTransform);
 document.addEventListener("contextmenu", e => { e.preventDefault(); });
-window.addEventListener("keydown", e => setSimulationModeByKey(e.key));
+window.addEventListener("keydown", handleKeyDown);
 
 (async function showClockWhenFontReady() {
   if (document.readyState !== "complete") {
