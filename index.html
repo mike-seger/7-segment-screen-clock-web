@@ -72,6 +72,70 @@ function computeSizingWeights(weightGap, fr) {
   };
 }
 
+function getChildrenVisualBounds(element) {
+  if (!element) return null;
+
+  const childRects = Array.from(element.children || [])
+    .map(child => child.getBoundingClientRect())
+    .filter(rect => rect && (rect.width > 0 || rect.height > 0));
+
+  if (!childRects.length) {
+    const rect = element.getBoundingClientRect();
+    return rect && (rect.width > 0 || rect.height > 0)
+      ? { top: rect.top, right: rect.right, bottom: rect.bottom, left: rect.left, width: rect.width, height: rect.height }
+      : null;
+  }
+
+  const top = Math.min(...childRects.map(rect => rect.top));
+  const right = Math.max(...childRects.map(rect => rect.right));
+  const bottom = Math.max(...childRects.map(rect => rect.bottom));
+  const left = Math.min(...childRects.map(rect => rect.left));
+
+  return {
+    top,
+    right,
+    bottom,
+    left,
+    width: right - left,
+    height: bottom - top
+  };
+}
+
+function getElementsVisualBounds(elements) {
+  const rects = (elements || [])
+    .filter(Boolean)
+    .map(el => el.getBoundingClientRect())
+    .filter(rect => rect && (rect.width > 0 || rect.height > 0));
+
+  if (!rects.length) return null;
+
+  const top = Math.min(...rects.map(rect => rect.top));
+  const right = Math.max(...rects.map(rect => rect.right));
+  const bottom = Math.max(...rects.map(rect => rect.bottom));
+  const left = Math.min(...rects.map(rect => rect.left));
+
+  return {
+    top,
+    right,
+    bottom,
+    left,
+    width: right - left,
+    height: bottom - top
+  };
+}
+
+function getVisualGapPx(upperBounds, lowerBounds) {
+  if (!upperBounds || !lowerBounds) return null;
+  return lowerBounds.top - upperBounds.bottom;
+}
+
+function getVisualBlockHeight(dateLine, timeLine) {
+  const dateBounds = getChildrenVisualBounds(dateLine);
+  const timeBounds = getChildrenVisualBounds(timeLine);
+  if (!dateBounds || !timeBounds) return 0;
+  return Math.max(0, timeBounds.bottom - dateBounds.top);
+}
+
 function activateConfigurationMode() {
   if (configurationModeActive) return;
   configurationModeActive = true;
@@ -232,6 +296,7 @@ function applyClockTransform() {
   clockInner.style.transform = "none";
   clockInner.style.paddingTop = "0px";
   clockInner.style.paddingBottom = "0px";
+  clockInner.style.rowGap = "0px";
 
   const vw = window.innerWidth;
   const vh = window.innerHeight;
@@ -245,6 +310,8 @@ function applyClockTransform() {
     : { numeric: 1, alpha: 1 };
   const numericCorrection = Math.max(Number(corrections.numeric) || 1, 0.01);
   const alphaCorrection = Math.max(Number(corrections.alpha) || 1, 0.01);
+  const numericBaseline = Number(corrections.numericBaseline) || 0;
+  const alphaBaseline = Number(corrections.alphaBaseline) || 0;
 
   const availableHeight = SIZE_BUDGET * vh;
   const renderedDateFontSize = availableHeight * sizing.weightDate;
@@ -252,6 +319,14 @@ function applyClockTransform() {
   const renderedGap = availableHeight * sizing.weightGap;
   const secFontFactor = Number(currentState.secFontFactor);
   const renderedSecFontSize = renderedTimeFontSize * (Number.isFinite(secFontFactor) && secFontFactor > 0 ? secFontFactor : 0.625);
+  const numericScaleFactor = Number(currentState.numericScale) / 100 || 1;
+  const alphaScaleFactor = Number(currentState.alphaScale) / 100 || 1;
+  const numericOffsetFactor = Number(currentState.numericOffset) || 0;
+  const alphaOffsetFactor = Number(currentState.alphaOffset) || 0;
+  const dateNumericDownshiftPx = Math.max(0, (numericOffsetFactor + numericBaseline) * numericScaleFactor * renderedDateFontSize);
+  const dateAlphaDownshiftPx = Math.max(0, (alphaOffsetFactor + alphaBaseline) * alphaScaleFactor * renderedDateFontSize);
+  const dateDownshiftCompensationPx = Math.max(dateNumericDownshiftPx, dateAlphaDownshiftPx);
+  const targetVisualGap = renderedGap + dateDownshiftCompensationPx;
 
   if (dateLine) {
     dateLine.style.fontSize = `${renderedDateFontSize / alphaCorrection}px`;
@@ -259,8 +334,9 @@ function applyClockTransform() {
   }
 
   if (timeLine) {
-    timeLine.style.marginTop = `${renderedGap}px`;
+    timeLine.style.marginTop = "0px";
   }
+  clockInner.style.rowGap = `${renderedGap}px`;
 
   if (hourEl) hourEl.style.fontSize = `${renderedTimeFontSize / numericCorrection}px`;
   if (minuteEl) minuteEl.style.fontSize = `${renderedTimeFontSize / numericCorrection}px`;
@@ -278,14 +354,27 @@ function applyClockTransform() {
     el.style.fontSize = `${renderedSecFontSize / numericCorrection}px`;
   });
 
-  const centeredPadding = Math.max(0, (availableHeight - (renderedDateFontSize + renderedGap + renderedTimeFontSize)) / 2);
-  clockInner.style.paddingTop = `${centeredPadding}px`;
-  clockInner.style.paddingBottom = `${centeredPadding}px`;
+  // Enforce the configured gap using visual glyph bounds.
+  // Gap is measured to the main HH:MM cluster so :SS size/line-height does not skew row spacing.
+  let appliedRowGap = renderedGap;
+  for (let i = 0; i < 3; i += 1) {
+    const dateBounds = getChildrenVisualBounds(dateLine);
+    const timeMainBounds = getElementsVisualBounds([hourEl, colonMinEl, minuteEl]);
+    const measuredVisualGap = getVisualGapPx(dateBounds, timeMainBounds);
+    if (!Number.isFinite(measuredVisualGap)) break;
+
+    const delta = targetVisualGap - measuredVisualGap;
+    if (Math.abs(delta) <= 0.5) break;
+
+    appliedRowGap = Math.max(0, appliedRowGap + delta);
+    clockInner.style.rowGap = `${appliedRowGap}px`;
+  }
 
   const worstTimeWidth = getWorstCaseTimeWidth();
   const liveDateWidth = dateLine ? dateLine.offsetWidth : 0;
   const effectiveBlockWidth = Math.max(worstTimeWidth, liveDateWidth) || vw;
-  const blockHeight = clockInner.offsetHeight || vh;
+  const visualBlockHeight = getVisualBlockHeight(dateLine, timeLine);
+  const blockHeight = visualBlockHeight || clockInner.offsetHeight || vh;
   if (!effectiveBlockWidth || !blockHeight) return;
 
   let scale = 1;

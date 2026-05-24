@@ -282,7 +282,9 @@ function initConfiguration() {
         // Share active correction factors with the main auto-fit scaler.
         window.clockSizeCorrection = {
             numeric: numericCorrection,
-            alpha: alphaCorrection
+            alpha: alphaCorrection,
+            numericBaseline: numericBaselineOffset,
+            alphaBaseline: alphaBaselineOffset
         };
 
         dateLine.style.color     = state.dateColor;
