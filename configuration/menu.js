@@ -2,22 +2,26 @@
 
 // ---------------- MENU TOGGLE ----------------
 
-document.getElementById("menuButton").style.display = "block";
+const menuButton = document.getElementById("menuButton");
+let menuCssLoaded = false;
 
 function loadMenuCSS() {
+    if (menuCssLoaded) return;
     const link = document.createElement("link");
     link.rel = "stylesheet";
-    link.href = "menu.css";        // relative path allowed
+    link.href = "configuration/menu.css";
     document.head.appendChild(link);
+    menuCssLoaded = true;
 }
 
 let menuLoaded = false;
+let configurationInitialized = false;
 
 async function loadMenuPanel() {
     if (menuLoaded) return;
 
     try {
-        const resp = await fetch('menu.html');
+        const resp = await fetch('configuration/menu.html');
         if (!resp.ok) {
             console.error('Failed to load menu.html', resp.status);
             return;
@@ -26,6 +30,8 @@ async function loadMenuPanel() {
 
         // inject at end of body (or into #menuPlaceholder)
         document.body.insertAdjacentHTML('beforeend', html);
+        const panel = document.getElementById('menuPanel');
+        if (panel) panel.style.display = 'none';
         menuLoaded = true;
 
         // if you have menu-init logic, call it here:
@@ -35,20 +41,30 @@ async function loadMenuPanel() {
     }
 }
 
-// Toggle panel visibility when ≡ is clicked
-document.getElementById('menuButton').addEventListener('click', async () => {
-    if (!menuLoaded) {
-        await loadMenuPanel();
-        initConfiguration()
+async function ensureConfigurationInitialized() {
+    if (configurationInitialized) return;
+    await loadMenuPanel();
+    if (typeof initConfiguration === 'function') {
+        initConfiguration();
+        configurationInitialized = true;
     }
+}
+
+async function toggleMenuPanel() {
+    if (!menuButton || menuButton.style.display === "none") return;
+
+    await ensureConfigurationInitialized();
 
     const panel = document.getElementById('menuPanel');
     if (!panel) return;
 
     loadMenuCSS();
-    document.getElementById("menuButton").onclick = () => {
-        const p = document.getElementById("menuPanel");
-        p.style.display = (p.style.display === "block" ? "none" : "block");
-    };
-    panel.classList.toggle('open');   // style .open in your CSS (e.g. right:0 vs right:-300px)
-});
+    panel.style.display = (panel.style.display === "block" ? "none" : "block");
+}
+
+if (menuButton) {
+    menuButton.addEventListener('click', toggleMenuPanel);
+}
+
+// Apply persisted configuration immediately, even before entering configuration mode.
+ensureConfigurationInitialized();

@@ -66,7 +66,7 @@ html, body {
 }
 
 #dateLine {
-    line-height: 1.5em;
+    line-height: 1em;
     font-size: min(16vh, 9vw);
     color: #ff006c;
     margin: 0 2em;
@@ -75,7 +75,7 @@ html, body {
 }
 
 #timeLine {
-    line-height: 0.9em;
+    line-height: 1em;
     font-size: min(48vh, 27vw);
     transform: translateX(0);
 }
@@ -161,17 +161,17 @@ html, body {
 
 #menuButton {
     position: fixed;
-    top: 10px;
-    right: 10px;
-    width: 32px;
-    height: 32px;
-    line-height: 32px;
+    top: 1vh;
+    right: 1vh;
+    width: 8vh;
+    height: 8vh;
+    line-height: 8vh;
     text-align: center;
     background: #111;
     color: var(--on-color);
     border-radius: 4px;
     cursor: pointer;
-    font-size: 20px;
+    font-size: 5vh;
     z-index: 1000;
     user-select: none;
     display: none;

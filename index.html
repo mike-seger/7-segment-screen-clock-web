@@ -44,6 +44,17 @@ let simulationMonth = null;
 let timeScaleProbe = null;
 let cycleTimer = null;
 let cycleStep = 0;
+let configurationModeActive = false;
+
+function activateConfigurationMode() {
+  if (configurationModeActive) return;
+  configurationModeActive = true;
+
+  const menuButton = document.getElementById("menuButton");
+  if (menuButton) {
+    menuButton.style.display = "block";
+  }
+}
 
 function stopDigitCycle() {
   if (!cycleTimer) return;
@@ -72,12 +83,57 @@ function startDigitCycle() {
 function fitDateLineToWidth(dateLine, targetWidth) {
   if (!dateLine || !targetWidth) return;
 
+  const baseFontSize = Number.parseFloat(dateLine.dataset.baseFontSizePx || "0");
+  if (!baseFontSize) return;
+
+  dateLine.style.transform = "";
+  dateLine.style.fontSize = `${baseFontSize}px`;
+
   const baseWidth = dateLine.offsetWidth || 0;
   if (!baseWidth) return;
 
-  const scaleX = targetWidth / baseWidth;
-  if (!Number.isFinite(scaleX) || scaleX <= 0) return;
-  dateLine.style.transform = `scale(${scaleX})`;
+  const scale = targetWidth / baseWidth;
+  if (!Number.isFinite(scale) || scale <= 0) return;
+
+  const fittedFontSize = baseFontSize * scale;
+  dateLine.style.fontSize = `${fittedFontSize}px`;
+}
+
+function syncVisualRowGap(dateLine, timeLine) {
+  if (!dateLine || !timeLine) return;
+
+  const rowGapFactor = Number.parseFloat(dateLine.dataset.rowGapFactor || "0");
+  const effectiveDateFontSize = Number.parseFloat(getComputedStyle(dateLine).fontSize || "0");
+  if (!Number.isFinite(effectiveDateFontSize) || effectiveDateFontSize <= 0) return;
+
+  timeLine.style.marginTop = "0px";
+
+  const visualBounds = (lineEl) => {
+    const spans = Array.from(lineEl.querySelectorAll("span"));
+    if (spans.length === 0) {
+      const rect = lineEl.getBoundingClientRect();
+      return { top: rect.top, bottom: rect.bottom };
+    }
+
+    let top = Number.POSITIVE_INFINITY;
+    let bottom = Number.NEGATIVE_INFINITY;
+
+    spans.forEach((span) => {
+      const rect = span.getBoundingClientRect();
+      if (rect.top < top) top = rect.top;
+      if (rect.bottom > bottom) bottom = rect.bottom;
+    });
+
+    return { top, bottom };
+  };
+
+  const dateBounds = visualBounds(dateLine);
+  const timeBounds = visualBounds(timeLine);
+  const currentVisualGap = timeBounds.top - dateBounds.bottom;
+  const desiredVisualGap = effectiveDateFontSize * rowGapFactor;
+  const compensation = desiredVisualGap - currentVisualGap;
+
+  timeLine.style.marginTop = `${compensation}px`;
 }
 
 function ensureTimeScaleProbe() {
@@ -166,6 +222,11 @@ function setSimulationModeByKey(key) {
 
 function handleKeyDown(e) {
   const key = e.key;
+  if (key === "x" || key === "X") {
+    activateConfigurationMode();
+    return;
+  }
+
   if (key === "r" || key === "R") {
     rotateClock();
     return;
@@ -189,15 +250,23 @@ function applyClockTransform() {
   const clock = document.getElementById("clock");
   const clockInner = document.getElementById("clockInner");
   const dateLine = document.getElementById("dateLine");
+  const timeLine = document.getElementById("timeLine");
   if (!clock || !clockInner) return;
+
+  // Always compute fit and visual-row compensation in untransformed layout space.
+  clockInner.style.transform = "none";
 
   const vw = window.innerWidth;
   const vh = window.innerHeight;
   const worstTimeWidth = getWorstCaseTimeWidth();
-  const dateWidth = dateLine ? dateLine.offsetWidth : 0;
-  const effectiveBlockWidth = Math.max(worstTimeWidth, dateWidth) || vw;
-  const dateTargetWidth = effectiveBlockWidth * 0.7;
+  const liveTimeWidth = timeLine ? timeLine.offsetWidth : 0;
+  const baseTimeWidth = Math.max(worstTimeWidth, liveTimeWidth) || vw;
+  const dateTargetWidth = baseTimeWidth * 0.7;
   fitDateLineToWidth(dateLine, dateTargetWidth);
+  syncVisualRowGap(dateLine, timeLine);
+
+  const fittedDateWidth = dateLine ? dateLine.offsetWidth : 0;
+  const effectiveBlockWidth = Math.max(baseTimeWidth, fittedDateWidth) || vw;
   const blockHeight = clockInner.offsetHeight || vh;
   if (!effectiveBlockWidth || !blockHeight) return;
   let scale = 1;
@@ -261,6 +330,7 @@ updateClock();
 applyClockTransform();
 document.getElementById("year").addEventListener("click", toggleFullscreen);
 document.getElementById("weekday").addEventListener("click", rotateClock);
+document.getElementById("sec").addEventListener("click", activateConfigurationMode);
 document.getElementById("clockInner").addEventListener("transitionend", e => {
   if (e.propertyName === "transform") {
     normalizeRotationIfNeeded();
@@ -291,10 +361,10 @@ window.addEventListener("keydown", handleKeyDown);
 </script>
 
 <!-- Configuration -->
-<!-- <script src="configuration/persistedState.js"></script>
+<script src="configuration/persistedState.js"></script>
 <script src="configuration/cofiguration.js"></script>
 <script src="configuration/menu.js"></script>
-<link rel="stylesheet" href="fonts/fonts.css"> -->
+<link rel="stylesheet" href="fonts/fonts.css">
 
 </body>
 </html>
