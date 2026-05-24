@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <meta property="og:image" content="./screens/1920x1080.png">
+    <meta property="og:image" content="./screens/screenshot.png">
     <meta name="viewport" content="width=device-width, initial-scale=0.67,
       maximum-scale=0.67, minimum-scale=0.67, user-scalable=no" />
     <!-- <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"> -->
@@ -36,12 +36,58 @@
 <script>
 const days   = ["SUN","MON","TUE","WED","THU","FRI","SAT"];
 const months = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
+let simulationDigit = null;
+let timeScaleProbe = null;
+
+function fitDateLineToWidth(dateLine, targetWidth) {
+  if (!dateLine || !targetWidth) return;
+
+  const baseWidth = dateLine.offsetWidth || 0;
+  if (!baseWidth) return;
+
+  const scaleX = Math.max(1, targetWidth / baseWidth);
+  dateLine.style.transform = `scaleX(${scaleX})`;
+}
+
+function ensureTimeScaleProbe() {
+  if (timeScaleProbe) return timeScaleProbe;
+
+  const probe = document.createElement("div");
+  probe.id = "timeScaleProbe";
+  probe.innerHTML = `
+    <span class="numeric-group">88</span>
+    <span class="numeric-group probe-colon-min">:</span>
+    <span class="numeric-group">88</span>
+    <span class="numeric-group probe-colon-sec probe-sec">:</span>
+    <span class="numeric-group probe-sec">88</span>
+  `;
+
+  document.body.appendChild(probe);
+  timeScaleProbe = probe;
+  return timeScaleProbe;
+}
+
+function getWorstCaseTimeWidth() {
+  const probe = ensureTimeScaleProbe();
+  const probeWidth = probe ? probe.offsetWidth : 0;
+  if (probeWidth) return probeWidth;
+
+  const timeLine = document.getElementById("timeLine");
+  return timeLine ? timeLine.offsetWidth : 0;
+}
 
 function updateClock() {
     const now = new Date();
-    const h = String(now.getHours());
-    const m = String(now.getMinutes()).padStart(2, "0");
-    const s = String(now.getSeconds()).padStart(2, "0");
+  const hRaw = String(now.getHours());
+  const mRaw = String(now.getMinutes()).padStart(2, "0");
+  const sRaw = String(now.getSeconds()).padStart(2, "0");
+  const yRaw = String(now.getFullYear());
+  const h = simulationDigit ? simulationDigit.repeat(2) : hRaw;
+  const m = simulationDigit ? simulationDigit.repeat(2) : mRaw;
+  const s = simulationDigit ? simulationDigit.repeat(2) : sRaw;
+  const y = simulationDigit ? `${yRaw.slice(0, -1)}${simulationDigit}` : yRaw;
+
+  const timeLine = document.getElementById("timeLine");
 
     document.getElementById("hour").textContent     = h;
     document.getElementById("minute").textContent   = m;
@@ -50,28 +96,52 @@ function updateClock() {
     document.getElementById("weekday").textContent  = days[now.getDay()];
     document.getElementById("day").textContent      = String(now.getDate()).padStart(2, "0");
     document.getElementById("month").textContent    = months[now.getMonth()];
-    document.getElementById("year").textContent     = String(now.getFullYear());
+    document.getElementById("year").textContent     = y;
+
+    if (timeLine) {
+      const hourLeadingOne = h.length === 2 && h.startsWith("1");
+      timeLine.classList.toggle("hour-leading-one", hourLeadingOne);
+    }
+
+}
+
+function setSimulationModeByKey(key) {
+  if (key === "1" || key === "8") {
+    simulationDigit = key;
+  } else if (key === "0") {
+    simulationDigit = null;
+  } else {
+    return;
+  }
+
+  updateClock();
+  applyClockTransform();
 }
 
 let rotation = 0;
 function applyClockTransform() {
   const clock = document.getElementById("clock");
   const clockInner = document.getElementById("clockInner");
+  const dateLine = document.getElementById("dateLine");
   if (!clock || !clockInner) return;
 
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-  const innerWidth = clockInner ? clockInner.offsetWidth : vw;
-  const innerHeight = clockInner ? clockInner.offsetHeight : vh;
-  if (!innerWidth || !innerHeight) return;
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const worstTimeWidth = getWorstCaseTimeWidth();
+  const dateWidth = dateLine ? dateLine.offsetWidth : 0;
+  const effectiveBlockWidth = Math.max(worstTimeWidth, dateWidth) || vw;
+  const dateTargetWidth = effectiveBlockWidth * 0.7;
+  fitDateLineToWidth(dateLine, dateTargetWidth);
+  const blockHeight = clockInner.offsetHeight || vh;
+  if (!effectiveBlockWidth || !blockHeight) return;
   let scale = 1;
 
   if (rotation % 180 === 0) {
-    scale = Math.min(vw / innerWidth, vh / innerHeight);
+    // Scale against worst-case (all 8s) writing width so the 8-case always fits.
+    scale = Math.min(vw / effectiveBlockWidth, vh / blockHeight);
   } else {
-    // After a 90/270 degree turn, the content's width/height swap.
-    // Use the real rendered size so the rotated clock stays inside the viewport.
-    scale = Math.min(vw / innerHeight, vh / innerWidth);
+    // After 90/270 rotation, width/height are effectively swapped.
+    scale = Math.min(vw / blockHeight, vh / effectiveBlockWidth);
   }
 
   clockInner.style.transform = `rotate(${rotation}deg) scale(${scale})`;
@@ -112,6 +182,7 @@ document.getElementById("weekday").addEventListener("click", rotateClock);
 window.addEventListener("resize", applyClockTransform);
 window.addEventListener("orientationchange", applyClockTransform);
 document.addEventListener("contextmenu", e => { e.preventDefault(); });
+window.addEventListener("keydown", e => setSimulationModeByKey(e.key));
 
 (async function showClockWhenFontReady() {
   if (document.readyState !== "complete") {

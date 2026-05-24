@@ -2,7 +2,7 @@
 
 This is a simple 7-segment clock for the web.
 
-<img src="screens/960x540.png">
+<img src="screens/screenshot.png">
 
 Simply open [7-segment-screen-clock-web](https://mike-seger.github.io/7-segment-screen-clock-web/) to see it live.
 

@@ -48,6 +48,10 @@ html, body {
 }
 
 #clockInner {
+    width: max-content;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
     transform-origin: center center;
     transition: transform 0.35s ease;
 }
@@ -56,6 +60,7 @@ html, body {
 
 #dateLine,
 #timeLine {
+    width: max-content;
     white-space: nowrap;
     overflow: visible;
 }
@@ -65,11 +70,18 @@ html, body {
     font-size: min(16vh, 9vw);
     color: #ff006c;
     margin: 0 2em;
+    transform: translateX(0);
+    transform-origin: center center;
 }
 
 #timeLine {
     line-height: 0.9em;
     font-size: min(48vh, 27vw);
+    transform: translateX(0);
+}
+
+#timeLine.hour-leading-one {
+    transform: translateX(-0.16em);
 }
 
 #dateLine, #timeLine {
@@ -90,6 +102,37 @@ html, body {
 
 .numeric-group {
     letter-spacing: 0.09em;
+    /* Prefer fixed-width digits to reduce visual drift when a narrow '1' appears. */
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+}
+
+#timeScaleProbe {
+    position: fixed;
+    left: -99999px;
+    top: -99999px;
+    visibility: hidden;
+    pointer-events: none;
+    width: max-content;
+    white-space: nowrap;
+    overflow: visible;
+    display: flex;
+    gap: 0;
+    justify-content: center;
+    align-items: baseline;
+    line-height: 0.9em;
+    font-size: min(48vh, 27vw);
+}
+
+#timeScaleProbe .probe-colon-min,
+#timeScaleProbe .probe-colon-sec {
+    margin: 0 -0.14em;
+}
+
+#timeScaleProbe .probe-sec,
+#timeScaleProbe .probe-colon-sec {
+    font-size: min(32vh, 18vw);
+    line-height: 0.1em;
 }
 
 #colon-min, #colon-sec {
