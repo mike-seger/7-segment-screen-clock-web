@@ -3,11 +3,14 @@
 // ---------------- FORM / UI BINDING ----------------
 
 const FONT_CORRECTION = {
-    Digital7Mono: { size: 1.0, baseline: 0.00, letterSpacing: 0.09, colonMargin: -0.22, colon: ":" },
-    DSEG7Classic: { size: 0.65, baseline: 0.17, letterSpacing: 0.12, colonMargin: -0.12, colon: ":" },
-    DSEG14Classic: { size: 0.65, baseline: 0.17, letterSpacing: 0.14, colonMargin: -0.08, colon: ":" },
-    LCDDot: { size: 1.5, baseline: 0.00, letterSpacing: 0.00, colonMargin: -0.02, colon: ":" },
-    FourteenSegment: { size: 1.0, baseline: 0.00, letterSpacing: 0.10, colonMargin: 0.00, colon: "-" }
+    AlarmClock: { size: 0.86, baseline: -0.05 },
+    DSEG7Classic: { size: 0.75, baseline: 1.06 },
+    DSEG7ClassicMini: { size: 0.75, baseline: 1.06 },
+    DSEG14Classic: { size: 0.75, baseline: 1.06 },
+    DigitalDisplay: { size: 1.14, baseline: -0.12 },
+    FourteenSegment: { size: 1.16, baseline: 0.1, colon: "-" },
+    SevenSegment: { size: 1.1, baseline: -0.09 },
+    LCDDot: { size: 0.4, baseline: 0.4, letterSpacing: 0, colonMargin: -0.01 },
 };
 
 function normalizeFontName(value) {
@@ -19,7 +22,7 @@ function normalizeFontName(value) {
 }
 
 function getFontCorrection(fontName) {
-    const defaults = { size: 1, baseline: 0, letterSpacing: 0.09, colonMargin: -0.22, colon: ":" };
+    const defaults = { size: 1, baseline: 0, letterSpacing: 0.09, colonMargin: -0.12, colon: ":" };
     const name = normalizeFontName(fontName);
     if (!name) return { ...defaults };
 
@@ -50,8 +53,8 @@ function normalizeSizingWeight(value, fallback) {
 }
 
 function computeSizingWeights(weightGap, fr) {
-    const normalizedGap = normalizeSizingWeight(weightGap, 0.5);
-    const normalizedFr = normalizeSizingWeight(fr, 0.15);
+    const normalizedGap = normalizeSizingWeight(weightGap, 0.07);
+    const normalizedFr = normalizeSizingWeight(fr, 0.07);
     const remaining = Math.max(0, 1 - normalizedGap);
     const weightTime = remaining / (normalizedFr + 1);
     const weightDate = normalizedFr * weightTime;
@@ -81,8 +84,6 @@ function initConfiguration() {
         alphaOffsetValue:  document.getElementById("alphaOffsetValue"),
         weightGapValue:    document.getElementById("weightGapValue"),
         frValue:           document.getElementById("frValue"),
-        weightDateValue:   document.getElementById("weightDateValue"),
-        weightTimeValue:   document.getElementById("weightTimeValue"),
 
         dateColor:         document.getElementById("dateColor"),
 
@@ -108,8 +109,6 @@ function initConfiguration() {
         state.fr = sizing.fr;
         els.weightGapValue.textContent    = sizing.weightGap.toFixed(2) + "x";
         els.frValue.textContent           = sizing.fr.toFixed(2) + "x";
-        els.weightDateValue.textContent   = sizing.weightDate.toFixed(2) + "x";
-        els.weightTimeValue.textContent   = sizing.weightTime.toFixed(2) + "x";
         els.secFontFactorValue.textContent = state.secFontFactor.toFixed(2) + "x";
     }
 
@@ -209,8 +208,8 @@ function initConfiguration() {
     function initFormFromState() {
         state.numericOffset = normalizeOffsetFactor(state.numericOffset);
         state.alphaOffset = normalizeOffsetFactor(state.alphaOffset);
-        state.weightGap = normalizeSizingWeight(state.weightGap, 0.5);
-        state.fr = normalizeSizingWeight(state.fr, 0.15);
+        state.weightGap = normalizeSizingWeight(state.weightGap, 0.07);
+        state.fr = normalizeSizingWeight(state.fr, 0.07);
         state.secFontFactor = normalizeSecFontFactor(state.secFontFactor);
 
         els.numericScale.value  = state.numericScale;
