@@ -36,8 +36,38 @@
 <script>
 const days   = ["SUN","MON","TUE","WED","THU","FRI","SAT"];
 const months = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
+const simulatedWeekdays = ["MON","TUE","WED","THU","FRI","SAT","SUN"];
+const simulatedMonths = ["JAN","FEB","MAR","APR","MAY","JUN","JUL"];
 let simulationDigit = null;
+let simulationWeekday = null;
+let simulationMonth = null;
 let timeScaleProbe = null;
+let cycleTimer = null;
+let cycleStep = 0;
+
+function stopDigitCycle() {
+  if (!cycleTimer) return;
+  clearInterval(cycleTimer);
+  cycleTimer = null;
+}
+
+function applyDigitCycleStep() {
+  const digit = String(cycleStep % 10);
+  simulationDigit = digit;
+  simulationWeekday = simulatedWeekdays[cycleStep % simulatedWeekdays.length];
+  simulationMonth = months[cycleStep % months.length];
+  cycleStep += 1;
+
+  updateClock();
+  applyClockTransform();
+}
+
+function startDigitCycle() {
+  stopDigitCycle();
+  cycleStep = 0;
+  applyDigitCycleStep();
+  cycleTimer = setInterval(applyDigitCycleStep, 200);
+}
 
 function fitDateLineToWidth(dateLine, targetWidth) {
   if (!dateLine || !targetWidth) return;
@@ -82,11 +112,15 @@ function updateClock() {
   const hRaw = String(now.getHours());
   const mRaw = String(now.getMinutes()).padStart(2, "0");
   const sRaw = String(now.getSeconds()).padStart(2, "0");
+  const dRaw = String(now.getDate()).padStart(2, "0");
+  const monthRaw = months[now.getMonth()];
   const yRaw = String(now.getFullYear());
   const h = simulationDigit ? simulationDigit.repeat(2) : hRaw;
   const m = simulationDigit ? simulationDigit.repeat(2) : mRaw;
   const s = simulationDigit ? simulationDigit.repeat(2) : sRaw;
-  const y = simulationDigit ? `${yRaw.slice(0, -1)}${simulationDigit}` : yRaw;
+  const d = simulationDigit ? simulationDigit.repeat(2) : dRaw;
+  const month = simulationMonth || monthRaw;
+  const y = simulationDigit ? simulationDigit.repeat(yRaw.length) : yRaw;
 
   const timeLine = document.getElementById("timeLine");
 
@@ -94,9 +128,9 @@ function updateClock() {
     document.getElementById("minute").textContent   = m;
     document.getElementById("sec").textContent      = s;
 
-    document.getElementById("weekday").textContent  = days[now.getDay()];
-    document.getElementById("day").textContent      = String(now.getDate()).padStart(2, "0");
-    document.getElementById("month").textContent    = months[now.getMonth()];
+    document.getElementById("weekday").textContent  = simulationWeekday || days[now.getDay()];
+    document.getElementById("day").textContent      = d;
+    document.getElementById("month").textContent    = month;
     document.getElementById("year").textContent     = y;
 
     if (timeLine) {
@@ -107,10 +141,21 @@ function updateClock() {
 }
 
 function setSimulationModeByKey(key) {
-  if (key === "1" || key === "8") {
+  stopDigitCycle();
+
+  if (key >= "1" && key <= "8") {
     simulationDigit = key;
+    if (key <= "7") {
+      simulationWeekday = simulatedWeekdays[Number(key) - 1];
+      simulationMonth = simulatedMonths[Number(key) - 1];
+    } else {
+      simulationWeekday = null;
+      simulationMonth = null;
+    }
   } else if (key === "0") {
     simulationDigit = null;
+    simulationWeekday = null;
+    simulationMonth = null;
   } else {
     return;
   }
@@ -123,6 +168,16 @@ function handleKeyDown(e) {
   const key = e.key;
   if (key === "r" || key === "R") {
     rotateClock();
+    return;
+  }
+
+  if (key === "9") {
+    startDigitCycle();
+    return;
+  }
+
+  if (key === " ") {
+    setSimulationModeByKey("0");
     return;
   }
 
