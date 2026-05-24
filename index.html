@@ -310,8 +310,6 @@ function applyClockTransform() {
     : { numeric: 1, alpha: 1 };
   const numericCorrection = Math.max(Number(corrections.numeric) || 1, 0.01);
   const alphaCorrection = Math.max(Number(corrections.alpha) || 1, 0.01);
-  const numericBaseline = Number(corrections.numericBaseline) || 0;
-  const alphaBaseline = Number(corrections.alphaBaseline) || 0;
 
   const availableHeight = SIZE_BUDGET * vh;
   const renderedDateFontSize = availableHeight * sizing.weightDate;
@@ -319,14 +317,6 @@ function applyClockTransform() {
   const renderedGap = availableHeight * sizing.weightGap;
   const secFontFactor = Number(currentState.secFontFactor);
   const renderedSecFontSize = renderedTimeFontSize * (Number.isFinite(secFontFactor) && secFontFactor > 0 ? secFontFactor : 0.625);
-  const numericScaleFactor = Number(currentState.numericScale) / 100 || 1;
-  const alphaScaleFactor = Number(currentState.alphaScale) / 100 || 1;
-  const numericOffsetFactor = Number(currentState.numericOffset) || 0;
-  const alphaOffsetFactor = Number(currentState.alphaOffset) || 0;
-  const dateNumericDownshiftPx = Math.max(0, (numericOffsetFactor + numericBaseline) * numericScaleFactor * renderedDateFontSize);
-  const dateAlphaDownshiftPx = Math.max(0, (alphaOffsetFactor + alphaBaseline) * alphaScaleFactor * renderedDateFontSize);
-  const dateDownshiftCompensationPx = Math.max(dateNumericDownshiftPx, dateAlphaDownshiftPx);
-  const targetVisualGap = renderedGap + dateDownshiftCompensationPx;
 
   if (dateLine) {
     dateLine.style.fontSize = `${renderedDateFontSize / alphaCorrection}px`;
@@ -336,7 +326,6 @@ function applyClockTransform() {
   if (timeLine) {
     timeLine.style.marginTop = "0px";
   }
-  clockInner.style.rowGap = `${renderedGap}px`;
 
   if (hourEl) hourEl.style.fontSize = `${renderedTimeFontSize / numericCorrection}px`;
   if (minuteEl) minuteEl.style.fontSize = `${renderedTimeFontSize / numericCorrection}px`;
@@ -354,20 +343,20 @@ function applyClockTransform() {
     el.style.fontSize = `${renderedSecFontSize / numericCorrection}px`;
   });
 
-  // Enforce the configured gap using visual glyph bounds.
-  // Gap is measured to the main HH:MM cluster so :SS size/line-height does not skew row spacing.
-  let appliedRowGap = renderedGap;
-  for (let i = 0; i < 3; i += 1) {
-    const dateBounds = getChildrenVisualBounds(dateLine);
-    const timeMainBounds = getElementsVisualBounds([hourEl, colonMinEl, minuteEl]);
-    const measuredVisualGap = getVisualGapPx(dateBounds, timeMainBounds);
-    if (!Number.isFinite(measuredVisualGap)) break;
+  // Contract: visible gap between date and HH:MM equals weightGap * HH:MM height.
+  // Solve once in unscaled glyph space; transform scaling then preserves the ratio.
+  const dateBounds = getChildrenVisualBounds(dateLine);
+  const timeMainBounds = getElementsVisualBounds([hourEl, colonMinEl, minuteEl]);
+  const measuredGap = getVisualGapPx(dateBounds, timeMainBounds);
+  const timeMainHeight = Number.isFinite(timeMainBounds?.height) ? Math.max(0, timeMainBounds.height) : 0;
+  const targetGap = sizing.weightGap * timeMainHeight;
 
-    const delta = targetVisualGap - measuredVisualGap;
-    if (Math.abs(delta) <= 0.5) break;
-
-    appliedRowGap = Math.max(0, appliedRowGap + delta);
-    clockInner.style.rowGap = `${appliedRowGap}px`;
+  if (timeLine) {
+    if (Number.isFinite(measuredGap) && Number.isFinite(targetGap)) {
+      timeLine.style.marginTop = `${targetGap - measuredGap}px`;
+    } else {
+      timeLine.style.marginTop = `${renderedGap}px`;
+    }
   }
 
   const worstTimeWidth = getWorstCaseTimeWidth();
@@ -377,9 +366,8 @@ function applyClockTransform() {
   const blockHeight = visualBlockHeight || clockInner.offsetHeight || vh;
   if (!effectiveBlockWidth || !blockHeight) return;
 
-  let scale = 1;
   const orientation = ((rotation % 360) + 360) % 360;
-
+  let scale = 1;
   if (orientation % 180 === 0) {
     scale = Math.min(1, vw / effectiveBlockWidth, vh / blockHeight);
   } else {
@@ -441,11 +429,6 @@ applyClockTransform();
 document.getElementById("year").addEventListener("click", toggleFullscreen);
 document.getElementById("weekday").addEventListener("click", rotateClock);
 document.getElementById("sec").addEventListener("click", activateConfigurationMode);
-document.getElementById("clockInner").addEventListener("transitionend", e => {
-  if (e.propertyName === "transform") {
-    normalizeRotationIfNeeded();
-  }
-});
 window.addEventListener("resize", applyClockTransform);
 window.addEventListener("orientationchange", applyClockTransform);
 document.addEventListener("contextmenu", e => { e.preventDefault(); });

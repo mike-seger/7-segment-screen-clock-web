@@ -1,0 +1,11 @@
+{
+  "name": "7-segment-screen-clock-web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "ui:gap:test": "node tools/gap-contract-runner.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.54.1"
+  }
+}
