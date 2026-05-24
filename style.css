@@ -126,7 +126,7 @@ html, body {
 
 #timeScaleProbe .probe-colon-min,
 #timeScaleProbe .probe-colon-sec {
-    margin: 0 -0.14em;
+    margin: 0 -0.22em;
 }
 
 #timeScaleProbe .probe-sec,
@@ -138,13 +138,17 @@ html, body {
 #colon-min, #colon-sec {
     display: inline-block;
     /* transform: scaleX(0.55);   compress horizontally */
-    margin: 0 -0.14em;          /* pull it tighter */
+    margin: 0 -0.22em;          /* pull it tighter */
 }
 
 #sec, #colon-sec {
     font-size: min(32vh, 18vw);
     line-height: 0.1em;
     color: #00aaff;
+}
+
+#colon-sec {
+    transform: translateX(-0.03em);
 }
 
 #day, #month {
