@@ -40,6 +40,30 @@ function getFontCorrection(fontName) {
     return { ...defaults };
 }
 
+const CONFIG_MIN_WEIGHT = 0.01;
+const CONFIG_MAX_WEIGHT = 0.99;
+
+function normalizeSizingWeight(value, fallback) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return fallback;
+    return Math.min(CONFIG_MAX_WEIGHT, Math.max(CONFIG_MIN_WEIGHT, n));
+}
+
+function computeSizingWeights(weightGap, fr) {
+    const normalizedGap = normalizeSizingWeight(weightGap, 0.5);
+    const normalizedFr = normalizeSizingWeight(fr, 0.15);
+    const remaining = Math.max(0, 1 - normalizedGap);
+    const weightTime = remaining / (normalizedFr + 1);
+    const weightDate = normalizedFr * weightTime;
+
+    return {
+        weightGap: normalizedGap,
+        fr: normalizedFr,
+        weightDate,
+        weightTime
+    };
+}
+
 function initConfiguration() {
     const els = {
         numericFontSelect: document.getElementById("numericFontSelect"),
@@ -48,25 +72,25 @@ function initConfiguration() {
         alphaScale:        document.getElementById("alphaScale"),
         numericOffset:     document.getElementById("numericOffset"),
         alphaOffset:       document.getElementById("alphaOffset"),
-        rowGapFactor:      document.getElementById("rowGapFactor"),
+        weightGap:         document.getElementById("weightGap"),
+        fr:                document.getElementById("fr"),
 
         numericScaleValue: document.getElementById("numericScaleValue"),
         alphaScaleValue:   document.getElementById("alphaScaleValue"),
         numericOffsetValue:document.getElementById("numericOffsetValue"),
         alphaOffsetValue:  document.getElementById("alphaOffsetValue"),
-        rowGapFactorValue: document.getElementById("rowGapFactorValue"),
+        weightGapValue:    document.getElementById("weightGapValue"),
+        frValue:           document.getElementById("frValue"),
+        weightDateValue:   document.getElementById("weightDateValue"),
+        weightTimeValue:   document.getElementById("weightTimeValue"),
 
         dateColor:         document.getElementById("dateColor"),
-        dateFontSize:      document.getElementById("dateFontSize"),
-        dateFontSizeValue: document.getElementById("dateFontSizeValue"),
 
         timeColor:         document.getElementById("timeColor"),
-        timeFontSize:      document.getElementById("timeFontSize"),
-        timeFontSizeValue: document.getElementById("timeFontSizeValue"),
 
         secColor:          document.getElementById("secColor"),
-        secFontSize:       document.getElementById("secFontSize"),
-        secFontSizeValue:  document.getElementById("secFontSizeValue"),
+        secFontFactor:     document.getElementById("secFontFactor"),
+        secFontFactorValue:document.getElementById("secFontFactorValue"),
 
         profileName:       document.getElementById("profileName"),
         profileSelect:     document.getElementById("profileSelect"),
@@ -79,10 +103,20 @@ function initConfiguration() {
         els.alphaScaleValue.textContent   = state.alphaScale + "%";
         els.numericOffsetValue.textContent = state.numericOffset.toFixed(2) + "x";
         els.alphaOffsetValue.textContent   = state.alphaOffset.toFixed(2) + "x";
-        els.rowGapFactorValue.textContent  = (Number(state.rowGapFactor) || 0).toFixed(2) + "x";
-        els.dateFontSizeValue.textContent = state.dateFontSize + "px";
-        els.timeFontSizeValue.textContent = state.timeFontSize + "px";
-        els.secFontSizeValue.textContent  = state.secFontSize + "px";
+        const sizing = computeSizingWeights(state.weightGap, state.fr);
+        state.weightGap = sizing.weightGap;
+        state.fr = sizing.fr;
+        els.weightGapValue.textContent    = sizing.weightGap.toFixed(2) + "x";
+        els.frValue.textContent           = sizing.fr.toFixed(2) + "x";
+        els.weightDateValue.textContent   = sizing.weightDate.toFixed(2) + "x";
+        els.weightTimeValue.textContent   = sizing.weightTime.toFixed(2) + "x";
+        els.secFontFactorValue.textContent = state.secFontFactor.toFixed(2) + "x";
+    }
+
+    function normalizeSecFontFactor(value) {
+        const n = Number(value);
+        if (!Number.isFinite(n) || n <= 0) return 0.625;
+        return n;
     }
 
     function normalizeOffsetFactor(value) {
@@ -91,12 +125,6 @@ function initConfiguration() {
         // Backward compatibility: old values were px in roughly [-100..100].
         if (Math.abs(n) > 2) return n / 100;
         return n;
-    }
-
-    function normalizeRowGapFactor(value) {
-        const n = Number(value);
-        if (!Number.isFinite(n)) return 0.5;
-        return Math.max(0, n);
     }
 
     function colorToHex(colorValue) {
@@ -161,10 +189,11 @@ function initConfiguration() {
         state.dateColor = colorToHex(dateStyle.color);
         state.timeColor = colorToHex(hourStyle.color);
         state.secColor = colorToHex(secStyle.color);
-
-        state.dateFontSize = Math.round(parseFloat(dateStyle.fontSize) || state.dateFontSize);
-        state.timeFontSize = Math.round(parseFloat(hourStyle.fontSize) || state.timeFontSize);
-        state.secFontSize = Math.round(parseFloat(secStyle.fontSize) || state.secFontSize);
+        const hourFontSize = parseFloat(hourStyle.fontSize);
+        const secFontSize = parseFloat(secStyle.fontSize);
+        if (Number.isFinite(hourFontSize) && hourFontSize > 0 && Number.isFinite(secFontSize) && secFontSize > 0) {
+            state.secFontFactor = normalizeSecFontFactor(secFontSize / hourFontSize);
+        }
 
         state.numericFont = firstFamily(numericStyle.fontFamily) || state.numericFont;
         state.alphaFont = firstFamily(alphaStyle.fontFamily) || state.alphaFont;
@@ -180,22 +209,23 @@ function initConfiguration() {
     function initFormFromState() {
         state.numericOffset = normalizeOffsetFactor(state.numericOffset);
         state.alphaOffset = normalizeOffsetFactor(state.alphaOffset);
-        state.rowGapFactor = normalizeRowGapFactor(state.rowGapFactor);
+        state.weightGap = normalizeSizingWeight(state.weightGap, 0.5);
+        state.fr = normalizeSizingWeight(state.fr, 0.15);
+        state.secFontFactor = normalizeSecFontFactor(state.secFontFactor);
 
         els.numericScale.value  = state.numericScale;
         els.alphaScale.value    = state.alphaScale;
         els.numericOffset.value = state.numericOffset;
         els.alphaOffset.value   = state.alphaOffset;
-        els.rowGapFactor.value  = state.rowGapFactor;
+        els.weightGap.value     = state.weightGap;
+        els.fr.value            = state.fr;
 
         els.dateColor.value     = state.dateColor;
-        els.dateFontSize.value  = state.dateFontSize;
 
         els.timeColor.value     = state.timeColor;
-        els.timeFontSize.value  = state.timeFontSize;
 
         els.secColor.value      = state.secColor;
-        els.secFontSize.value   = state.secFontSize;
+        els.secFontFactor.value = state.secFontFactor;
 
         updateBadgesFromState();
 
@@ -207,16 +237,15 @@ function initConfiguration() {
         state.alphaScale    = Number(els.alphaScale.value);
         state.numericOffset = normalizeOffsetFactor(els.numericOffset.value);
         state.alphaOffset   = normalizeOffsetFactor(els.alphaOffset.value);
-        state.rowGapFactor  = normalizeRowGapFactor(els.rowGapFactor.value);
+        state.weightGap     = normalizeSizingWeight(els.weightGap.value, state.weightGap);
+        state.fr            = normalizeSizingWeight(els.fr.value, state.fr);
 
         state.dateColor     = els.dateColor.value;
-        state.dateFontSize  = Number(els.dateFontSize.value);
 
         state.timeColor     = els.timeColor.value;
-        state.timeFontSize  = Number(els.timeFontSize.value);
 
         state.secColor      = els.secColor.value;
-        state.secFontSize   = Number(els.secFontSize.value);
+        state.secFontFactor = normalizeSecFontFactor(els.secFontFactor.value);
 
         if (els.numericFontSelect.value) {
             state.numericFont = els.numericFontSelect.value;
@@ -248,7 +277,7 @@ function initConfiguration() {
         const alphaLetterSpacing = alphaCorrectionMeta.letterSpacing;
         const numericColonMargin = numericCorrectionMeta.colonMargin;
         const numericColon = numericCorrectionMeta.colon || ":";
-        const rowGapFactor = normalizeRowGapFactor(state.rowGapFactor);
+        const sizing = computeSizingWeights(state.weightGap, state.fr);
 
         // Share active correction factors with the main auto-fit scaler.
         window.clockSizeCorrection = {
@@ -257,31 +286,22 @@ function initConfiguration() {
         };
 
         dateLine.style.color     = state.dateColor;
-        dateLine.style.fontSize  = (state.dateFontSize * alphaCorrection) + "px";
-        dateLine.dataset.baseFontSizePx = String(state.dateFontSize * alphaCorrection);
-        dateLine.dataset.rowGapFactor = String(rowGapFactor);
         dateLine.style.transform = "";
         dateLine.style.marginBottom = "0px";
-        // Row gap is applied deterministically inside applyClockTransform()
-        // using rowGapFactor * fitted-date-font-size.
+        dateLine.dataset.weightGap = String(sizing.weightGap);
+        dateLine.dataset.fr = String(sizing.fr);
+        // Row gap and both row sizes are applied deterministically inside
+        // applyClockTransform() using weightGap and fr.
         if (timeLine) {
             timeLine.style.marginTop = "0px";
         }
 
         hourEl.style.color     = state.timeColor;
-        hourEl.style.fontSize  = (state.timeFontSize * numericCorrection) + "px";
-
         minEl.style.color     = state.timeColor;
-        minEl.style.fontSize  = (state.timeFontSize * numericCorrection) + "px";
-
         colonMinEl.style.color     = state.timeColor;
-        colonMinEl.style.fontSize  = (state.timeFontSize * numericCorrection) + "px";
 
         secEl.style.color        = state.secColor;
-        secEl.style.fontSize     = (state.secFontSize * numericCorrection) + "px";
-
         colonSecEl.style.color        = state.secColor;
-        colonSecEl.style.fontSize     = (state.secFontSize * numericCorrection) + "px";
         colonMinEl.textContent = numericColon;
         colonSecEl.textContent = numericColon;
 
@@ -314,16 +334,6 @@ function initConfiguration() {
         const probeColonMinEl = document.querySelector("#timeScaleProbe .probe-colon-min");
         const probeColonSecEl = document.querySelector("#timeScaleProbe .probe-colon-sec");
 
-        const probeMainChars = document.querySelectorAll("#timeScaleProbe .numeric-group:not(.probe-sec)");
-        probeMainChars.forEach(el => {
-            el.style.fontSize = (state.timeFontSize * numericCorrection) + "px";
-        });
-
-        const probeSecChars = document.querySelectorAll("#timeScaleProbe .probe-sec");
-        probeSecChars.forEach(el => {
-            el.style.fontSize = (state.secFontSize * numericCorrection) + "px";
-        });
-
         if (probeColonMinEl) probeColonMinEl.textContent = numericColon;
         if (probeColonSecEl) probeColonSecEl.textContent = numericColon;
 
@@ -341,10 +351,10 @@ function initConfiguration() {
         const inputs = [
             els.numericScale, els.alphaScale,
             els.numericOffset, els.alphaOffset,
-            els.rowGapFactor,
-            els.dateColor, els.dateFontSize,
-            els.timeColor, els.timeFontSize,
-            els.secColor, els.secFontSize,
+            els.weightGap, els.fr,
+            els.dateColor,
+            els.timeColor,
+            els.secColor, els.secFontFactor,
             els.numericFontSelect, els.alphaFontSelect
         ];
 
@@ -494,7 +504,6 @@ function initConfiguration() {
     console.log("loaded configuration.js");
 
     loadCurrentState();
-    syncStateFromDom();
     initFormFromState();
     attachFormListeners();
     populateProfileSelect();

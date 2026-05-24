@@ -40,11 +40,32 @@
         </label>
         <input type="range" id="alphaOffset" min="-1" max="1" step="0.01">
 
+    </div>
+
+    <div class="section">
+        <h3>Clock sizing</h3>
+
         <label>
-            Row gap factor
-            <span class="valueBadge" id="rowGapFactorValue"></span>
+            Gap weight
+            <span class="valueBadge" id="weightGapValue"></span>
         </label>
-        <input type="range" id="rowGapFactor" min="0" max="2" step="0.01">
+        <input type="range" id="weightGap" min="0.01" max="0.99" step="0.01">
+
+        <label>
+            Font ratio fr = dfs/tfs
+            <span class="valueBadge" id="frValue"></span>
+        </label>
+        <input type="range" id="fr" min="0.01" max="0.99" step="0.01">
+
+        <label>
+            Derived date weight
+            <span class="valueBadge" id="weightDateValue"></span>
+        </label>
+
+        <label>
+            Derived time weight
+            <span class="valueBadge" id="weightTimeValue"></span>
+        </label>
     </div>
 
     <div class="section">
@@ -53,11 +74,6 @@
             Color
             <input type="color" id="dateColor">
         </label>
-        <label>
-            Font size
-            <span class="valueBadge" id="dateFontSizeValue"></span>
-        </label>
-        <input type="range" id="dateFontSize" min="1" max="400" step="1">
     </div>
 
     <div class="section">
@@ -66,11 +82,6 @@
             Color
             <input type="color" id="timeColor">
         </label>
-        <label>
-            Font size
-            <span class="valueBadge" id="timeFontSizeValue"></span>
-        </label>
-        <input type="range" id="timeFontSize" min="1" max="400" step="1">
     </div>
 
     <div class="section">
@@ -80,10 +91,10 @@
             <input type="color" id="secColor">
         </label>
         <label>
-            Font size
-            <span class="valueBadge" id="secFontSizeValue"></span>
+            Size factor
+            <span class="valueBadge" id="secFontFactorValue"></span>
         </label>
-        <input type="range" id="secFontSize" min="1" max="400" step="1">
+        <input type="range" id="secFontFactor" min="0.1" max="2" step="0.01">
     </div>
 
     <div class="section">
