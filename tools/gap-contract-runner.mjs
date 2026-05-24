@@ -117,16 +117,14 @@ async function measureGapContract(page, viewport, fontName, dualFont) {
     };
 
     const dateLine = document.getElementById("dateLine");
-    const hour = document.getElementById("hour");
-    const colonMin = document.getElementById("colon-min");
-    const minute = document.getElementById("minute");
+    const timeLine = document.getElementById("timeLine");
 
-    if (!dateLine || !hour || !colonMin || !minute) {
+    if (!dateLine || !timeLine) {
       return { error: "Clock elements are missing" };
     }
 
     const dateBounds = getRowBounds(dateLine);
-    const hhmmBounds = getElementsBounds([hour, colonMin, minute]);
+    const hhmmBounds = getRowBounds(timeLine);
 
     if (!dateBounds || !hhmmBounds || !ok(hhmmBounds.height)) {
       return { error: "Failed to compute visual bounds" };

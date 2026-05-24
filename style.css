@@ -196,3 +196,39 @@ html, body {
     text-overflow: ellipsis;
     pointer-events: none;
 }
+
+.debug-row-box {
+    position: fixed;
+    z-index: 850;
+    border: 1px solid rgba(180, 255, 210, 0.35);
+    outline: 1px dashed rgba(180, 255, 210, 0.15);
+    outline-offset: 0;
+    background: rgba(180, 255, 210, 0.03);
+    pointer-events: none;
+}
+
+#dateRowDebugBox {
+    border-color: rgba(255, 96, 180, 0.45);
+    outline-color: rgba(255, 96, 180, 0.2);
+    background: rgba(255, 96, 180, 0.04);
+}
+
+#timeRowDebugBox {
+    border-color: rgba(90, 220, 255, 0.45);
+    outline-color: rgba(90, 220, 255, 0.2);
+    background: rgba(90, 220, 255, 0.04);
+}
+
+.debug-row-box-label {
+    position: absolute;
+    top: -1.2rem;
+    left: 0;
+    font-family: monospace;
+    font-size: 11px;
+    line-height: 1;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: rgba(210, 255, 230, 0.85);
+    text-shadow: 0 0 4px rgba(0, 0, 0, 0.6);
+    pointer-events: none;
+}

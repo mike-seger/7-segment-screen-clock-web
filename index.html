@@ -10,6 +10,7 @@
 </head>
 
 <body>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <div id="menuButton">≡</div>
 <div id="menuPlaceholder"></div>
 
@@ -47,6 +48,7 @@ let timeScaleProbe = null;
 let cycleTimer = null;
 let cycleStep = 0;
 let configurationModeActive = false;
+let fontLayoutRequestToken = 0;
 
 const SIZE_BUDGET = 0.95;
 const SCALE_SAFETY = 0.98;
@@ -176,6 +178,7 @@ function getTextNodeVisualBounds(textNode) {
   return mergeBounds(charBounds);
 }
 
+
 function getRenderedTextBounds(element) {
   if (!element) return null;
 
@@ -211,9 +214,191 @@ function getElementsRenderedTextBounds(elements) {
   return mergeBounds(bounds);
 }
 
+let rowDebugMetricsCtx = null;
+
+function getRowDebugMetricsContext() {
+  if (rowDebugMetricsCtx) return rowDebugMetricsCtx;
+  const canvas = document.createElement("canvas");
+  rowDebugMetricsCtx = canvas.getContext("2d");
+  return rowDebugMetricsCtx;
+}
+
+function getCanvasFontFromComputedStyle(style) {
+  if (!style) return "16px sans-serif";
+  return `${style.fontStyle || "normal"} ${style.fontVariant || "normal"} ${style.fontWeight || "400"} ${style.fontSize || "16px"} ${style.fontFamily || "sans-serif"}`;
+}
+
+function getChildInkApproxBounds(child) {
+  if (!child) return null;
+  const text = (child.textContent || "").trim();
+  if (!text) return null;
+
+  const rect = child.getBoundingClientRect();
+  if (!rect || !(rect.width > 0 || rect.height > 0)) return null;
+
+  const style = getComputedStyle(child);
+  const ctx = getRowDebugMetricsContext();
+  if (!ctx) return {
+    top: rect.top,
+    right: rect.right,
+    bottom: rect.bottom,
+    left: rect.left,
+    width: rect.width,
+    height: rect.height
+  };
+
+  ctx.font = getCanvasFontFromComputedStyle(style);
+  const metrics = ctx.measureText(text);
+  const fontAscent = Number(metrics.fontBoundingBoxAscent) || 0;
+  const fontDescent = Number(metrics.fontBoundingBoxDescent) || 0;
+  const actualAscent = Number(metrics.actualBoundingBoxAscent) || 0;
+  const actualDescent = Number(metrics.actualBoundingBoxDescent) || 0;
+
+  const fontHeight = fontAscent + fontDescent;
+  const actualHeight = actualAscent + actualDescent;
+
+  const trimRatio = fontHeight > 0 && actualHeight > 0
+    ? Math.max(0, Math.min(0.45, (1 - (actualHeight / fontHeight)) / 2))
+    : 0;
+  const top = rect.top + (rect.height * trimRatio);
+  const bottom = rect.bottom - (rect.height * trimRatio);
+
+  return {
+    top,
+    right: rect.right,
+    bottom,
+    left: rect.left,
+    width: rect.width,
+    height: Math.max(0, bottom - top)
+  };
+}
+
+function getChildrenInkApproxBounds(element) {
+  if (!element) return null;
+  const bounds = Array.from(element.children || [])
+    .map(getChildInkApproxBounds)
+    .filter(Boolean);
+  return mergeBounds(bounds);
+}
+
 function getVisualGapPx(upperBounds, lowerBounds) {
   if (!upperBounds || !lowerBounds) return null;
   return lowerBounds.top - upperBounds.bottom;
+}
+
+function getAlphaBoundsInBand(data, width, height, yStart, yEnd) {
+  return getAlphaBoundsInRegion(data, width, height, 0, width - 1, yStart, yEnd);
+}
+
+function getAlphaBoundsInRegion(data, width, height, xStart, xEnd, yStart, yEnd) {
+  if (!data || !width || !height) return null;
+  const yMin = Math.max(0, Math.min(height - 1, yStart));
+  const yMax = Math.max(0, Math.min(height - 1, yEnd));
+  const xMin0 = Math.max(0, Math.min(width - 1, xStart));
+  const xMax0 = Math.max(0, Math.min(width - 1, xEnd));
+  if (yMax < yMin || xMax0 < xMin0) return null;
+
+  let minX = width;
+  let minY = height;
+  let maxX = -1;
+  let maxY = -1;
+
+  const INK_THRESHOLD = 24;
+  for (let y = yMin; y <= yMax; y += 1) {
+    const rowOffset = y * width;
+    for (let x = xMin0; x <= xMax0; x += 1) {
+      const idx = (rowOffset + x) * 4;
+      if (data[idx + 3] < 8) continue;
+      const brightness = Math.max(data[idx], data[idx + 1], data[idx + 2]);
+      if (brightness < INK_THRESHOLD) continue;
+      if (x < minX) minX = x;
+      if (y < minY) minY = y;
+      if (x > maxX) maxX = x;
+      if (y > maxY) maxY = y;
+    }
+  }
+
+  if (maxX < minX || maxY < minY) return null;
+  return { minX, minY, maxX, maxY };
+}
+
+let _measureTextCanvas = null;
+function getMeasureTextCtx() {
+  if (!_measureTextCanvas) _measureTextCanvas = document.createElement("canvas");
+  return _measureTextCanvas.getContext("2d");
+}
+
+function measureRowInkBounds(lineEl) {
+  if (!lineEl) return null;
+  const rect = lineEl.getBoundingClientRect();
+  if (!rect || rect.width <= 0 || rect.height <= 0) return null;
+
+  const ctx = getMeasureTextCtx();
+  const children = Array.from(lineEl.children).filter(c => (c.textContent || "").trim().length > 0);
+  const measurables = children.length ? children : [lineEl];
+
+  let topMin = Number.POSITIVE_INFINITY;
+  let bottomMax = Number.NEGATIVE_INFINITY;
+
+  for (const child of measurables) {
+    const text = child.textContent || "";
+    if (!text.trim()) continue;
+    const childRect = child.getBoundingClientRect();
+    if (!childRect || childRect.height <= 0) continue;
+
+    const cs = getComputedStyle(child);
+    const fontSizePx = parseFloat(cs.fontSize) || 0;
+    let lineHeightPx = parseFloat(cs.lineHeight);
+    if (!Number.isFinite(lineHeightPx) || lineHeightPx <= 0) lineHeightPx = fontSizePx;
+    if (fontSizePx <= 0 || lineHeightPx <= 0) continue;
+
+    // The clock is rendered under a CSS scale transform on #clockInner.
+    // getBoundingClientRect returns post-transform px; getComputedStyle returns
+    // pre-transform CSS px. The effective scale = post / pre, derived from
+    // the child's own line box (rect.height pre-transform == lineHeightPx).
+    const scale = childRect.height / lineHeightPx;
+    if (!Number.isFinite(scale) || scale <= 0) continue;
+
+    ctx.font = `${cs.fontStyle || "normal"} ${cs.fontWeight || "normal"} ${cs.fontSize} ${cs.fontFamily}`;
+    const m = ctx.measureText(text);
+    if (!m) continue;
+    const FA = Number.isFinite(m.fontBoundingBoxAscent) ? m.fontBoundingBoxAscent : fontSizePx * 0.8;
+    const FD = Number.isFinite(m.fontBoundingBoxDescent) ? m.fontBoundingBoxDescent : fontSizePx * 0.2;
+    const AA = m.actualBoundingBoxAscent || 0;
+    const AD = m.actualBoundingBoxDescent || 0;
+
+    // CSS half-leading: baseline = top + (lineHeight + FA - FD) / 2
+    // (works for both positive and negative half-leading; when line-height
+    // is smaller than the font's intrinsic ascent+descent, glyphs overflow
+    // the line box symmetrically and this formula still locates the baseline.)
+    const baselineOffset = (lineHeightPx + FA - FD) / 2;
+    const baselineY = childRect.top + baselineOffset * scale;
+
+    const top = baselineY - AA * scale;
+    const bottom = baselineY + AD * scale;
+
+    if (top < topMin) topMin = top;
+    if (bottom > bottomMax) bottomMax = bottom;
+  }
+
+  if (!Number.isFinite(topMin) || !Number.isFinite(bottomMax)) return null;
+
+  return {
+    left: rect.left,
+    top: topMin,
+    right: rect.right,
+    bottom: bottomMax,
+    width: rect.width,
+    height: Math.max(0, bottomMax - topMin)
+  };
+}
+
+function getClockRowInkBounds(dateLine, timeLine) {
+  if (!dateLine || !timeLine) return null;
+  const dateBounds = measureRowInkBounds(dateLine);
+  const timeBounds = measureRowInkBounds(timeLine);
+  if (!dateBounds && !timeBounds) return null;
+  return { dateBounds, timeBounds };
 }
 
 function getVisualBlockHeight(dateLine, timeLine) {
@@ -224,21 +409,66 @@ function getVisualBlockHeight(dateLine, timeLine) {
 }
 
 let rowCoordinateUpdatePending = false;
+let rowCoordinateRequestToken = 0;
+
+function ensureDebugRowBox(id, label) {
+  let box = document.getElementById(id);
+  if (box) return box;
+
+  box = document.createElement("div");
+  box.id = id;
+  box.className = "debug-row-box";
+  box.setAttribute("aria-hidden", "true");
+
+  const tag = document.createElement("span");
+  tag.className = "debug-row-box-label";
+  tag.textContent = label;
+  box.appendChild(tag);
+
+  document.body.appendChild(box);
+  return box;
+}
+
+function updateDebugRowBox(box, bounds) {
+  if (!box) return;
+  if (!bounds) {
+    box.style.display = "none";
+    return;
+  }
+
+  box.style.display = "block";
+  box.style.left = `${Math.round(bounds.left)}px`;
+  box.style.top = `${Math.round(bounds.top)}px`;
+  box.style.width = `${Math.max(0, Math.round(bounds.width))}px`;
+  box.style.height = `${Math.max(0, Math.round(bounds.height))}px`;
+}
 
 function formatVisualBounds(bounds) {
   if (!bounds) return "n/a";
   return `x=${Math.round(bounds.left)}, y=${Math.round(bounds.top)}, w=${Math.round(bounds.width)}, h=${Math.round(bounds.height)}`;
 }
 
-function updateRowCoordinateDisplay() {
+async function updateRowCoordinateDisplay() {
+  const requestToken = ++rowCoordinateRequestToken;
   const display = document.getElementById("rowCoordinateDisplay");
-  if (!display) return;
+
+  const dateDebugBox = ensureDebugRowBox("dateRowDebugBox", "date");
+  const timeDebugBox = ensureDebugRowBox("timeRowDebugBox", "time");
 
   const dateLine = document.getElementById("dateLine");
   const timeLine = document.getElementById("timeLine");
-  const dateBounds = getRenderedTextBounds(dateLine) || getChildrenVisualBounds(dateLine);
-  const timeBounds = getRenderedTextBounds(timeLine) || getChildrenVisualBounds(timeLine);
+
+  const preciseRowBounds = getClockRowInkBounds(dateLine, timeLine);
+  if (requestToken !== rowCoordinateRequestToken) return;
+
+  const dateBounds = preciseRowBounds?.dateBounds || getChildrenVisualBounds(dateLine) || getRenderedTextBounds(dateLine);
+  const timeBounds = preciseRowBounds?.timeBounds || getChildrenVisualBounds(timeLine) || getRenderedTextBounds(timeLine);
   const gapHeight = getVisualGapPx(dateBounds, timeBounds);
+
+  updateDebugRowBox(dateDebugBox, dateBounds);
+  updateDebugRowBox(timeDebugBox, timeBounds);
+
+  if (!display) return;
 
   display.textContent = `date ${formatVisualBounds(dateBounds)} | time ${formatVisualBounds(timeBounds)} | gap ${Number.isFinite(gapHeight) ? Math.round(gapHeight) : "n/a"} px`;
 }
@@ -249,9 +479,30 @@ function scheduleRowCoordinateDisplayUpdate() {
 
   requestAnimationFrame(() => {
     rowCoordinateUpdatePending = false;
-    updateRowCoordinateDisplay();
+    void updateRowCoordinateDisplay();
   });
 }
+
+function requestLayoutAfterFonts(fontFamilies) {
+  if (!document.fonts || typeof document.fonts.load !== "function") return;
+
+  const families = [...new Set((fontFamilies || [])
+    .map(v => String(v || "").trim())
+    .filter(Boolean))];
+  if (!families.length) return;
+
+  const token = ++fontLayoutRequestToken;
+  Promise.all(families.map(family =>
+    document.fonts.load(`120px "${family}"`).catch(() => null)
+  )).then(() => {
+    if (token !== fontLayoutRequestToken) return;
+    updateClock();
+    applyClockTransform();
+    scheduleRowCoordinateDisplayUpdate();
+  });
+}
+
+window.requestLayoutAfterFonts = requestLayoutAfterFonts;
 
 function activateConfigurationMode() {
   if (configurationModeActive) return;
@@ -420,7 +671,7 @@ function applyClockTransform() {
   const vw = window.innerWidth;
   const vh = window.innerHeight;
   const currentState = typeof state !== "undefined" ? state : {};
-  const sizing = computeSizingWeights(
+  const baseSizing = computeSizingWeights(
     dateLine ? dateLine.dataset.weightGap : undefined,
     dateLine ? dateLine.dataset.fr : undefined
   );
@@ -429,6 +680,18 @@ function applyClockTransform() {
     : { numeric: 1, alpha: 1 };
   const numericCorrection = Math.max(Number(corrections.numeric) || 1, 0.01);
   const alphaCorrection = Math.max(Number(corrections.alpha) || 1, 0.01);
+  const gapAdjust = Math.max(Number(corrections.gapAdjust) || 1, 0);
+  const adjustedGapWeightRaw = baseSizing.weightGap * gapAdjust;
+  const adjustedGapWeight = Number.isFinite(adjustedGapWeightRaw)
+    ? Math.min(0.99, Math.max(0, adjustedGapWeightRaw))
+    : baseSizing.weightGap;
+  const adjustedRemaining = Math.max(0, 1 - adjustedGapWeight);
+  const sizing = {
+    weightGap: adjustedGapWeight,
+    fr: baseSizing.fr,
+    weightDate: baseSizing.fr * (adjustedRemaining / (baseSizing.fr + 1)),
+    weightTime: adjustedRemaining / (baseSizing.fr + 1)
+  };
 
   const availableHeight = SIZE_BUDGET * vh;
   const renderedDateFontSize = availableHeight * sizing.weightDate;
@@ -462,13 +725,35 @@ function applyClockTransform() {
     el.style.fontSize = `${renderedSecFontSize / numericCorrection}px`;
   });
 
-  // Contract: visible gap between date and HH:MM equals weightGap * HH:MM height.
-  // Solve once in unscaled glyph space; transform scaling then preserves the ratio.
+  // Contract solve uses canonical time glyphs so resize/reload at the same
+  // viewport converges to the same row gap independent of current seconds.
+  const savedTimeText = {
+    hour: hourEl ? hourEl.textContent : "",
+    minute: minuteEl ? minuteEl.textContent : "",
+    sec: secEl ? secEl.textContent : ""
+  };
+
+  if (hourEl) hourEl.textContent = "88";
+  if (minuteEl) minuteEl.textContent = "88";
+  if (secEl) secEl.textContent = "88";
+  if (timeLine) timeLine.classList.remove("hour-leading-one");
+
   const dateBounds = getRenderedTextBounds(dateLine) || getChildrenVisualBounds(dateLine);
-  const timeMainBounds = getElementsRenderedTextBounds([hourEl, colonMinEl, minuteEl]) || getElementsVisualBounds([hourEl, colonMinEl, minuteEl]);
-  const measuredGap = getVisualGapPx(dateBounds, timeMainBounds);
-  const timeMainHeight = Number.isFinite(timeMainBounds?.height) ? Math.max(0, timeMainBounds.height) : 0;
-  const targetGap = sizing.weightGap * timeMainHeight;
+  const timeRowBounds = getRenderedTextBounds(timeLine) || getChildrenVisualBounds(timeLine);
+  const timeReferenceBounds = getRenderedTextBounds(probe) || getChildrenVisualBounds(probe);
+
+  if (hourEl) hourEl.textContent = savedTimeText.hour;
+  if (minuteEl) minuteEl.textContent = savedTimeText.minute;
+  if (secEl) secEl.textContent = savedTimeText.sec;
+  if (timeLine && savedTimeText.hour) {
+    timeLine.classList.toggle("hour-leading-one", savedTimeText.hour.length === 2 && savedTimeText.hour.startsWith("1"));
+  }
+
+  const measuredGap = getVisualGapPx(dateBounds, timeRowBounds);
+  const timeReferenceHeight = Number.isFinite(timeReferenceBounds?.height)
+    ? Math.max(0, timeReferenceBounds.height)
+    : (Number.isFinite(timeRowBounds?.height) ? Math.max(0, timeRowBounds.height) : 0);
+  const targetGap = sizing.weightGap * timeReferenceHeight;
 
   if (timeLine) {
     if (Number.isFinite(measuredGap) && Number.isFinite(targetGap)) {
@@ -554,31 +839,72 @@ window.addEventListener("orientationchange", applyClockTransform);
 document.addEventListener("contextmenu", e => { e.preventDefault(); });
 window.addEventListener("keydown", handleKeyDown);
 
-(async function showClockWhenFontReady() {
-  const isE2E = new URLSearchParams(window.location.search).get("e2e") === "1";
-  if (isE2E) {
+if (document.fonts && typeof document.fonts.addEventListener === "function") {
+  document.fonts.addEventListener("loadingdone", () => {
     const clock = document.getElementById("clock");
-    if (clock) {
-      clock.style.display = "flex";
-      applyClockTransform();
-    }
-    scheduleRowCoordinateDisplayUpdate();
-    return;
-  }
+    if (!clock || getComputedStyle(clock).display === "none") return;
 
+    // Late webfont resolution can shift glyph geometry after initial layout.
+    // Re-apply transform so reload reaches the same settled state as resize.
+    applyClockTransform();
+    scheduleRowCoordinateDisplayUpdate();
+  });
+}
+
+(async function showClockWhenFontReady() {
   if (document.readyState !== "complete") {
     await new Promise(resolve =>
       window.addEventListener("load", resolve, { once: true })
     );
   }
 
-  try { await document.fonts.load('80px "Digital7Mono"');
-  } catch (e) { console.warn("Digital7Mono load error (API-level):", e);}
+  const fontNames = new Set(["Digital7Mono"]);
+  if (typeof state === "object" && state) {
+    if (state.numericFont) fontNames.add(state.numericFont);
+    if (state.alphaFont) fontNames.add(state.alphaFont);
+  }
+
+  if (document.fonts && typeof document.fonts.load === "function") {
+    for (const fontName of fontNames) {
+      try {
+        await document.fonts.load(`80px "${fontName}"`);
+      } catch (e) {
+        console.warn(`Font load error for ${fontName}:`, e);
+      }
+    }
+
+    try {
+      await Promise.race([
+        document.fonts.ready,
+        new Promise(resolve => setTimeout(resolve, 1500))
+      ]);
+    } catch (e) {
+      console.warn("document.fonts.ready error:", e);
+    }
+  }
+
+  const configFontsReadyPromise = window.configurationFontsReadyPromise;
+  if (configFontsReadyPromise && typeof configFontsReadyPromise.then === "function") {
+    try {
+      await Promise.race([
+        configFontsReadyPromise,
+        new Promise(resolve => setTimeout(resolve, 1500))
+      ]);
+    } catch (e) {
+      console.warn("configurationFontsReadyPromise error:", e);
+    }
+  }
 
   const clock = document.getElementById("clock");
   if (clock) {
+    clock.style.visibility = "hidden";
     clock.style.display = "flex";
     applyClockTransform();
+
+    await new Promise(resolve => setTimeout(resolve, 350));
+    applyClockTransform();
+
+    clock.style.visibility = "visible";
   }
   scheduleRowCoordinateDisplayUpdate();
 })();

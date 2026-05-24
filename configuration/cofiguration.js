@@ -3,12 +3,12 @@
 // ---------------- FORM / UI BINDING ----------------
 
 const FONT_CORRECTION = {
-    AlarmClock: { size: 0.86, baseline: -0.05 },
+    AlarmClock: { size: 1.2, baseline: 0 },
     DSEG7Classic: { size: 0.75, baseline: 0.06 },
     DSEG7ClassicMini: { size: 0.75, baseline: 0.06 },
     DSEG14Classic: { size: 0.75, baseline: 0.06 },
     DigitalDisplay: { size: 1.14, baseline: -0.12 },
-    Digital7Mono: { baseline: -0.12, colonMargin: -0.25 },
+    Digital7Mono: { colonMargin: -0.25, gapAdjust: 0.5 },
     FourteenSegment: { size: 1.16, baseline: 0.1, colon: "-" },
     SevenSegment: { size: 1.1, baseline: -0.09 },
     LCDDot: { size: 0.4, baseline: 0.4, letterSpacing: 0, colonMargin: -0.01 },
@@ -23,7 +23,7 @@ function normalizeFontName(value) {
 }
 
 function getFontCorrection(fontName) {
-    const defaults = { size: 1, baseline: 0, letterSpacing: 0.09, colonMargin: -0.12, colon: ":" };
+    const defaults = { size: 1, baseline: 0, letterSpacing: 0.09, colonMargin: -0.12, colon: ":", gapAdjust: 1 };
     const name = normalizeFontName(fontName);
     if (!name) return { ...defaults };
 
@@ -309,7 +309,8 @@ function initConfiguration() {
             numeric: numericCorrection,
             alpha: alphaCorrection,
             numericBaseline: numericBaselineOffset,
-            alphaBaseline: alphaBaselineOffset
+            alphaBaseline: alphaBaselineOffset,
+            gapAdjust: numericCorrectionMeta.gapAdjust
         };
 
         dateLine.style.color     = state.dateColor;
@@ -524,7 +525,8 @@ function initConfiguration() {
         applyState();
     }
 
-    fetch("fonts/fonts.css")
+    window.configurationFontsReady = false;
+    window.configurationFontsReadyPromise = fetch("fonts/fonts.css")
         .then(r => r.text())
         .then(cssText => {
             const fontFamilies = Array.from(cssText.matchAll(/font-family:\s*["']([^"']+)["']/g))
@@ -534,6 +536,9 @@ function initConfiguration() {
         })
         .catch(err => {
             console.warn("Could not load fonts.css for font discovery", err);
+        })
+        .finally(() => {
+            window.configurationFontsReady = true;
         });
 
     // ---------------- INITIALIZATION ----------------
