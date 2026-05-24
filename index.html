@@ -32,6 +32,8 @@
     </div>
 </div>
 
+    <div id="rowCoordinateDisplay" aria-live="polite"></div>
+
 
 <script>
 const days   = ["SUN","MON","TUE","WED","THU","FRI","SAT"];
@@ -124,16 +126,131 @@ function getElementsVisualBounds(elements) {
   };
 }
 
+function mergeBounds(boundsList) {
+  const valid = (boundsList || []).filter(Boolean);
+  if (!valid.length) return null;
+
+  const top = Math.min(...valid.map(bounds => bounds.top));
+  const right = Math.max(...valid.map(bounds => bounds.right));
+  const bottom = Math.max(...valid.map(bounds => bounds.bottom));
+  const left = Math.min(...valid.map(bounds => bounds.left));
+
+  return {
+    top,
+    right,
+    bottom,
+    left,
+    width: right - left,
+    height: bottom - top
+  };
+}
+
+function getTextNodeVisualBounds(textNode) {
+  if (!textNode || textNode.nodeType !== Node.TEXT_NODE) return null;
+  const text = textNode.textContent || "";
+  if (!text.length) return null;
+
+  const range = document.createRange();
+  const charBounds = [];
+
+  for (let i = 0; i < text.length; i += 1) {
+    const char = text[i];
+    if (!char || !char.trim()) continue;
+
+    range.setStart(textNode, i);
+    range.setEnd(textNode, i + 1);
+    const rect = range.getBoundingClientRect();
+    if (rect && (rect.width > 0 || rect.height > 0)) {
+      charBounds.push({
+        top: rect.top,
+        right: rect.right,
+        bottom: rect.bottom,
+        left: rect.left,
+        width: rect.width,
+        height: rect.height
+      });
+    }
+  }
+
+  range.detach?.();
+  return mergeBounds(charBounds);
+}
+
+function getRenderedTextBounds(element) {
+  if (!element) return null;
+
+  const walker = document.createTreeWalker(
+    element,
+    NodeFilter.SHOW_TEXT,
+    {
+      acceptNode(node) {
+        const value = (node && node.textContent) ? node.textContent : "";
+        return value.trim().length > 0
+          ? NodeFilter.FILTER_ACCEPT
+          : NodeFilter.FILTER_SKIP;
+      }
+    }
+  );
+
+  const textBounds = [];
+  let current = walker.nextNode();
+  while (current) {
+    const bounds = getTextNodeVisualBounds(current);
+    if (bounds) textBounds.push(bounds);
+    current = walker.nextNode();
+  }
+
+  return mergeBounds(textBounds);
+}
+
+function getElementsRenderedTextBounds(elements) {
+  const bounds = (elements || [])
+    .filter(Boolean)
+    .map(el => getRenderedTextBounds(el))
+    .filter(Boolean);
+  return mergeBounds(bounds);
+}
+
 function getVisualGapPx(upperBounds, lowerBounds) {
   if (!upperBounds || !lowerBounds) return null;
   return lowerBounds.top - upperBounds.bottom;
 }
 
 function getVisualBlockHeight(dateLine, timeLine) {
-  const dateBounds = getChildrenVisualBounds(dateLine);
-  const timeBounds = getChildrenVisualBounds(timeLine);
+  const dateBounds = getRenderedTextBounds(dateLine) || getChildrenVisualBounds(dateLine);
+  const timeBounds = getRenderedTextBounds(timeLine) || getChildrenVisualBounds(timeLine);
   if (!dateBounds || !timeBounds) return 0;
   return Math.max(0, timeBounds.bottom - dateBounds.top);
+}
+
+let rowCoordinateUpdatePending = false;
+
+function formatVisualBounds(bounds) {
+  if (!bounds) return "n/a";
+  return `x=${Math.round(bounds.left)}, y=${Math.round(bounds.top)}, w=${Math.round(bounds.width)}, h=${Math.round(bounds.height)}`;
+}
+
+function updateRowCoordinateDisplay() {
+  const display = document.getElementById("rowCoordinateDisplay");
+  if (!display) return;
+
+  const dateLine = document.getElementById("dateLine");
+  const timeLine = document.getElementById("timeLine");
+  const dateBounds = getRenderedTextBounds(dateLine) || getChildrenVisualBounds(dateLine);
+  const timeBounds = getRenderedTextBounds(timeLine) || getChildrenVisualBounds(timeLine);
+  const gapHeight = getVisualGapPx(dateBounds, timeBounds);
+
+  display.textContent = `date ${formatVisualBounds(dateBounds)} | time ${formatVisualBounds(timeBounds)} | gap ${Number.isFinite(gapHeight) ? Math.round(gapHeight) : "n/a"} px`;
+}
+
+function scheduleRowCoordinateDisplayUpdate() {
+  if (rowCoordinateUpdatePending) return;
+  rowCoordinateUpdatePending = true;
+
+  requestAnimationFrame(() => {
+    rowCoordinateUpdatePending = false;
+    updateRowCoordinateDisplay();
+  });
 }
 
 function activateConfigurationMode() {
@@ -227,6 +344,8 @@ function updateClock() {
       const hourLeadingOne = h.length === 2 && h.startsWith("1");
       timeLine.classList.toggle("hour-leading-one", hourLeadingOne);
     }
+
+    scheduleRowCoordinateDisplayUpdate();
 
 }
 
@@ -345,8 +464,8 @@ function applyClockTransform() {
 
   // Contract: visible gap between date and HH:MM equals weightGap * HH:MM height.
   // Solve once in unscaled glyph space; transform scaling then preserves the ratio.
-  const dateBounds = getChildrenVisualBounds(dateLine);
-  const timeMainBounds = getElementsVisualBounds([hourEl, colonMinEl, minuteEl]);
+  const dateBounds = getRenderedTextBounds(dateLine) || getChildrenVisualBounds(dateLine);
+  const timeMainBounds = getElementsRenderedTextBounds([hourEl, colonMinEl, minuteEl]) || getElementsVisualBounds([hourEl, colonMinEl, minuteEl]);
   const measuredGap = getVisualGapPx(dateBounds, timeMainBounds);
   const timeMainHeight = Number.isFinite(timeMainBounds?.height) ? Math.max(0, timeMainBounds.height) : 0;
   const targetGap = sizing.weightGap * timeMainHeight;
@@ -379,6 +498,7 @@ function applyClockTransform() {
   }
 
   clockInner.style.transform = `rotate(${rotation}deg) scale(${scale})`;
+  scheduleRowCoordinateDisplayUpdate();
 }
 
 function rotateClock() {
@@ -435,6 +555,17 @@ document.addEventListener("contextmenu", e => { e.preventDefault(); });
 window.addEventListener("keydown", handleKeyDown);
 
 (async function showClockWhenFontReady() {
+  const isE2E = new URLSearchParams(window.location.search).get("e2e") === "1";
+  if (isE2E) {
+    const clock = document.getElementById("clock");
+    if (clock) {
+      clock.style.display = "flex";
+      applyClockTransform();
+    }
+    scheduleRowCoordinateDisplayUpdate();
+    return;
+  }
+
   if (document.readyState !== "complete") {
     await new Promise(resolve =>
       window.addEventListener("load", resolve, { once: true })
@@ -449,6 +580,7 @@ window.addEventListener("keydown", handleKeyDown);
     clock.style.display = "flex";
     applyClockTransform();
   }
+  scheduleRowCoordinateDisplayUpdate();
 })();
 
 </script>

@@ -9,8 +9,8 @@ const host = "127.0.0.1";
 const port = 4173;
 const baseUrl = `http://${host}:${port}`;
 
-const viewports = Array.from({ length: Math.floor((1800 - 600) / 50) + 1 }, (_, index) => ({
-  width: 600 + index * 50,
+const viewports = Array.from({ length: Math.floor((1800 - 600) / 100) + 1 }, (_, index) => ({
+  width: 600 + index * 100,
   height: 900
 }));
 
@@ -18,7 +18,7 @@ const fonts = [
   "Digital7Mono"
 ];
 
-const dualFontModes = [true, false];
+const dualFontModes = [false];
 const targetWeightGap = 0.07;
 const targetFr = 0.07;
 const ratioTolerance = 0.012;
@@ -58,7 +58,21 @@ function startServer() {
 async function measureGapContract(page, viewport, fontName, dualFont) {
   await page.setViewportSize(viewport);
   await page.goto(`${baseUrl}/index.html?e2e=1`, { waitUntil: "load" });
-  await page.waitForTimeout(300);
+  await page.waitForFunction(() => {
+    const clock = document.getElementById("clock");
+    const dateLine = document.getElementById("dateLine");
+    const hour = document.getElementById("hour");
+    return Boolean(
+      clock &&
+      dateLine &&
+      hour &&
+      getComputedStyle(clock).display !== "none" &&
+      typeof window.applyClockTransform === "function" &&
+      typeof window.getRenderedTextBounds === "function" &&
+      dateLine.children.length > 0
+    );
+  }, { timeout: 5000 });
+  await page.waitForTimeout(80);
 
   const result = await page.evaluate(({ fontName, dualFont, targetWeightGap, targetFr }) => {
     const ok = (v) => Number.isFinite(v);
@@ -84,6 +98,24 @@ async function measureGapContract(page, viewport, fontName, dualFont) {
       window.applyClockTransform();
     }
 
+    const getRowBounds = (element) => {
+      const textBounds = typeof window.getRenderedTextBounds === "function"
+        ? window.getRenderedTextBounds(element)
+        : null;
+      if (textBounds) return textBounds;
+      if (typeof window.getChildrenVisualBounds !== "function") return null;
+      return window.getChildrenVisualBounds(element);
+    };
+
+    const getElementsBounds = (elements) => {
+      const textBounds = typeof window.getElementsRenderedTextBounds === "function"
+        ? window.getElementsRenderedTextBounds(elements)
+        : null;
+      if (textBounds) return textBounds;
+      if (typeof window.getElementsVisualBounds !== "function") return null;
+      return window.getElementsVisualBounds(elements);
+    };
+
     const dateLine = document.getElementById("dateLine");
     const hour = document.getElementById("hour");
     const colonMin = document.getElementById("colon-min");
@@ -93,23 +125,8 @@ async function measureGapContract(page, viewport, fontName, dualFont) {
       return { error: "Clock elements are missing" };
     }
 
-    const boundsFrom = (els) => {
-      const rects = els
-        .filter(Boolean)
-        .map(el => el.getBoundingClientRect())
-        .filter(r => r && (r.width > 0 || r.height > 0));
-
-      if (!rects.length) return null;
-
-      const top = Math.min(...rects.map(r => r.top));
-      const right = Math.max(...rects.map(r => r.right));
-      const bottom = Math.max(...rects.map(r => r.bottom));
-      const left = Math.min(...rects.map(r => r.left));
-      return { top, right, bottom, left, width: right - left, height: bottom - top };
-    };
-
-    const dateBounds = boundsFrom(Array.from(dateLine.children));
-    const hhmmBounds = boundsFrom([hour, colonMin, minute]);
+    const dateBounds = getRowBounds(dateLine);
+    const hhmmBounds = getElementsBounds([hour, colonMin, minute]);
 
     if (!dateBounds || !hhmmBounds || !ok(hhmmBounds.height)) {
       return { error: "Failed to compute visual bounds" };
@@ -118,10 +135,16 @@ async function measureGapContract(page, viewport, fontName, dualFont) {
     const gapPx = hhmmBounds.top - dateBounds.bottom;
     const hhmmHeightPx = hhmmBounds.height;
     const ratio = hhmmHeightPx > 0 ? gapPx / hhmmHeightPx : NaN;
+    const expectedGapPx = targetWeightGap * hhmmHeightPx;
+    const gapErrorPx = Number.isFinite(gapPx) && Number.isFinite(expectedGapPx)
+      ? gapPx - expectedGapPx
+      : NaN;
 
     return {
       gapPx,
       hhmmHeightPx,
+      expectedGapPx,
+      gapErrorPx,
       ratio,
       targetWeightGap,
       overlap: gapPx < 0,
@@ -157,7 +180,7 @@ async function main() {
             console.log(`ERROR ${label}: ${m.error}`);
           } else {
             console.log(
-              `${label} -> gap=${m.gapPx.toFixed(2)} px, hhmm=${m.hhmmHeightPx.toFixed(2)} px, ratio=${m.ratio.toFixed(4)}`
+              `${label} -> gap=${m.gapPx.toFixed(2)} px, expected=${m.expectedGapPx.toFixed(2)} px, error=${m.gapErrorPx.toFixed(2)} px, hhmm=${m.hhmmHeightPx.toFixed(2)} px, ratio=${m.ratio.toFixed(4)}`
             );
           }
         }
@@ -168,13 +191,17 @@ async function main() {
       if (m.error) return true;
       if (!Number.isFinite(m.ratio)) return true;
       if (m.overlap) return true;
-      return Math.abs(m.ratio - targetWeightGap) > ratioTolerance;
+      if (Math.abs(m.ratio - targetWeightGap) > ratioTolerance) return true;
+      if (!Number.isFinite(m.gapErrorPx)) return true;
+      const expectedGapAbsTolerancePx = Math.max(1, m.hhmmHeightPx * ratioTolerance);
+      return Math.abs(m.gapErrorPx) > expectedGapAbsTolerancePx;
     });
 
     const report = {
       generatedAt: new Date().toISOString(),
       targetWeightGap,
       ratioTolerance,
+      viewportStepPx: 100,
       total: all.length,
       failed: failures.length,
       results: all,

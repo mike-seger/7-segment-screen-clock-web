@@ -1,33 +1,36 @@
 {
-  "generatedAt": "2026-05-24T21:32:39.262Z",
+  "generatedAt": "2026-05-24T22:03:48.545Z",
   "targetWeightGap": 0.07,
   "ratioTolerance": 0.012,
-  "total": 50,
+  "viewportStepPx": 100,
+  "total": 13,
   "failed": 0,
   "results": [
     {
-      "gapPx": 3.0604248046875,
-      "hhmmHeightPx": 43.73553466796875,
-      "ratio": 0.06997570346222175,
+      "gapPx": 12.754119873046875,
+      "hhmmHeightPx": 182.23141479492188,
+      "expectedGapPx": 12.756199035644533,
+      "gapErrorPx": -0.0020791625976581685,
+      "ratio": 0.06998859053692802,
       "targetWeightGap": 0.07,
       "overlap": false,
       "fontName": "Digital7Mono",
-      "dualFont": true,
+      "dualFont": false,
       "dateBounds": {
-        "top": 416.382080078125,
+        "top": 377.7829895019531,
         "right": 357.0485534667969,
-        "bottom": 430.42486572265625,
+        "bottom": 390.4716796875,
         "left": 242.95144653320312,
         "width": 114.09710693359375,
-        "height": 14.04278564453125
+        "height": 12.688690185546875
       },
       "hhmmBounds": {
-        "top": 433.48529052734375,
+        "top": 403.2257995605469,
         "right": 451.89324951171875,
-        "bottom": 477.2208251953125,
+        "bottom": 585.4572143554688,
         "left": 5.95361328125,
         "width": 445.93963623046875,
-        "height": 43.73553466796875
+        "height": 182.23141479492188
       },
       "viewport": {
         "width": 600,
@@ -35,115 +38,30 @@
       }
     },
     {
-      "gapPx": 3.0604248046875,
-      "hhmmHeightPx": 43.73553466796875,
-      "ratio": 0.06997570346222175,
+      "gapPx": 14.879791259765625,
+      "hhmmHeightPx": 212.60333251953125,
+      "expectedGapPx": 14.882233276367188,
+      "gapErrorPx": -0.0024420166015630684,
+      "ratio": 0.06998851374259932,
       "targetWeightGap": 0.07,
       "overlap": false,
       "fontName": "Digital7Mono",
       "dualFont": false,
       "dateBounds": {
-        "top": 416.382080078125,
-        "right": 357.0485534667969,
-        "bottom": 430.42486572265625,
-        "left": 242.95144653320312,
-        "width": 114.09710693359375,
-        "height": 14.04278564453125
-      },
-      "hhmmBounds": {
-        "top": 433.48529052734375,
-        "right": 451.89324951171875,
-        "bottom": 477.2208251953125,
-        "left": 5.95361328125,
-        "width": 445.93963623046875,
-        "height": 43.73553466796875
-      },
-      "viewport": {
-        "width": 600,
-        "height": 900
-      }
-    },
-    {
-      "gapPx": 3.58966064453125,
-      "hhmmHeightPx": 51.3284912109375,
-      "ratio": 0.06993505088196193,
-      "targetWeightGap": 0.07,
-      "overlap": false,
-      "fontName": "Digital7Mono",
-      "dualFont": true,
-      "dateBounds": {
-        "top": 412.4198303222656,
-        "right": 386.8025817871094,
-        "bottom": 427.6328430175781,
-        "left": 263.1973876953125,
-        "width": 123.60519409179688,
-        "height": 15.2130126953125
-      },
-      "hhmmBounds": {
-        "top": 431.2225036621094,
-        "right": 489.5509948730469,
-        "bottom": 482.5509948730469,
-        "left": 6.44970703125,
-        "width": 483.1012878417969,
-        "height": 51.3284912109375
-      },
-      "viewport": {
-        "width": 650,
-        "height": 900
-      }
-    },
-    {
-      "gapPx": 3.58966064453125,
-      "hhmmHeightPx": 51.3284912109375,
-      "ratio": 0.06993505088196193,
-      "targetWeightGap": 0.07,
-      "overlap": false,
-      "fontName": "Digital7Mono",
-      "dualFont": false,
-      "dateBounds": {
-        "top": 412.4198303222656,
-        "right": 386.8025817871094,
-        "bottom": 427.6328430175781,
-        "left": 263.1973876953125,
-        "width": 123.60519409179688,
-        "height": 15.2130126953125
-      },
-      "hhmmBounds": {
-        "top": 431.2225036621094,
-        "right": 489.5509948730469,
-        "bottom": 482.5509948730469,
-        "left": 6.44970703125,
-        "width": 483.1012878417969,
-        "height": 51.3284912109375
-      },
-      "viewport": {
-        "width": 650,
-        "height": 900
-      }
-    },
-    {
-      "gapPx": 4.165985107421875,
-      "hhmmHeightPx": 59.5289306640625,
-      "ratio": 0.06998252884688339,
-      "targetWeightGap": 0.07,
-      "overlap": false,
-      "fontName": "Digital7Mono",
-      "dualFont": true,
-      "dateBounds": {
-        "top": 408.26873779296875,
+        "top": 365.74810791015625,
         "right": 416.5566711425781,
-        "bottom": 424.6519775390625,
+        "bottom": 380.5516052246094,
         "left": 283.443359375,
         "width": 133.11331176757812,
-        "height": 16.38323974609375
+        "height": 14.803497314453125
       },
       "hhmmBounds": {
-        "top": 428.8179626464844,
+        "top": 395.431396484375,
         "right": 527.2088012695312,
-        "bottom": 488.3468933105469,
+        "bottom": 608.0347290039062,
         "left": 6.94586181640625,
         "width": 520.262939453125,
-        "height": 59.5289306640625
+        "height": 212.60333251953125
       },
       "viewport": {
         "width": 700,
@@ -151,115 +69,30 @@
       }
     },
     {
-      "gapPx": 4.165985107421875,
-      "hhmmHeightPx": 59.5289306640625,
-      "ratio": 0.06998252884688339,
+      "gapPx": 17.0054931640625,
+      "hhmmHeightPx": 242.97518920898438,
+      "expectedGapPx": 17.008263244628907,
+      "gapErrorPx": -0.0027700805664068184,
+      "ratio": 0.06998859932746457,
       "targetWeightGap": 0.07,
       "overlap": false,
       "fontName": "Digital7Mono",
       "dualFont": false,
       "dateBounds": {
-        "top": 408.26873779296875,
-        "right": 416.5566711425781,
-        "bottom": 424.6519775390625,
-        "left": 283.443359375,
-        "width": 133.11331176757812,
-        "height": 16.38323974609375
-      },
-      "hhmmBounds": {
-        "top": 428.8179626464844,
-        "right": 527.2088012695312,
-        "bottom": 488.3468933105469,
-        "left": 6.94586181640625,
-        "width": 520.262939453125,
-        "height": 59.5289306640625
-      },
-      "viewport": {
-        "width": 700,
-        "height": 900
-      }
-    },
-    {
-      "gapPx": 4.7799072265625,
-      "hhmmHeightPx": 68.33676147460938,
-      "ratio": 0.06994635278902529,
-      "targetWeightGap": 0.07,
-      "overlap": false,
-      "fontName": "Digital7Mono",
-      "dualFont": true,
-      "dateBounds": {
-        "top": 403.61163330078125,
-        "right": 446.3106994628906,
-        "bottom": 421.1651306152344,
-        "left": 303.6893310546875,
-        "width": 142.62136840820312,
-        "height": 17.553497314453125
-      },
-      "hhmmBounds": {
-        "top": 425.9450378417969,
-        "right": 564.8665771484375,
-        "bottom": 494.28179931640625,
-        "left": 7.4420166015625,
-        "width": 557.424560546875,
-        "height": 68.33676147460938
-      },
-      "viewport": {
-        "width": 750,
-        "height": 900
-      }
-    },
-    {
-      "gapPx": 4.7799072265625,
-      "hhmmHeightPx": 68.33676147460938,
-      "ratio": 0.06994635278902529,
-      "targetWeightGap": 0.07,
-      "overlap": false,
-      "fontName": "Digital7Mono",
-      "dualFont": false,
-      "dateBounds": {
-        "top": 403.61163330078125,
-        "right": 446.3106994628906,
-        "bottom": 421.1651306152344,
-        "left": 303.6893310546875,
-        "width": 142.62136840820312,
-        "height": 17.553497314453125
-      },
-      "hhmmBounds": {
-        "top": 425.9450378417969,
-        "right": 564.8665771484375,
-        "bottom": 494.28179931640625,
-        "left": 7.4420166015625,
-        "width": 557.424560546875,
-        "height": 68.33676147460938
-      },
-      "viewport": {
-        "width": 750,
-        "height": 900
-      }
-    },
-    {
-      "gapPx": 5.441680908203125,
-      "hhmmHeightPx": 77.75204467773438,
-      "ratio": 0.06998762451531314,
-      "targetWeightGap": 0.07,
-      "overlap": false,
-      "fontName": "Digital7Mono",
-      "dualFont": true,
-      "dateBounds": {
-        "top": 397.9099426269531,
+        "top": 352.0027770996094,
         "right": 476.0647277832031,
-        "bottom": 416.6336669921875,
+        "bottom": 368.9210510253906,
         "left": 323.93524169921875,
         "width": 152.12948608398438,
-        "height": 18.723724365234375
+        "height": 16.91827392578125
       },
       "hhmmBounds": {
-        "top": 422.0753479003906,
+        "top": 385.9265441894531,
         "right": 602.5242919921875,
-        "bottom": 499.827392578125,
+        "bottom": 628.9017333984375,
         "left": 7.9381103515625,
         "width": 594.586181640625,
-        "height": 77.75204467773438
+        "height": 242.97518920898438
       },
       "viewport": {
         "width": 800,
@@ -267,115 +100,30 @@
       }
     },
     {
-      "gapPx": 5.441680908203125,
-      "hhmmHeightPx": 77.75204467773438,
-      "ratio": 0.06998762451531314,
+      "gapPx": 19.131195068359375,
+      "hhmmHeightPx": 273.3470764160156,
+      "expectedGapPx": 19.134295349121096,
+      "gapErrorPx": -0.003100280761721308,
+      "ratio": 0.06998865807967523,
       "targetWeightGap": 0.07,
       "overlap": false,
       "fontName": "Digital7Mono",
       "dualFont": false,
       "dateBounds": {
-        "top": 397.9099426269531,
-        "right": 476.0647277832031,
-        "bottom": 416.6336669921875,
-        "left": 323.93524169921875,
-        "width": 152.12948608398438,
-        "height": 18.723724365234375
-      },
-      "hhmmBounds": {
-        "top": 422.0753479003906,
-        "right": 602.5242919921875,
-        "bottom": 499.827392578125,
-        "left": 7.9381103515625,
-        "width": 594.586181640625,
-        "height": 77.75204467773438
-      },
-      "viewport": {
-        "width": 800,
-        "height": 900
-      }
-    },
-    {
-      "gapPx": 6.140350341796875,
-      "hhmmHeightPx": 87.7747802734375,
-      "ratio": 0.0699557472279435,
-      "targetWeightGap": 0.07,
-      "overlap": false,
-      "fontName": "Digital7Mono",
-      "dualFont": true,
-      "dateBounds": {
-        "top": 391.8939514160156,
-        "right": 505.81878662109375,
-        "bottom": 411.7878723144531,
-        "left": 344.18121337890625,
-        "width": 161.6375732421875,
-        "height": 19.8939208984375
-      },
-      "hhmmBounds": {
-        "top": 417.92822265625,
-        "right": 640.18212890625,
-        "bottom": 505.7030029296875,
-        "left": 8.43426513671875,
-        "width": 631.7478637695312,
-        "height": 87.7747802734375
-      },
-      "viewport": {
-        "width": 850,
-        "height": 900
-      }
-    },
-    {
-      "gapPx": 6.140350341796875,
-      "hhmmHeightPx": 87.7747802734375,
-      "ratio": 0.0699557472279435,
-      "targetWeightGap": 0.07,
-      "overlap": false,
-      "fontName": "Digital7Mono",
-      "dualFont": false,
-      "dateBounds": {
-        "top": 391.8939514160156,
-        "right": 505.81878662109375,
-        "bottom": 411.7878723144531,
-        "left": 344.18121337890625,
-        "width": 161.6375732421875,
-        "height": 19.8939208984375
-      },
-      "hhmmBounds": {
-        "top": 417.92822265625,
-        "right": 640.18212890625,
-        "bottom": 505.7030029296875,
-        "left": 8.43426513671875,
-        "width": 631.7478637695312,
-        "height": 87.7747802734375
-      },
-      "viewport": {
-        "width": 850,
-        "height": 900
-      }
-    },
-    {
-      "gapPx": 6.887481689453125,
-      "hhmmHeightPx": 98.40496826171875,
-      "ratio": 0.06999119872825034,
-      "targetWeightGap": 0.07,
-      "overlap": false,
-      "fontName": "Digital7Mono",
-      "dualFont": true,
-      "dateBounds": {
-        "top": 385.5577697753906,
+        "top": 337.1208801269531,
         "right": 535.5728149414062,
-        "bottom": 406.6219482421875,
+        "bottom": 356.1539306640625,
         "left": 364.42718505859375,
         "width": 171.1456298828125,
-        "height": 21.064178466796875
+        "height": 19.033050537109375
       },
       "hhmmBounds": {
-        "top": 413.5094299316406,
+        "top": 375.2851257324219,
         "right": 677.8399047851562,
-        "bottom": 511.9143981933594,
+        "bottom": 648.6322021484375,
         "left": 8.930419921875,
         "width": 668.9094848632812,
-        "height": 98.40496826171875
+        "height": 273.3470764160156
       },
       "viewport": {
         "width": 900,
@@ -383,115 +131,30 @@
       }
     },
     {
-      "gapPx": 6.887481689453125,
-      "hhmmHeightPx": 98.40496826171875,
-      "ratio": 0.06999119872825034,
+      "gapPx": 21.256866455078125,
+      "hhmmHeightPx": 303.718994140625,
+      "expectedGapPx": 21.260329589843753,
+      "gapErrorPx": -0.0034631347656279843,
+      "ratio": 0.06998859756935709,
       "targetWeightGap": 0.07,
       "overlap": false,
       "fontName": "Digital7Mono",
       "dualFont": false,
       "dateBounds": {
-        "top": 385.5577697753906,
-        "right": 535.5728149414062,
-        "bottom": 406.6219482421875,
-        "left": 364.42718505859375,
-        "width": 171.1456298828125,
-        "height": 21.064178466796875
-      },
-      "hhmmBounds": {
-        "top": 413.5094299316406,
-        "right": 677.8399047851562,
-        "bottom": 511.9143981933594,
-        "left": 8.930419921875,
-        "width": 668.9094848632812,
-        "height": 98.40496826171875
-      },
-      "viewport": {
-        "width": 900,
-        "height": 900
-      }
-    },
-    {
-      "gapPx": 7.6708984375,
-      "hhmmHeightPx": 109.642578125,
-      "ratio": 0.06996276965281366,
-      "targetWeightGap": 0.07,
-      "overlap": false,
-      "fontName": "Digital7Mono",
-      "dualFont": true,
-      "dateBounds": {
-        "top": 378.8919372558594,
-        "right": 565.3268432617188,
-        "bottom": 401.1263427734375,
-        "left": 384.673095703125,
-        "width": 180.65374755859375,
-        "height": 22.234405517578125
-      },
-      "hhmmBounds": {
-        "top": 408.7972412109375,
-        "right": 715.4976196289062,
-        "bottom": 518.4398193359375,
-        "left": 9.426513671875,
-        "width": 706.0711059570312,
-        "height": 109.642578125
-      },
-      "viewport": {
-        "width": 950,
-        "height": 900
-      }
-    },
-    {
-      "gapPx": 7.6708984375,
-      "hhmmHeightPx": 109.642578125,
-      "ratio": 0.06996276965281366,
-      "targetWeightGap": 0.07,
-      "overlap": false,
-      "fontName": "Digital7Mono",
-      "dualFont": false,
-      "dateBounds": {
-        "top": 378.8919372558594,
-        "right": 565.3268432617188,
-        "bottom": 401.1263427734375,
-        "left": 384.673095703125,
-        "width": 180.65374755859375,
-        "height": 22.234405517578125
-      },
-      "hhmmBounds": {
-        "top": 408.7972412109375,
-        "right": 715.4976196289062,
-        "bottom": 518.4398193359375,
-        "left": 9.426513671875,
-        "width": 706.0711059570312,
-        "height": 109.642578125
-      },
-      "viewport": {
-        "width": 950,
-        "height": 900
-      }
-    },
-    {
-      "gapPx": 8.50347900390625,
-      "hhmmHeightPx": 121.48757934570312,
-      "ratio": 0.0699946368978913,
-      "targetWeightGap": 0.07,
-      "overlap": false,
-      "fontName": "Digital7Mono",
-      "dualFont": true,
-      "dateBounds": {
-        "top": 371.88995361328125,
+        "top": 321.4290771484375,
         "right": 595.0809326171875,
-        "bottom": 395.2945861816406,
+        "bottom": 342.5769348144531,
         "left": 404.9190979003906,
         "width": 190.16183471679688,
-        "height": 23.404632568359375
+        "height": 21.147857666015625
       },
       "hhmmBounds": {
-        "top": 403.7980651855469,
+        "top": 363.83380126953125,
         "right": 753.1554565429688,
-        "bottom": 525.28564453125,
+        "bottom": 667.5527954101562,
         "left": 9.92266845703125,
         "width": 743.2327880859375,
-        "height": 121.48757934570312
+        "height": 303.718994140625
       },
       "viewport": {
         "width": 1000,
@@ -499,115 +162,30 @@
       }
     },
     {
-      "gapPx": 8.50347900390625,
-      "hhmmHeightPx": 121.48757934570312,
-      "ratio": 0.0699946368978913,
+      "gapPx": 23.382568359375,
+      "hhmmHeightPx": 334.09088134765625,
+      "expectedGapPx": 23.38636169433594,
+      "gapErrorPx": -0.003793334960938921,
+      "ratio": 0.06998864579917406,
       "targetWeightGap": 0.07,
       "overlap": false,
       "fontName": "Digital7Mono",
       "dualFont": false,
       "dateBounds": {
-        "top": 371.88995361328125,
-        "right": 595.0809326171875,
-        "bottom": 395.2945861816406,
-        "left": 404.9190979003906,
-        "width": 190.16183471679688,
-        "height": 23.404632568359375
-      },
-      "hhmmBounds": {
-        "top": 403.7980651855469,
-        "right": 753.1554565429688,
-        "bottom": 525.28564453125,
-        "left": 9.92266845703125,
-        "width": 743.2327880859375,
-        "height": 121.48757934570312
-      },
-      "viewport": {
-        "width": 1000,
-        "height": 900
-      }
-    },
-    {
-      "gapPx": 9.371551513671875,
-      "hhmmHeightPx": 133.9400634765625,
-      "ratio": 0.0699682475162613,
-      "targetWeightGap": 0.07,
-      "overlap": false,
-      "fontName": "Digital7Mono",
-      "dualFont": true,
-      "dateBounds": {
-        "top": 364.5743103027344,
-        "right": 624.8349609375,
-        "bottom": 389.1492004394531,
-        "left": 425.1650390625,
-        "width": 199.669921875,
-        "height": 24.57489013671875
-      },
-      "hhmmBounds": {
-        "top": 398.520751953125,
-        "right": 790.8131713867188,
-        "bottom": 532.4608154296875,
-        "left": 10.4188232421875,
-        "width": 780.3943481445312,
-        "height": 133.9400634765625
-      },
-      "viewport": {
-        "width": 1050,
-        "height": 900
-      }
-    },
-    {
-      "gapPx": 9.371551513671875,
-      "hhmmHeightPx": 133.9400634765625,
-      "ratio": 0.0699682475162613,
-      "targetWeightGap": 0.07,
-      "overlap": false,
-      "fontName": "Digital7Mono",
-      "dualFont": false,
-      "dateBounds": {
-        "top": 364.5743103027344,
-        "right": 624.8349609375,
-        "bottom": 389.1492004394531,
-        "left": 425.1650390625,
-        "width": 199.669921875,
-        "height": 24.57489013671875
-      },
-      "hhmmBounds": {
-        "top": 398.520751953125,
-        "right": 790.8131713867188,
-        "bottom": 532.4608154296875,
-        "left": 10.4188232421875,
-        "width": 780.3943481445312,
-        "height": 133.9400634765625
-      },
-      "viewport": {
-        "width": 1050,
-        "height": 900
-      }
-    },
-    {
-      "gapPx": 10.289581298828125,
-      "hhmmHeightPx": 147,
-      "ratio": 0.06999715169270833,
-      "targetWeightGap": 0.07,
-      "overlap": false,
-      "fontName": "Digital7Mono",
-      "dualFont": true,
-      "dateBounds": {
-        "top": 356.9378356933594,
+        "top": 305.35479736328125,
         "right": 654.5889892578125,
-        "bottom": 382.6829528808594,
+        "bottom": 328.617431640625,
         "left": 445.4109802246094,
         "width": 209.17800903320312,
-        "height": 25.7451171875
+        "height": 23.26263427734375
       },
       "hhmmBounds": {
-        "top": 392.9725341796875,
+        "top": 352,
         "right": 828.470947265625,
-        "bottom": 539.9725341796875,
+        "bottom": 686.0908813476562,
         "left": 10.9149169921875,
         "width": 817.5560302734375,
-        "height": 147
+        "height": 334.09088134765625
       },
       "viewport": {
         "width": 1100,
@@ -615,115 +193,30 @@
       }
     },
     {
-      "gapPx": 10.289581298828125,
-      "hhmmHeightPx": 147,
-      "ratio": 0.06999715169270833,
+      "gapPx": 25.50823974609375,
+      "hhmmHeightPx": 364.4627685546875,
+      "expectedGapPx": 25.51239379882813,
+      "gapErrorPx": -0.004154052734378411,
+      "ratio": 0.0699886022576439,
       "targetWeightGap": 0.07,
       "overlap": false,
       "fontName": "Digital7Mono",
       "dualFont": false,
       "dateBounds": {
-        "top": 356.9378356933594,
-        "right": 654.5889892578125,
-        "bottom": 382.6829528808594,
-        "left": 445.4109802246094,
-        "width": 209.17800903320312,
-        "height": 25.7451171875
-      },
-      "hhmmBounds": {
-        "top": 392.9725341796875,
-        "right": 828.470947265625,
-        "bottom": 539.9725341796875,
-        "left": 10.9149169921875,
-        "width": 817.5560302734375,
-        "height": 147
-      },
-      "viewport": {
-        "width": 1100,
-        "height": 900
-      }
-    },
-    {
-      "gapPx": 11.242401123046875,
-      "hhmmHeightPx": 160.66732788085938,
-      "ratio": 0.06997316300289454,
-      "targetWeightGap": 0.07,
-      "overlap": false,
-      "fontName": "Digital7Mono",
-      "dualFont": true,
-      "dateBounds": {
-        "top": 348.972412109375,
-        "right": 684.343017578125,
-        "bottom": 375.88775634765625,
-        "left": 465.65692138671875,
-        "width": 218.68609619140625,
-        "height": 26.91534423828125
-      },
-      "hhmmBounds": {
-        "top": 387.1301574707031,
-        "right": 866.1287231445312,
-        "bottom": 547.7974853515625,
-        "left": 11.41107177734375,
-        "width": 854.7176513671875,
-        "height": 160.66732788085938
-      },
-      "viewport": {
-        "width": 1150,
-        "height": 900
-      }
-    },
-    {
-      "gapPx": 11.242401123046875,
-      "hhmmHeightPx": 160.66732788085938,
-      "ratio": 0.06997316300289454,
-      "targetWeightGap": 0.07,
-      "overlap": false,
-      "fontName": "Digital7Mono",
-      "dualFont": false,
-      "dateBounds": {
-        "top": 348.972412109375,
-        "right": 684.343017578125,
-        "bottom": 375.88775634765625,
-        "left": 465.65692138671875,
-        "width": 218.68609619140625,
-        "height": 26.91534423828125
-      },
-      "hhmmBounds": {
-        "top": 387.1301574707031,
-        "right": 866.1287231445312,
-        "bottom": 547.7974853515625,
-        "left": 11.41107177734375,
-        "width": 854.7176513671875,
-        "height": 160.66732788085938
-      },
-      "viewport": {
-        "width": 1150,
-        "height": 900
-      }
-    },
-    {
-      "gapPx": 12.245819091796875,
-      "hhmmHeightPx": 174.94216918945312,
-      "ratio": 0.0699992411694364,
-      "targetWeightGap": 0.07,
-      "overlap": false,
-      "fontName": "Digital7Mono",
-      "dualFont": true,
-      "dateBounds": {
-        "top": 340.670166015625,
+        "top": 288.4256286621094,
         "right": 714.0971069335938,
-        "bottom": 368.7557373046875,
+        "bottom": 313.80303955078125,
         "left": 485.90289306640625,
         "width": 228.1942138671875,
-        "height": 28.0855712890625
+        "height": 25.377410888671875
       },
       "hhmmBounds": {
-        "top": 381.0015563964844,
+        "top": 339.311279296875,
         "right": 903.7864990234375,
-        "bottom": 555.9437255859375,
+        "bottom": 703.7740478515625,
         "left": 11.9072265625,
         "width": 891.8792724609375,
-        "height": 174.94216918945312
+        "height": 364.4627685546875
       },
       "viewport": {
         "width": 1200,
@@ -731,115 +224,30 @@
       }
     },
     {
-      "gapPx": 12.245819091796875,
-      "hhmmHeightPx": 174.94216918945312,
-      "ratio": 0.0699992411694364,
+      "gapPx": 27.6339111328125,
+      "hhmmHeightPx": 394.8347473144531,
+      "expectedGapPx": 27.638432312011723,
+      "gapErrorPx": -0.004521179199223013,
+      "ratio": 0.06998854918613427,
       "targetWeightGap": 0.07,
       "overlap": false,
       "fontName": "Digital7Mono",
       "dualFont": false,
       "dateBounds": {
-        "top": 340.670166015625,
-        "right": 714.0971069335938,
-        "bottom": 368.7557373046875,
-        "left": 485.90289306640625,
-        "width": 228.1942138671875,
-        "height": 28.0855712890625
-      },
-      "hhmmBounds": {
-        "top": 381.0015563964844,
-        "right": 903.7864990234375,
-        "bottom": 555.9437255859375,
-        "left": 11.9072265625,
-        "width": 891.8792724609375,
-        "height": 174.94216918945312
-      },
-      "viewport": {
-        "width": 1200,
-        "height": 900
-      }
-    },
-    {
-      "gapPx": 13.283355712890625,
-      "hhmmHeightPx": 189.82440185546875,
-      "ratio": 0.06997707135147196,
-      "targetWeightGap": 0.07,
-      "overlap": false,
-      "fontName": "Digital7Mono",
-      "dualFont": true,
-      "dateBounds": {
-        "top": 332.0549621582031,
-        "right": 743.8511352539062,
-        "bottom": 361.3107604980469,
-        "left": 506.1488342285156,
-        "width": 237.70230102539062,
-        "height": 29.25579833984375
-      },
-      "hhmmBounds": {
-        "top": 374.5941162109375,
-        "right": 941.4442749023438,
-        "bottom": 564.4185180664062,
-        "left": 12.4033203125,
-        "width": 929.0409545898438,
-        "height": 189.82440185546875
-      },
-      "viewport": {
-        "width": 1250,
-        "height": 900
-      }
-    },
-    {
-      "gapPx": 13.283355712890625,
-      "hhmmHeightPx": 189.82440185546875,
-      "ratio": 0.06997707135147196,
-      "targetWeightGap": 0.07,
-      "overlap": false,
-      "fontName": "Digital7Mono",
-      "dualFont": false,
-      "dateBounds": {
-        "top": 332.0549621582031,
-        "right": 743.8511352539062,
-        "bottom": 361.3107604980469,
-        "left": 506.1488342285156,
-        "width": 237.70230102539062,
-        "height": 29.25579833984375
-      },
-      "hhmmBounds": {
-        "top": 374.5941162109375,
-        "right": 941.4442749023438,
-        "bottom": 564.4185180664062,
-        "left": 12.4033203125,
-        "width": 929.0409545898438,
-        "height": 189.82440185546875
-      },
-      "viewport": {
-        "width": 1250,
-        "height": 900
-      }
-    },
-    {
-      "gapPx": 14.36309814453125,
-      "hhmmHeightPx": 205.3140869140625,
-      "ratio": 0.06995671052295187,
-      "targetWeightGap": 0.07,
-      "overlap": false,
-      "fontName": "Digital7Mono",
-      "dualFont": true,
-      "dateBounds": {
-        "top": 323.11492919921875,
+        "top": 271.15899658203125,
         "right": 773.605224609375,
-        "bottom": 353.54095458984375,
+        "bottom": 298.6512145996094,
         "left": 526.3948364257812,
         "width": 247.21038818359375,
-        "height": 30.426025390625
+        "height": 27.492218017578125
       },
       "hhmmBounds": {
-        "top": 367.904052734375,
+        "top": 326.2851257324219,
         "right": 979.10205078125,
-        "bottom": 573.2181396484375,
+        "bottom": 721.119873046875,
         "left": 12.89947509765625,
         "width": 966.2025756835938,
-        "height": 205.3140869140625
+        "height": 394.8347473144531
       },
       "viewport": {
         "width": 1300,
@@ -847,115 +255,30 @@
       }
     },
     {
-      "gapPx": 14.36309814453125,
-      "hhmmHeightPx": 205.3140869140625,
-      "ratio": 0.06995671052295187,
+      "gapPx": 29.759613037109375,
+      "hhmmHeightPx": 425.2066345214844,
+      "expectedGapPx": 29.76446441650391,
+      "gapErrorPx": -0.00485137939453395,
+      "ratio": 0.06998859053692802,
       "targetWeightGap": 0.07,
       "overlap": false,
       "fontName": "Digital7Mono",
       "dualFont": false,
       "dateBounds": {
-        "top": 323.11492919921875,
-        "right": 773.605224609375,
-        "bottom": 353.54095458984375,
-        "left": 526.3948364257812,
-        "width": 247.21038818359375,
-        "height": 30.426025390625
-      },
-      "hhmmBounds": {
-        "top": 367.904052734375,
-        "right": 979.10205078125,
-        "bottom": 573.2181396484375,
-        "left": 12.89947509765625,
-        "width": 966.2025756835938,
-        "height": 205.3140869140625
-      },
-      "viewport": {
-        "width": 1300,
-        "height": 900
-      }
-    },
-    {
-      "gapPx": 15.4945068359375,
-      "hhmmHeightPx": 221.41119384765625,
-      "ratio": 0.06998068420424407,
-      "targetWeightGap": 0.07,
-      "overlap": false,
-      "fontName": "Digital7Mono",
-      "dualFont": true,
-      "dateBounds": {
-        "top": 313.8531494140625,
-        "right": 803.3592529296875,
-        "bottom": 345.44940185546875,
-        "left": 546.6407470703125,
-        "width": 256.718505859375,
-        "height": 31.59625244140625
-      },
-      "hhmmBounds": {
-        "top": 360.94390869140625,
-        "right": 1016.7598266601562,
-        "bottom": 582.3551025390625,
-        "left": 13.39556884765625,
-        "width": 1003.3642578125,
-        "height": 221.41119384765625
-      },
-      "viewport": {
-        "width": 1350,
-        "height": 900
-      }
-    },
-    {
-      "gapPx": 15.4945068359375,
-      "hhmmHeightPx": 221.41119384765625,
-      "ratio": 0.06998068420424407,
-      "targetWeightGap": 0.07,
-      "overlap": false,
-      "fontName": "Digital7Mono",
-      "dualFont": false,
-      "dateBounds": {
-        "top": 313.8531494140625,
-        "right": 803.3592529296875,
-        "bottom": 345.44940185546875,
-        "left": 546.6407470703125,
-        "width": 256.718505859375,
-        "height": 31.59625244140625
-      },
-      "hhmmBounds": {
-        "top": 360.94390869140625,
-        "right": 1016.7598266601562,
-        "bottom": 582.3551025390625,
-        "left": 13.39556884765625,
-        "width": 1003.3642578125,
-        "height": 221.41119384765625
-      },
-      "viewport": {
-        "width": 1350,
-        "height": 900
-      }
-    },
-    {
-      "gapPx": 16.658905029296875,
-      "hhmmHeightPx": 238.11572265625,
-      "ratio": 0.06996138198461636,
-      "targetWeightGap": 0.07,
-      "overlap": false,
-      "fontName": "Digital7Mono",
-      "dualFont": true,
-      "dateBounds": {
-        "top": 304.2633056640625,
+        "top": 252.99244689941406,
         "right": 833.1133422851562,
-        "bottom": 337.0298156738281,
+        "bottom": 282.59942626953125,
         "left": 566.88671875,
         "width": 266.22662353515625,
-        "height": 32.766510009765625
+        "height": 29.606979370117188
       },
       "hhmmBounds": {
-        "top": 353.688720703125,
+        "top": 312.3590393066406,
         "right": 1054.4176025390625,
-        "bottom": 591.804443359375,
+        "bottom": 737.565673828125,
         "left": 13.8917236328125,
         "width": 1040.52587890625,
-        "height": 238.11572265625
+        "height": 425.2066345214844
       },
       "viewport": {
         "width": 1400,
@@ -963,115 +286,30 @@
       }
     },
     {
-      "gapPx": 16.658905029296875,
-      "hhmmHeightPx": 238.11572265625,
-      "ratio": 0.06996138198461636,
+      "gapPx": 31.88531494140625,
+      "hhmmHeightPx": 455.5784912109375,
+      "expectedGapPx": 31.890494384765628,
+      "gapErrorPx": -0.0051794433593777,
+      "ratio": 0.06998863106257364,
       "targetWeightGap": 0.07,
       "overlap": false,
       "fontName": "Digital7Mono",
       "dualFont": false,
       "dateBounds": {
-        "top": 304.2633056640625,
-        "right": 833.1133422851562,
-        "bottom": 337.0298156738281,
-        "left": 566.88671875,
-        "width": 266.22662353515625,
-        "height": 32.766510009765625
-      },
-      "hhmmBounds": {
-        "top": 353.688720703125,
-        "right": 1054.4176025390625,
-        "bottom": 591.804443359375,
-        "left": 13.8917236328125,
-        "width": 1040.52587890625,
-        "height": 238.11572265625
-      },
-      "viewport": {
-        "width": 1400,
-        "height": 900
-      }
-    },
-    {
-      "gapPx": 17.875732421875,
-      "hhmmHeightPx": 255.42770385742188,
-      "ratio": 0.06998353018063037,
-      "targetWeightGap": 0.07,
-      "overlap": false,
-      "fontName": "Digital7Mono",
-      "dualFont": true,
-      "dateBounds": {
-        "top": 294.33575439453125,
-        "right": 862.8673095703125,
-        "bottom": 328.2724914550781,
-        "left": 587.1326293945312,
-        "width": 275.73468017578125,
-        "height": 33.936737060546875
-      },
-      "hhmmBounds": {
-        "top": 346.1482238769531,
-        "right": 1092.075439453125,
-        "bottom": 601.575927734375,
-        "left": 14.38787841796875,
-        "width": 1077.6875610351562,
-        "height": 255.42770385742188
-      },
-      "viewport": {
-        "width": 1450,
-        "height": 900
-      }
-    },
-    {
-      "gapPx": 17.875732421875,
-      "hhmmHeightPx": 255.42770385742188,
-      "ratio": 0.06998353018063037,
-      "targetWeightGap": 0.07,
-      "overlap": false,
-      "fontName": "Digital7Mono",
-      "dualFont": false,
-      "dateBounds": {
-        "top": 294.33575439453125,
-        "right": 862.8673095703125,
-        "bottom": 328.2724914550781,
-        "left": 587.1326293945312,
-        "width": 275.73468017578125,
-        "height": 33.936737060546875
-      },
-      "hhmmBounds": {
-        "top": 346.1482238769531,
-        "right": 1092.075439453125,
-        "bottom": 601.575927734375,
-        "left": 14.38787841796875,
-        "width": 1077.6875610351562,
-        "height": 255.42770385742188
-      },
-      "viewport": {
-        "width": 1450,
-        "height": 900
-      }
-    },
-    {
-      "gapPx": 19.124908447265625,
-      "hhmmHeightPx": 273.3470458984375,
-      "ratio": 0.06996566721402035,
-      "targetWeightGap": 0.07,
-      "overlap": false,
-      "fontName": "Digital7Mono",
-      "dualFont": true,
-      "dateBounds": {
-        "top": 284.09613037109375,
+        "top": 234.53343200683594,
         "right": 892.6213989257812,
-        "bottom": 319.2030944824219,
+        "bottom": 266.25518798828125,
         "left": 607.378662109375,
         "width": 285.24273681640625,
-        "height": 35.106964111328125
+        "height": 31.721755981445312
       },
       "hhmmBounds": {
-        "top": 338.3280029296875,
+        "top": 298.1405029296875,
         "right": 1129.733154296875,
-        "bottom": 611.675048828125,
+        "bottom": 753.718994140625,
         "left": 14.884033203125,
         "width": 1114.84912109375,
-        "height": 273.3470458984375
+        "height": 455.5784912109375
       },
       "viewport": {
         "width": 1500,
@@ -1079,115 +317,30 @@
       }
     },
     {
-      "gapPx": 19.124908447265625,
-      "hhmmHeightPx": 273.3470458984375,
-      "ratio": 0.06996566721402035,
+      "gapPx": 34.010986328125,
+      "hhmmHeightPx": 485.95037841796875,
+      "expectedGapPx": 34.016526489257814,
+      "gapErrorPx": -0.005540161132813637,
+      "ratio": 0.06998859932746457,
       "targetWeightGap": 0.07,
       "overlap": false,
       "fontName": "Digital7Mono",
       "dualFont": false,
       "dateBounds": {
-        "top": 284.09613037109375,
-        "right": 892.6213989257812,
-        "bottom": 319.2030944824219,
-        "left": 607.378662109375,
-        "width": 285.24273681640625,
-        "height": 35.106964111328125
-      },
-      "hhmmBounds": {
-        "top": 338.3280029296875,
-        "right": 1129.733154296875,
-        "bottom": 611.675048828125,
-        "left": 14.884033203125,
-        "width": 1114.84912109375,
-        "height": 273.3470458984375
-      },
-      "viewport": {
-        "width": 1500,
-        "height": 900
-      }
-    },
-    {
-      "gapPx": 20.427093505859375,
-      "hhmmHeightPx": 291.8739318847656,
-      "ratio": 0.06998601544835518,
-      "targetWeightGap": 0.07,
-      "overlap": false,
-      "fontName": "Digital7Mono",
-      "dualFont": true,
-      "dateBounds": {
-        "top": 273.5340881347656,
-        "right": 922.3754272460938,
-        "bottom": 309.811279296875,
-        "left": 627.6245727539062,
-        "width": 294.7508544921875,
-        "height": 36.277191162109375
-      },
-      "hhmmBounds": {
-        "top": 330.2383728027344,
-        "right": 1167.390869140625,
-        "bottom": 622.1123046875,
-        "left": 15.380126953125,
-        "width": 1152.0107421875,
-        "height": 291.8739318847656
-      },
-      "viewport": {
-        "width": 1550,
-        "height": 900
-      }
-    },
-    {
-      "gapPx": 20.427093505859375,
-      "hhmmHeightPx": 291.8739318847656,
-      "ratio": 0.06998601544835518,
-      "targetWeightGap": 0.07,
-      "overlap": false,
-      "fontName": "Digital7Mono",
-      "dualFont": false,
-      "dateBounds": {
-        "top": 273.5340881347656,
-        "right": 922.3754272460938,
-        "bottom": 309.811279296875,
-        "left": 627.6245727539062,
-        "width": 294.7508544921875,
-        "height": 36.277191162109375
-      },
-      "hhmmBounds": {
-        "top": 330.2383728027344,
-        "right": 1167.390869140625,
-        "bottom": 622.1123046875,
-        "left": 15.380126953125,
-        "width": 1152.0107421875,
-        "height": 291.8739318847656
-      },
-      "viewport": {
-        "width": 1550,
-        "height": 900
-      }
-    },
-    {
-      "gapPx": 21.760986328125,
-      "hhmmHeightPx": 311.00823974609375,
-      "ratio": 0.0699691633440021,
-      "targetWeightGap": 0.07,
-      "overlap": false,
-      "fontName": "Digital7Mono",
-      "dualFont": true,
-      "dateBounds": {
-        "top": 262.6446838378906,
+        "top": 215.1295166015625,
         "right": 952.1295166015625,
-        "bottom": 300.09210205078125,
+        "bottom": 248.966064453125,
         "left": 647.8705444335938,
         "width": 304.25897216796875,
-        "height": 37.447418212890625
+        "height": 33.8365478515625
       },
       "hhmmBounds": {
-        "top": 321.85308837890625,
+        "top": 282.97705078125,
         "right": 1205.048583984375,
-        "bottom": 632.861328125,
+        "bottom": 768.9274291992188,
         "left": 15.87628173828125,
         "width": 1189.1723022460938,
-        "height": 311.00823974609375
+        "height": 485.95037841796875
       },
       "viewport": {
         "width": 1600,
@@ -1195,115 +348,30 @@
       }
     },
     {
-      "gapPx": 21.760986328125,
-      "hhmmHeightPx": 311.00823974609375,
-      "ratio": 0.0699691633440021,
+      "gapPx": 36.136688232421875,
+      "hhmmHeightPx": 516.322265625,
+      "expectedGapPx": 36.14255859375,
+      "gapErrorPx": -0.005870361328128126,
+      "ratio": 0.06998863043157548,
       "targetWeightGap": 0.07,
       "overlap": false,
       "fontName": "Digital7Mono",
       "dualFont": false,
       "dateBounds": {
-        "top": 262.6446838378906,
-        "right": 952.1295166015625,
-        "bottom": 300.09210205078125,
-        "left": 647.8705444335938,
-        "width": 304.25897216796875,
-        "height": 37.447418212890625
-      },
-      "hhmmBounds": {
-        "top": 321.85308837890625,
-        "right": 1205.048583984375,
-        "bottom": 632.861328125,
-        "left": 15.87628173828125,
-        "width": 1189.1723022460938,
-        "height": 311.00823974609375
-      },
-      "viewport": {
-        "width": 1600,
-        "height": 900
-      }
-    },
-    {
-      "gapPx": 22.4410400390625,
-      "hhmmHeightPx": 320.727294921875,
-      "ratio": 0.06996922430480651,
-      "targetWeightGap": 0.07,
-      "overlap": false,
-      "fontName": "Digital7Mono",
-      "dualFont": true,
-      "dateBounds": {
-        "top": 256.7898254394531,
-        "right": 981.8834838867188,
-        "bottom": 295.407470703125,
-        "left": 668.116455078125,
-        "width": 313.76702880859375,
-        "height": 38.617645263671875
-      },
-      "hhmmBounds": {
-        "top": 317.8485107421875,
-        "right": 1242.70654296875,
-        "bottom": 638.5758056640625,
-        "left": 16.37237548828125,
-        "width": 1226.3341674804688,
-        "height": 320.727294921875
-      },
-      "viewport": {
-        "width": 1650,
-        "height": 900
-      }
-    },
-    {
-      "gapPx": 22.4410400390625,
-      "hhmmHeightPx": 320.727294921875,
-      "ratio": 0.06996922430480651,
-      "targetWeightGap": 0.07,
-      "overlap": false,
-      "fontName": "Digital7Mono",
-      "dualFont": false,
-      "dateBounds": {
-        "top": 256.7898254394531,
-        "right": 981.8834838867188,
-        "bottom": 295.407470703125,
-        "left": 668.116455078125,
-        "width": 313.76702880859375,
-        "height": 38.617645263671875
-      },
-      "hhmmBounds": {
-        "top": 317.8485107421875,
-        "right": 1242.70654296875,
-        "bottom": 638.5758056640625,
-        "left": 16.37237548828125,
-        "width": 1226.3341674804688,
-        "height": 320.727294921875
-      },
-      "viewport": {
-        "width": 1650,
-        "height": 900
-      }
-    },
-    {
-      "gapPx": 23.121063232421875,
-      "hhmmHeightPx": 330.4462585449219,
-      "ratio": 0.06996920871258322,
-      "targetWeightGap": 0.07,
-      "overlap": false,
-      "fontName": "Digital7Mono",
-      "dualFont": true,
-      "dateBounds": {
-        "top": 250.93495178222656,
+        "top": 200.45010375976562,
         "right": 1011.6375732421875,
-        "bottom": 290.72283935546875,
+        "bottom": 236.40142822265625,
         "left": 688.3624267578125,
         "width": 323.275146484375,
-        "height": 39.78788757324219
+        "height": 35.951324462890625
       },
       "hhmmBounds": {
-        "top": 313.8439025878906,
+        "top": 272.5381164550781,
         "right": 1280.3642578125,
-        "bottom": 644.2901611328125,
+        "bottom": 788.8603820800781,
         "left": 16.8685302734375,
         "width": 1263.4957275390625,
-        "height": 330.4462585449219
+        "height": 516.322265625
       },
       "viewport": {
         "width": 1700,
@@ -1311,144 +379,30 @@
       }
     },
     {
-      "gapPx": 23.121063232421875,
-      "hhmmHeightPx": 330.4462585449219,
-      "ratio": 0.06996920871258322,
+      "gapPx": 38.26234436035156,
+      "hhmmHeightPx": 546.6941528320312,
+      "expectedGapPx": 38.26859069824219,
+      "gapErrorPx": -0.006246337890630116,
+      "ratio": 0.06998857434662824,
       "targetWeightGap": 0.07,
       "overlap": false,
       "fontName": "Digital7Mono",
       "dualFont": false,
       "dateBounds": {
-        "top": 250.93495178222656,
-        "right": 1011.6375732421875,
-        "bottom": 290.72283935546875,
-        "left": 688.3624267578125,
-        "width": 323.275146484375,
-        "height": 39.78788757324219
-      },
-      "hhmmBounds": {
-        "top": 313.8439025878906,
-        "right": 1280.3642578125,
-        "bottom": 644.2901611328125,
-        "left": 16.8685302734375,
-        "width": 1263.4957275390625,
-        "height": 330.4462585449219
-      },
-      "viewport": {
-        "width": 1700,
-        "height": 900
-      }
-    },
-    {
-      "gapPx": 23.801055908203125,
-      "hhmmHeightPx": 340.165283203125,
-      "ratio": 0.06996909174294148,
-      "targetWeightGap": 0.07,
-      "overlap": false,
-      "fontName": "Digital7Mono",
-      "dualFont": true,
-      "dateBounds": {
-        "top": 245.08009338378906,
-        "right": 1041.3916015625,
-        "bottom": 286.0382385253906,
-        "left": 708.6083984375,
-        "width": 332.783203125,
-        "height": 40.95814514160156
-      },
-      "hhmmBounds": {
-        "top": 309.83929443359375,
-        "right": 1318.02197265625,
-        "bottom": 650.0045776367188,
-        "left": 17.3646240234375,
-        "width": 1300.6573486328125,
-        "height": 340.165283203125
-      },
-      "viewport": {
-        "width": 1750,
-        "height": 900
-      }
-    },
-    {
-      "gapPx": 23.801055908203125,
-      "hhmmHeightPx": 340.165283203125,
-      "ratio": 0.06996909174294148,
-      "targetWeightGap": 0.07,
-      "overlap": false,
-      "fontName": "Digital7Mono",
-      "dualFont": false,
-      "dateBounds": {
-        "top": 245.08009338378906,
-        "right": 1041.3916015625,
-        "bottom": 286.0382385253906,
-        "left": 708.6083984375,
-        "width": 332.783203125,
-        "height": 40.95814514160156
-      },
-      "hhmmBounds": {
-        "top": 309.83929443359375,
-        "right": 1318.02197265625,
-        "bottom": 650.0045776367188,
-        "left": 17.3646240234375,
-        "width": 1300.6573486328125,
-        "height": 340.165283203125
-      },
-      "viewport": {
-        "width": 1750,
-        "height": 900
-      }
-    },
-    {
-      "gapPx": 24.481109619140625,
-      "hhmmHeightPx": 349.88427734375,
-      "ratio": 0.06996916181829092,
-      "targetWeightGap": 0.07,
-      "overlap": false,
-      "fontName": "Digital7Mono",
-      "dualFont": true,
-      "dateBounds": {
-        "top": 239.22525024414062,
+        "top": 185.77072143554688,
         "right": 1071.1456298828125,
-        "bottom": 281.3536071777344,
+        "bottom": 223.8368377685547,
         "left": 728.8543701171875,
         "width": 342.291259765625,
-        "height": 42.12835693359375
+        "height": 38.06611633300781
       },
       "hhmmBounds": {
-        "top": 305.834716796875,
+        "top": 262.09918212890625,
         "right": 1355.6798095703125,
-        "bottom": 655.718994140625,
+        "bottom": 808.7933349609375,
         "left": 17.86083984375,
         "width": 1337.8189697265625,
-        "height": 349.88427734375
-      },
-      "viewport": {
-        "width": 1800,
-        "height": 900
-      }
-    },
-    {
-      "gapPx": 24.481109619140625,
-      "hhmmHeightPx": 349.88427734375,
-      "ratio": 0.06996916181829092,
-      "targetWeightGap": 0.07,
-      "overlap": false,
-      "fontName": "Digital7Mono",
-      "dualFont": false,
-      "dateBounds": {
-        "top": 239.22525024414062,
-        "right": 1071.1456298828125,
-        "bottom": 281.3536071777344,
-        "left": 728.8543701171875,
-        "width": 342.291259765625,
-        "height": 42.12835693359375
-      },
-      "hhmmBounds": {
-        "top": 305.834716796875,
-        "right": 1355.6798095703125,
-        "bottom": 655.718994140625,
-        "left": 17.86083984375,
-        "width": 1337.8189697265625,
-        "height": 349.88427734375
+        "height": 546.6941528320312
       },
       "viewport": {
         "width": 1800,
