@@ -637,6 +637,7 @@ function setSimulationModeByKey(key) {
 
 function handleKeyDown(e) {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.key === "Control" || e.key === "Alt" || e.key === "Meta" || e.key === "Shift") return;
   const t = e.target;
   if (t && (t.tagName === "TEXTAREA" || (t.tagName === "INPUT" && t.type !== "checkbox" && t.type !== "range" && t.type !== "color"))) return;
   const key = e.key;
@@ -770,7 +771,7 @@ function applyClockTransform(animated = false) {
   let scale = 1;
   const dateW = dateBounds ? dateBounds.width : 0;
   const timeW = timeBounds ? timeBounds.width : 0;
-  const maxRowW = Math.max(dateW, timeW);
+  const maxRowW = Math.max(dateW, timeW, getWorstCaseTimeWidth());
   if (maxRowW > 0 && totalInkH > 0) {
     if (orientation % 180 === 0) {
       const hScale = (sizeBudget * vw) / maxRowW;
