@@ -7,7 +7,7 @@
     width: 320px;
     max-height: calc(100vh - 60px);
     overflow-y: auto;
-    background: #111;
+    background: rgba(17, 17, 17, 0.82);
     color: white;
     border: 1px solid #333;
     border-radius: 6px;

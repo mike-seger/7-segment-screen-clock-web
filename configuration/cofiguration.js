@@ -95,6 +95,8 @@ function initConfiguration() {
         secFontFactor:     document.getElementById("secFontFactor"),
         secFontFactorValue:document.getElementById("secFontFactorValue"),
 
+        showDebug:         document.getElementById("showDebug"),
+
         profileName:       document.getElementById("profileName"),
         profileSelect:     document.getElementById("profileSelect"),
         saveProfileBtn:    document.getElementById("saveProfileBtn"),
@@ -244,6 +246,7 @@ function initConfiguration() {
 
         els.secColor.value      = state.secColor;
         els.secFontFactor.value = state.secFontFactor;
+        if (els.showDebug) els.showDebug.checked = state.showDebug === true;
 
         syncDualFontUi();
 
@@ -267,6 +270,7 @@ function initConfiguration() {
 
         state.secColor      = els.secColor.value;
         state.secFontFactor = normalizeSecFontFactor(els.secFontFactor.value);
+        state.showDebug     = els.showDebug ? els.showDebug.checked : false;
 
         if (els.numericFontSelect.value) {
             state.numericFont = els.numericFontSelect.value;
@@ -384,7 +388,8 @@ function initConfiguration() {
             els.timeColor,
             els.secColor, els.secFontFactor,
             els.numericFontSelect, els.alphaFontSelect,
-            els.dualFont
+            els.dualFont,
+            els.showDebug
         ];
 
         function attachSelectArrowKeys(selectEl) {

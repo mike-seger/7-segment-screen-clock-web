@@ -13,7 +13,8 @@ const DEFAULT_STATE = {
     dateColor: "#fb04ad",
     timeColor: "#04fb62",
     secColor: "#00aaff",
-    secFontFactor: 0.625
+    secFontFactor: 0.625,
+    showDebug: false
 };
 
 let state = { ...DEFAULT_STATE };
