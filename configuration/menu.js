@@ -66,5 +66,31 @@ if (menuButton) {
     menuButton.addEventListener('click', toggleMenuPanel);
 }
 
+window.openMenuPanel = async function() {
+    if (menuButton) menuButton.style.display = "block";
+    await ensureConfigurationInitialized();
+    const panel = document.getElementById('menuPanel');
+    if (!panel) return;
+    loadMenuCSS();
+    panel.style.display = "block";
+};
+
+window.toggleConfigUI = async function() {
+    const panel = document.getElementById('menuPanel');
+    const panelVisible = panel && panel.style.display === "block";
+
+    if (panelVisible) {
+        panel.style.display = "none";
+        if (menuButton) menuButton.style.display = "none";
+    } else {
+        if (menuButton) menuButton.style.display = "block";
+        await ensureConfigurationInitialized();
+        const p = document.getElementById('menuPanel');
+        if (!p) return;
+        loadMenuCSS();
+        p.style.display = "block";
+    }
+};
+
 // Apply persisted configuration immediately, even before entering configuration mode.
 ensureConfigurationInitialized();

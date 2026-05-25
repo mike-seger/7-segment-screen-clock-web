@@ -44,7 +44,7 @@ function getFontCorrection(fontName) {
     return { ...defaults };
 }
 
-const CONFIG_MIN_WEIGHT = 0.01;
+const CONFIG_MIN_WEIGHT = 0;
 const CONFIG_MAX_WEIGHT = 0.99;
 
 function normalizeSizingWeight(value, fallback) {
@@ -96,6 +96,8 @@ function initConfiguration() {
         secFontFactorValue:document.getElementById("secFontFactorValue"),
 
         showDebug:         document.getElementById("showDebug"),
+        sizeBudget:        document.getElementById("sizeBudget"),
+        sizeBudgetValue:   document.getElementById("sizeBudgetValue"),
 
         profileName:       document.getElementById("profileName"),
         profileSelect:     document.getElementById("profileSelect"),
@@ -115,6 +117,7 @@ function initConfiguration() {
         els.weightGapValue.textContent    = sizing.weightGap.toFixed(2) + "x";
         els.frValue.textContent           = sizing.fr.toFixed(2) + "x";
         els.secFontFactorValue.textContent = state.secFontFactor.toFixed(2) + "x";
+        if (els.sizeBudgetValue) els.sizeBudgetValue.textContent = (state.sizeBudget * 100).toFixed(0) + "%";
     }
 
     function syncDualFontUi() {
@@ -248,6 +251,7 @@ function initConfiguration() {
         els.secColor.value      = state.secColor;
         els.secFontFactor.value = state.secFontFactor;
         if (els.showDebug) els.showDebug.checked = state.showDebug === true;
+        if (els.sizeBudget) els.sizeBudget.value = state.sizeBudget;
 
         syncDualFontUi();
 
@@ -271,7 +275,7 @@ function initConfiguration() {
 
         state.secColor      = els.secColor.value;
         state.secFontFactor = normalizeSecFontFactor(els.secFontFactor.value);
-        state.showDebug     = els.showDebug ? els.showDebug.checked : false;
+        if (els.sizeBudget) state.sizeBudget = Math.min(1, Math.max(0.1, Number(els.sizeBudget.value) || 0.95));
 
         if (els.numericFontSelect.value) {
             state.numericFont = els.numericFontSelect.value;
@@ -390,7 +394,7 @@ function initConfiguration() {
             els.secColor, els.secFontFactor,
             els.numericFontSelect, els.alphaFontSelect,
             els.dualFont,
-            els.showDebug
+            els.sizeBudget
         ];
 
         function attachSelectArrowKeys(selectEl) {
@@ -418,11 +422,18 @@ function initConfiguration() {
             });
         });
 
+        if (els.showDebug) {
+            els.showDebug.addEventListener("change", () => {
+                state.showDebug = els.showDebug.checked;
+                if (typeof saveShowDebug === "function") saveShowDebug(state.showDebug);
+                if (typeof scheduleRowCoordinateDisplayUpdate === "function") scheduleRowCoordinateDisplayUpdate();
+            });
+        }
+
         const updateProfileButtons = () => {
             const selected = (els.profileSelect.value || "").trim();
             const isBuiltin = typeof isBuiltinProfile === "function" && isBuiltinProfile(selected);
             els.deleteProfileBtn.disabled = isBuiltin;
-            els.downloadProfileBtn.disabled = !selected;
         };
 
         attachSelectArrowKeys(els.numericFontSelect);
@@ -450,17 +461,13 @@ function initConfiguration() {
         };
 
         els.downloadProfileBtn.onclick = () => {
-            const name = els.profileSelect.value;
-            if (!name) return;
-            const builtin = Array.isArray(window.BUILTIN_PROFILES)
-                ? window.BUILTIN_PROFILES.find(p => p.name === name)
-                : null;
-            const profileData = builtin
-                ? { ...builtin.data }
-                : (() => { try { return JSON.parse(localStorage.getItem(PROFILE_PREFIX + name) || "null"); } catch (e) { return null; } })();
-            if (!profileData) return;
+            readFormIntoState();
+            const name = (els.profileName.value.trim() || els.profileSelect.value || "profile");
             const safeName = name.replace(/[^a-zA-Z0-9_-]/g, "_");
-            const entry = { name, data: profileData };
+            const data = { ...state };
+            delete data.showDebug;
+            if (els.sizeBudget) data.sizeBudget = Math.min(1, Math.max(0.5, Number(els.sizeBudget.value) || 0.95));
+            const entry = { name, data };
             const js = `${JSON.stringify(entry, null, 2)}\n`;
             const blob = new Blob([js], { type: "text/javascript" });
             const url = URL.createObjectURL(blob);

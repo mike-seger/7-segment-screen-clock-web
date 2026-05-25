@@ -194,7 +194,30 @@ html, body {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    pointer-events: auto;
+    cursor: pointer;
+    user-select: none;
+}
+
+#debugCopyToast {
+    position: fixed;
+    left: 50%;
+    bottom: 3.2rem;
+    transform: translateX(-50%);
+    z-index: 950;
+    padding: 0.3rem 0.9rem;
+    border-radius: 4px;
+    background: rgba(4, 251, 98, 0.85);
+    color: #000;
+    font-family: monospace;
+    font-size: 13px;
     pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+}
+
+#debugCopyToast.visible {
+    opacity: 1;
 }
 
 .debug-row-box {

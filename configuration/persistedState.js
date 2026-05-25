@@ -14,7 +14,7 @@ const DEFAULT_STATE = {
     timeColor: "#04fb62",
     secColor: "#00aaff",
     secFontFactor: 0.625,
-    showDebug: false
+    sizeBudget: 0.95
 };
 
 {
@@ -28,10 +28,11 @@ let state = { ...DEFAULT_STATE };
 
 const STORAGE_KEY_CURRENT  = "screenClock_state";
 const STORAGE_KEY_PROFILES = "screenClock_profiles";   // JSON array of names
+const STORAGE_KEY_DEBUG    = "screenClock_debug";
 const PROFILE_PREFIX       = "screenClock_profile_";
 const DEFAULT_PROFILE_NAME = "Default";
 
-const MIN_WEIGHT = 0.01;
+const MIN_WEIGHT = 0;
 const MAX_WEIGHT = 0.99;
 
 function normalizeWeight(value, fallback) {
@@ -77,6 +78,9 @@ function normalizeSizingState(inputState) {
     const nextSecFontFactor = Number(next.secFontFactor);
     next.secFontFactor = Number.isFinite(nextSecFontFactor) && nextSecFontFactor > 0 ? nextSecFontFactor : DEFAULT_STATE.secFontFactor;
 
+    const nextSizeBudget = Number(next.sizeBudget);
+    next.sizeBudget = Number.isFinite(nextSizeBudget) && nextSizeBudget > 0 && nextSizeBudget <= 1 ? nextSizeBudget : DEFAULT_STATE.sizeBudget;
+
     delete next.rowGapFactor;
     delete next.dateFontSize;
     delete next.timeFontSize;
@@ -116,14 +120,25 @@ function loadCurrentState() {
     } catch (e) {
         console.warn("Failed to load stored state", e);
     }
+    state.showDebug = loadShowDebug();
 }
 
 function saveCurrentState() {
     try {
-        localStorage.setItem(STORAGE_KEY_CURRENT, JSON.stringify(state));
+        const toSave = { ...state };
+        delete toSave.showDebug;
+        localStorage.setItem(STORAGE_KEY_CURRENT, JSON.stringify(toSave));
     } catch (e) {
         console.warn("Failed to save state", e);
     }
+}
+
+function loadShowDebug() {
+    try { return localStorage.getItem(STORAGE_KEY_DEBUG) === "true"; } catch { return false; }
+}
+
+function saveShowDebug(val) {
+    try { localStorage.setItem(STORAGE_KEY_DEBUG, val ? "true" : "false"); } catch {}
 }
 
 function loadProfileNames() {
@@ -155,7 +170,9 @@ function saveProfile(name) {
     if (!name) return;
     if (isDefaultProfile(name)) return;
     const key = PROFILE_PREFIX + name;
-    localStorage.setItem(key, JSON.stringify(state));
+    const toSave = { ...state };
+    delete toSave.showDebug;
+    localStorage.setItem(key, JSON.stringify(toSave));
     let names = loadProfileNames();
     if (!names.includes(name)) {
         names.push(name);
@@ -171,6 +188,7 @@ function loadProfile(name) {
         : null;
     if (builtin) {
         state = normalizeSizingState({ ...DEFAULT_STATE, ...builtin.data });
+        state.showDebug = loadShowDebug();
         applyLoadedStateUI();
         saveCurrentState();
         return;
@@ -181,6 +199,7 @@ function loadProfile(name) {
     try {
         const parsed = JSON.parse(raw);
         state = normalizeSizingState({ ...DEFAULT_STATE, ...parsed });
+        state.showDebug = loadShowDebug();
         applyLoadedStateUI();
         saveCurrentState();
     } catch (e) {
