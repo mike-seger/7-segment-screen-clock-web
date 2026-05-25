@@ -9,7 +9,7 @@ const FONT_CORRECTION = {
     "Automate Regular W00 Regular": { colonMargin: -0.2 },
     // DSEG7ClassicMini: { size: 0.75, baseline: 0.06 },
     // DSEG14Classic: { size: 0.75, baseline: 0.06 },
-    Digital7Mono: { colonMargin: -0.20, letterSpacing: 0.02, excludeMonoTweaks: true },
+    Digital7Mono: { colonMargin: -0.10, letterSpacing: 0.02, excludeMonoTweaks: true },
     // SevenSegment: { size: 1.1, baseline: -0.09 },
     LCDDot: { baseline: 0.4, letterSpacing: 0.10 },
 };
