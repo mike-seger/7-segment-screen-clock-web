@@ -1,0 +1,818 @@
+{
+  "generatedAt": "2026-05-24T23:10:21.342Z",
+  "targetWeightGap": 0.07,
+  "ratioTolerance": 0.012,
+  "viewportStepPx": 100,
+  "total": 13,
+  "failed": 13,
+  "results": [
+    {
+      "gapPx": -7.77276611328125,
+      "hhmmHeightPx": 182.38406372070312,
+      "expectedGapPx": 12.76688446044922,
+      "gapErrorPx": -20.53965057373047,
+      "ratio": -0.04261757280057212,
+      "targetWeightGap": 0.07,
+      "overlap": true,
+      "fontName": "Digital7Mono",
+      "dualFont": false,
+      "dateBounds": {
+        "top": 388.6876525878906,
+        "right": 357.04791259765625,
+        "bottom": 401.4363098144531,
+        "left": 242.94810485839844,
+        "width": 114.09980773925781,
+        "height": 12.7486572265625
+      },
+      "hhmmBounds": {
+        "top": 393.6635437011719,
+        "right": 594.0447387695312,
+        "bottom": 576.047607421875,
+        "left": 5.955322265625,
+        "width": 588.0894165039062,
+        "height": 182.38406372070312
+      },
+      "viewport": {
+        "width": 600,
+        "height": 900
+      }
+    },
+    {
+      "gapPx": -9.0682373046875,
+      "hhmmHeightPx": 212.7813720703125,
+      "expectedGapPx": 14.894696044921876,
+      "gapErrorPx": -23.962933349609376,
+      "ratio": -0.04261762773900597,
+      "targetWeightGap": 0.07,
+      "overlap": true,
+      "fontName": "Digital7Mono",
+      "dualFont": false,
+      "dateBounds": {
+        "top": 378.4689636230469,
+        "right": 416.5558776855469,
+        "bottom": 393.3424072265625,
+        "left": 283.439453125,
+        "width": 133.11642456054688,
+        "height": 14.873443603515625
+      },
+      "hhmmBounds": {
+        "top": 384.274169921875,
+        "right": 693.0521850585938,
+        "bottom": 597.0555419921875,
+        "left": 6.9478759765625,
+        "width": 686.1043090820312,
+        "height": 212.7813720703125
+      },
+      "viewport": {
+        "width": 700,
+        "height": 900
+      }
+    },
+    {
+      "gapPx": -10.363739013671875,
+      "hhmmHeightPx": 243.17877197265625,
+      "expectedGapPx": 17.02251403808594,
+      "gapErrorPx": -27.386253051757816,
+      "ratio": -0.04261777839242154,
+      "targetWeightGap": 0.07,
+      "overlap": true,
+      "fontName": "Digital7Mono",
+      "dualFont": false,
+      "dateBounds": {
+        "top": 367.4154968261719,
+        "right": 476.0638427734375,
+        "bottom": 384.4137268066406,
+        "left": 323.9307556152344,
+        "width": 152.13308715820312,
+        "height": 16.99822998046875
+      },
+      "hhmmBounds": {
+        "top": 374.04998779296875,
+        "right": 792.0596313476562,
+        "bottom": 617.228759765625,
+        "left": 7.94036865234375,
+        "width": 784.1192626953125,
+        "height": 243.17877197265625
+      },
+      "viewport": {
+        "width": 800,
+        "height": 900
+      }
+    },
+    {
+      "gapPx": -11.6591796875,
+      "hhmmHeightPx": 273.5760803222656,
+      "expectedGapPx": 19.150325622558597,
+      "gapErrorPx": -30.809505310058597,
+      "ratio": -0.04261768672818832,
+      "targetWeightGap": 0.07,
+      "overlap": true,
+      "fontName": "Digital7Mono",
+      "dualFont": false,
+      "dateBounds": {
+        "top": 354.5556640625,
+        "right": 535.5718383789062,
+        "bottom": 373.6786804199219,
+        "left": 364.4220886230469,
+        "width": 171.14974975585938,
+        "height": 19.123016357421875
+      },
+      "hhmmBounds": {
+        "top": 362.0195007324219,
+        "right": 891.0670776367188,
+        "bottom": 635.5955810546875,
+        "left": 8.93292236328125,
+        "width": 882.1341552734375,
+        "height": 273.5760803222656
+      },
+      "viewport": {
+        "width": 900,
+        "height": 900
+      }
+    },
+    {
+      "gapPx": -12.95465087890625,
+      "hhmmHeightPx": 303.9734802246094,
+      "expectedGapPx": 21.27814361572266,
+      "gapErrorPx": -34.232794494628905,
+      "ratio": -0.04261770095645816,
+      "targetWeightGap": 0.07,
+      "overlap": true,
+      "fontName": "Digital7Mono",
+      "dualFont": false,
+      "dateBounds": {
+        "top": 340.9153747558594,
+        "right": 595.0797729492188,
+        "bottom": 362.1631774902344,
+        "left": 404.9134521484375,
+        "width": 190.16632080078125,
+        "height": 21.247802734375
+      },
+      "hhmmBounds": {
+        "top": 349.2085266113281,
+        "right": 990.0745239257812,
+        "bottom": 653.1820068359375,
+        "left": 9.92547607421875,
+        "width": 980.1490478515625,
+        "height": 303.9734802246094
+      },
+      "viewport": {
+        "width": 1000,
+        "height": 900
+      }
+    },
+    {
+      "gapPx": -14.250091552734375,
+      "hhmmHeightPx": 334.37078857421875,
+      "expectedGapPx": 23.405955200195315,
+      "gapErrorPx": -37.65604675292969,
+      "ratio": -0.04261763299807916,
+      "targetWeightGap": 0.07,
+      "overlap": true,
+      "fontName": "Digital7Mono",
+      "dualFont": false,
+      "dateBounds": {
+        "top": 326.9064636230469,
+        "right": 654.5877685546875,
+        "bottom": 350.2790222167969,
+        "left": 445.40478515625,
+        "width": 209.1829833984375,
+        "height": 23.37255859375
+      },
+      "hhmmBounds": {
+        "top": 336.0289306640625,
+        "right": 1089.08203125,
+        "bottom": 670.3997192382812,
+        "left": 10.91802978515625,
+        "width": 1078.1640014648438,
+        "height": 334.37078857421875
+      },
+      "viewport": {
+        "width": 1100,
+        "height": 900
+      }
+    },
+    {
+      "gapPx": -15.545562744140625,
+      "hhmmHeightPx": 364.76812744140625,
+      "expectedGapPx": 25.53376892089844,
+      "gapErrorPx": -41.079331665039064,
+      "ratio": -0.042617656463523536,
+      "targetWeightGap": 0.07,
+      "overlap": true,
+      "fontName": "Digital7Mono",
+      "dualFont": false,
+      "dateBounds": {
+        "top": 312.07366943359375,
+        "right": 714.0957641601562,
+        "bottom": 337.5710144042969,
+        "left": 485.8961486816406,
+        "width": 228.19961547851562,
+        "height": 25.497344970703125
+      },
+      "hhmmBounds": {
+        "top": 322.02545166015625,
+        "right": 1188.08935546875,
+        "bottom": 686.7935791015625,
+        "left": 11.91058349609375,
+        "width": 1176.1787719726562,
+        "height": 364.76812744140625
+      },
+      "viewport": {
+        "width": 1200,
+        "height": 900
+      }
+    },
+    {
+      "gapPx": -16.841064453125,
+      "hhmmHeightPx": 395.16546630859375,
+      "expectedGapPx": 27.661582641601566,
+      "gapErrorPx": -44.50264709472657,
+      "ratio": -0.04261775354624087,
+      "targetWeightGap": 0.07,
+      "overlap": true,
+      "fontName": "Digital7Mono",
+      "dualFont": false,
+      "dateBounds": {
+        "top": 296.9156494140625,
+        "right": 773.6036987304688,
+        "bottom": 324.53778076171875,
+        "left": 526.387451171875,
+        "width": 247.21624755859375,
+        "height": 27.62213134765625
+      },
+      "hhmmBounds": {
+        "top": 307.69671630859375,
+        "right": 1287.096923828125,
+        "bottom": 702.8621826171875,
+        "left": 12.903076171875,
+        "width": 1274.19384765625,
+        "height": 395.16546630859375
+      },
+      "viewport": {
+        "width": 1300,
+        "height": 900
+      }
+    },
+    {
+      "gapPx": -18.136505126953125,
+      "hhmmHeightPx": 425.5628356933594,
+      "expectedGapPx": 29.78939849853516,
+      "gapErrorPx": -47.92590362548829,
+      "ratio": -0.04261769028163315,
+      "targetWeightGap": 0.07,
+      "overlap": true,
+      "fontName": "Digital7Mono",
+      "dualFont": false,
+      "dateBounds": {
+        "top": 280.890380859375,
+        "right": 833.1116943359375,
+        "bottom": 310.63726806640625,
+        "left": 566.8788452148438,
+        "width": 266.23284912109375,
+        "height": 29.74688720703125
+      },
+      "hhmmBounds": {
+        "top": 292.5007629394531,
+        "right": 1386.104248046875,
+        "bottom": 718.0635986328125,
+        "left": 13.89569091796875,
+        "width": 1372.2085571289062,
+        "height": 425.5628356933594
+      },
+      "viewport": {
+        "width": 1400,
+        "height": 900
+      }
+    },
+    {
+      "gapPx": -19.431976318359375,
+      "hhmmHeightPx": 455.960205078125,
+      "expectedGapPx": 31.917214355468754,
+      "gapErrorPx": -51.34919067382813,
+      "ratio": -0.04261770238266707,
+      "targetWeightGap": 0.07,
+      "overlap": true,
+      "fontName": "Digital7Mono",
+      "dualFont": false,
+      "dateBounds": {
+        "top": 264.5832214355469,
+        "right": 892.61962890625,
+        "bottom": 296.4549255371094,
+        "left": 607.3701171875,
+        "width": 285.24951171875,
+        "height": 31.8717041015625
+      },
+      "hhmmBounds": {
+        "top": 277.02294921875,
+        "right": 1485.11181640625,
+        "bottom": 732.983154296875,
+        "left": 14.88818359375,
+        "width": 1470.2236328125,
+        "height": 455.960205078125
+      },
+      "viewport": {
+        "width": 1500,
+        "height": 900
+      }
+    },
+    {
+      "gapPx": -20.7274169921875,
+      "hhmmHeightPx": 486.3575439453125,
+      "expectedGapPx": 34.04502807617188,
+      "gapErrorPx": -54.77244506835938,
+      "ratio": -0.04261765289800491,
+      "targetWeightGap": 0.07,
+      "overlap": true,
+      "fontName": "Digital7Mono",
+      "dualFont": false,
+      "dateBounds": {
+        "top": 247.365478515625,
+        "right": 952.127685546875,
+        "bottom": 281.3619384765625,
+        "left": 647.8615112304688,
+        "width": 304.26617431640625,
+        "height": 33.9964599609375
+      },
+      "hhmmBounds": {
+        "top": 260.634521484375,
+        "right": 1584.1192626953125,
+        "bottom": 746.9920654296875,
+        "left": 15.8807373046875,
+        "width": 1568.238525390625,
+        "height": 486.3575439453125
+      },
+      "viewport": {
+        "width": 1600,
+        "height": 900
+      }
+    },
+    {
+      "gapPx": -22.022903442382812,
+      "hhmmHeightPx": 516.7548217773438,
+      "expectedGapPx": 36.172837524414064,
+      "gapErrorPx": -58.195740966796876,
+      "ratio": -0.042617702853040645,
+      "targetWeightGap": 0.07,
+      "overlap": true,
+      "fontName": "Digital7Mono",
+      "dualFont": false,
+      "dateBounds": {
+        "top": 234.70083618164062,
+        "right": 1011.6356201171875,
+        "bottom": 270.82208251953125,
+        "left": 688.3528442382812,
+        "width": 323.28277587890625,
+        "height": 36.121246337890625
+      },
+      "hhmmBounds": {
+        "top": 248.79917907714844,
+        "right": 1683.126708984375,
+        "bottom": 765.5540008544922,
+        "left": 16.873291015625,
+        "width": 1666.25341796875,
+        "height": 516.7548217773438
+      },
+      "viewport": {
+        "width": 1700,
+        "height": 900
+      }
+    },
+    {
+      "gapPx": -23.318359375,
+      "hhmmHeightPx": 547.1522216796875,
+      "expectedGapPx": 38.30065551757813,
+      "gapErrorPx": -61.61901489257813,
+      "ratio": -0.04261768197415997,
+      "targetWeightGap": 0.07,
+      "overlap": true,
+      "fontName": "Digital7Mono",
+      "dualFont": false,
+      "dateBounds": {
+        "top": 222.0361785888672,
+        "right": 1071.1436767578125,
+        "bottom": 260.2821960449219,
+        "left": 728.8441772460938,
+        "width": 342.29949951171875,
+        "height": 38.24601745605469
+      },
+      "hhmmBounds": {
+        "top": 236.96383666992188,
+        "right": 1782.1341552734375,
+        "bottom": 784.1160583496094,
+        "left": 17.8658447265625,
+        "width": 1764.268310546875,
+        "height": 547.1522216796875
+      },
+      "viewport": {
+        "width": 1800,
+        "height": 900
+      }
+    }
+  ],
+  "failures": [
+    {
+      "gapPx": -7.77276611328125,
+      "hhmmHeightPx": 182.38406372070312,
+      "expectedGapPx": 12.76688446044922,
+      "gapErrorPx": -20.53965057373047,
+      "ratio": -0.04261757280057212,
+      "targetWeightGap": 0.07,
+      "overlap": true,
+      "fontName": "Digital7Mono",
+      "dualFont": false,
+      "dateBounds": {
+        "top": 388.6876525878906,
+        "right": 357.04791259765625,
+        "bottom": 401.4363098144531,
+        "left": 242.94810485839844,
+        "width": 114.09980773925781,
+        "height": 12.7486572265625
+      },
+      "hhmmBounds": {
+        "top": 393.6635437011719,
+        "right": 594.0447387695312,
+        "bottom": 576.047607421875,
+        "left": 5.955322265625,
+        "width": 588.0894165039062,
+        "height": 182.38406372070312
+      },
+      "viewport": {
+        "width": 600,
+        "height": 900
+      }
+    },
+    {
+      "gapPx": -9.0682373046875,
+      "hhmmHeightPx": 212.7813720703125,
+      "expectedGapPx": 14.894696044921876,
+      "gapErrorPx": -23.962933349609376,
+      "ratio": -0.04261762773900597,
+      "targetWeightGap": 0.07,
+      "overlap": true,
+      "fontName": "Digital7Mono",
+      "dualFont": false,
+      "dateBounds": {
+        "top": 378.4689636230469,
+        "right": 416.5558776855469,
+        "bottom": 393.3424072265625,
+        "left": 283.439453125,
+        "width": 133.11642456054688,
+        "height": 14.873443603515625
+      },
+      "hhmmBounds": {
+        "top": 384.274169921875,
+        "right": 693.0521850585938,
+        "bottom": 597.0555419921875,
+        "left": 6.9478759765625,
+        "width": 686.1043090820312,
+        "height": 212.7813720703125
+      },
+      "viewport": {
+        "width": 700,
+        "height": 900
+      }
+    },
+    {
+      "gapPx": -10.363739013671875,
+      "hhmmHeightPx": 243.17877197265625,
+      "expectedGapPx": 17.02251403808594,
+      "gapErrorPx": -27.386253051757816,
+      "ratio": -0.04261777839242154,
+      "targetWeightGap": 0.07,
+      "overlap": true,
+      "fontName": "Digital7Mono",
+      "dualFont": false,
+      "dateBounds": {
+        "top": 367.4154968261719,
+        "right": 476.0638427734375,
+        "bottom": 384.4137268066406,
+        "left": 323.9307556152344,
+        "width": 152.13308715820312,
+        "height": 16.99822998046875
+      },
+      "hhmmBounds": {
+        "top": 374.04998779296875,
+        "right": 792.0596313476562,
+        "bottom": 617.228759765625,
+        "left": 7.94036865234375,
+        "width": 784.1192626953125,
+        "height": 243.17877197265625
+      },
+      "viewport": {
+        "width": 800,
+        "height": 900
+      }
+    },
+    {
+      "gapPx": -11.6591796875,
+      "hhmmHeightPx": 273.5760803222656,
+      "expectedGapPx": 19.150325622558597,
+      "gapErrorPx": -30.809505310058597,
+      "ratio": -0.04261768672818832,
+      "targetWeightGap": 0.07,
+      "overlap": true,
+      "fontName": "Digital7Mono",
+      "dualFont": false,
+      "dateBounds": {
+        "top": 354.5556640625,
+        "right": 535.5718383789062,
+        "bottom": 373.6786804199219,
+        "left": 364.4220886230469,
+        "width": 171.14974975585938,
+        "height": 19.123016357421875
+      },
+      "hhmmBounds": {
+        "top": 362.0195007324219,
+        "right": 891.0670776367188,
+        "bottom": 635.5955810546875,
+        "left": 8.93292236328125,
+        "width": 882.1341552734375,
+        "height": 273.5760803222656
+      },
+      "viewport": {
+        "width": 900,
+        "height": 900
+      }
+    },
+    {
+      "gapPx": -12.95465087890625,
+      "hhmmHeightPx": 303.9734802246094,
+      "expectedGapPx": 21.27814361572266,
+      "gapErrorPx": -34.232794494628905,
+      "ratio": -0.04261770095645816,
+      "targetWeightGap": 0.07,
+      "overlap": true,
+      "fontName": "Digital7Mono",
+      "dualFont": false,
+      "dateBounds": {
+        "top": 340.9153747558594,
+        "right": 595.0797729492188,
+        "bottom": 362.1631774902344,
+        "left": 404.9134521484375,
+        "width": 190.16632080078125,
+        "height": 21.247802734375
+      },
+      "hhmmBounds": {
+        "top": 349.2085266113281,
+        "right": 990.0745239257812,
+        "bottom": 653.1820068359375,
+        "left": 9.92547607421875,
+        "width": 980.1490478515625,
+        "height": 303.9734802246094
+      },
+      "viewport": {
+        "width": 1000,
+        "height": 900
+      }
+    },
+    {
+      "gapPx": -14.250091552734375,
+      "hhmmHeightPx": 334.37078857421875,
+      "expectedGapPx": 23.405955200195315,
+      "gapErrorPx": -37.65604675292969,
+      "ratio": -0.04261763299807916,
+      "targetWeightGap": 0.07,
+      "overlap": true,
+      "fontName": "Digital7Mono",
+      "dualFont": false,
+      "dateBounds": {
+        "top": 326.9064636230469,
+        "right": 654.5877685546875,
+        "bottom": 350.2790222167969,
+        "left": 445.40478515625,
+        "width": 209.1829833984375,
+        "height": 23.37255859375
+      },
+      "hhmmBounds": {
+        "top": 336.0289306640625,
+        "right": 1089.08203125,
+        "bottom": 670.3997192382812,
+        "left": 10.91802978515625,
+        "width": 1078.1640014648438,
+        "height": 334.37078857421875
+      },
+      "viewport": {
+        "width": 1100,
+        "height": 900
+      }
+    },
+    {
+      "gapPx": -15.545562744140625,
+      "hhmmHeightPx": 364.76812744140625,
+      "expectedGapPx": 25.53376892089844,
+      "gapErrorPx": -41.079331665039064,
+      "ratio": -0.042617656463523536,
+      "targetWeightGap": 0.07,
+      "overlap": true,
+      "fontName": "Digital7Mono",
+      "dualFont": false,
+      "dateBounds": {
+        "top": 312.07366943359375,
+        "right": 714.0957641601562,
+        "bottom": 337.5710144042969,
+        "left": 485.8961486816406,
+        "width": 228.19961547851562,
+        "height": 25.497344970703125
+      },
+      "hhmmBounds": {
+        "top": 322.02545166015625,
+        "right": 1188.08935546875,
+        "bottom": 686.7935791015625,
+        "left": 11.91058349609375,
+        "width": 1176.1787719726562,
+        "height": 364.76812744140625
+      },
+      "viewport": {
+        "width": 1200,
+        "height": 900
+      }
+    },
+    {
+      "gapPx": -16.841064453125,
+      "hhmmHeightPx": 395.16546630859375,
+      "expectedGapPx": 27.661582641601566,
+      "gapErrorPx": -44.50264709472657,
+      "ratio": -0.04261775354624087,
+      "targetWeightGap": 0.07,
+      "overlap": true,
+      "fontName": "Digital7Mono",
+      "dualFont": false,
+      "dateBounds": {
+        "top": 296.9156494140625,
+        "right": 773.6036987304688,
+        "bottom": 324.53778076171875,
+        "left": 526.387451171875,
+        "width": 247.21624755859375,
+        "height": 27.62213134765625
+      },
+      "hhmmBounds": {
+        "top": 307.69671630859375,
+        "right": 1287.096923828125,
+        "bottom": 702.8621826171875,
+        "left": 12.903076171875,
+        "width": 1274.19384765625,
+        "height": 395.16546630859375
+      },
+      "viewport": {
+        "width": 1300,
+        "height": 900
+      }
+    },
+    {
+      "gapPx": -18.136505126953125,
+      "hhmmHeightPx": 425.5628356933594,
+      "expectedGapPx": 29.78939849853516,
+      "gapErrorPx": -47.92590362548829,
+      "ratio": -0.04261769028163315,
+      "targetWeightGap": 0.07,
+      "overlap": true,
+      "fontName": "Digital7Mono",
+      "dualFont": false,
+      "dateBounds": {
+        "top": 280.890380859375,
+        "right": 833.1116943359375,
+        "bottom": 310.63726806640625,
+        "left": 566.8788452148438,
+        "width": 266.23284912109375,
+        "height": 29.74688720703125
+      },
+      "hhmmBounds": {
+        "top": 292.5007629394531,
+        "right": 1386.104248046875,
+        "bottom": 718.0635986328125,
+        "left": 13.89569091796875,
+        "width": 1372.2085571289062,
+        "height": 425.5628356933594
+      },
+      "viewport": {
+        "width": 1400,
+        "height": 900
+      }
+    },
+    {
+      "gapPx": -19.431976318359375,
+      "hhmmHeightPx": 455.960205078125,
+      "expectedGapPx": 31.917214355468754,
+      "gapErrorPx": -51.34919067382813,
+      "ratio": -0.04261770238266707,
+      "targetWeightGap": 0.07,
+      "overlap": true,
+      "fontName": "Digital7Mono",
+      "dualFont": false,
+      "dateBounds": {
+        "top": 264.5832214355469,
+        "right": 892.61962890625,
+        "bottom": 296.4549255371094,
+        "left": 607.3701171875,
+        "width": 285.24951171875,
+        "height": 31.8717041015625
+      },
+      "hhmmBounds": {
+        "top": 277.02294921875,
+        "right": 1485.11181640625,
+        "bottom": 732.983154296875,
+        "left": 14.88818359375,
+        "width": 1470.2236328125,
+        "height": 455.960205078125
+      },
+      "viewport": {
+        "width": 1500,
+        "height": 900
+      }
+    },
+    {
+      "gapPx": -20.7274169921875,
+      "hhmmHeightPx": 486.3575439453125,
+      "expectedGapPx": 34.04502807617188,
+      "gapErrorPx": -54.77244506835938,
+      "ratio": -0.04261765289800491,
+      "targetWeightGap": 0.07,
+      "overlap": true,
+      "fontName": "Digital7Mono",
+      "dualFont": false,
+      "dateBounds": {
+        "top": 247.365478515625,
+        "right": 952.127685546875,
+        "bottom": 281.3619384765625,
+        "left": 647.8615112304688,
+        "width": 304.26617431640625,
+        "height": 33.9964599609375
+      },
+      "hhmmBounds": {
+        "top": 260.634521484375,
+        "right": 1584.1192626953125,
+        "bottom": 746.9920654296875,
+        "left": 15.8807373046875,
+        "width": 1568.238525390625,
+        "height": 486.3575439453125
+      },
+      "viewport": {
+        "width": 1600,
+        "height": 900
+      }
+    },
+    {
+      "gapPx": -22.022903442382812,
+      "hhmmHeightPx": 516.7548217773438,
+      "expectedGapPx": 36.172837524414064,
+      "gapErrorPx": -58.195740966796876,
+      "ratio": -0.042617702853040645,
+      "targetWeightGap": 0.07,
+      "overlap": true,
+      "fontName": "Digital7Mono",
+      "dualFont": false,
+      "dateBounds": {
+        "top": 234.70083618164062,
+        "right": 1011.6356201171875,
+        "bottom": 270.82208251953125,
+        "left": 688.3528442382812,
+        "width": 323.28277587890625,
+        "height": 36.121246337890625
+      },
+      "hhmmBounds": {
+        "top": 248.79917907714844,
+        "right": 1683.126708984375,
+        "bottom": 765.5540008544922,
+        "left": 16.873291015625,
+        "width": 1666.25341796875,
+        "height": 516.7548217773438
+      },
+      "viewport": {
+        "width": 1700,
+        "height": 900
+      }
+    },
+    {
+      "gapPx": -23.318359375,
+      "hhmmHeightPx": 547.1522216796875,
+      "expectedGapPx": 38.30065551757813,
+      "gapErrorPx": -61.61901489257813,
+      "ratio": -0.04261768197415997,
+      "targetWeightGap": 0.07,
+      "overlap": true,
+      "fontName": "Digital7Mono",
+      "dualFont": false,
+      "dateBounds": {
+        "top": 222.0361785888672,
+        "right": 1071.1436767578125,
+        "bottom": 260.2821960449219,
+        "left": 728.8441772460938,
+        "width": 342.29949951171875,
+        "height": 38.24601745605469
+      },
+      "hhmmBounds": {
+        "top": 236.96383666992188,
+        "right": 1782.1341552734375,
+        "bottom": 784.1160583496094,
+        "left": 17.8658447265625,
+        "width": 1764.268310546875,
+        "height": 547.1522216796875
+      },
+      "viewport": {
+        "width": 1800,
+        "height": 900
+      }
+    }
+  ]
+}

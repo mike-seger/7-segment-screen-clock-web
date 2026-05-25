@@ -8,6 +8,11 @@
         <select id="numericFontSelect"></select>
 
         <label>
+            <input type="checkbox" id="dualFont" checked>
+            Dual font
+        </label>
+
+        <label>
             Alpha font
         </label>
         <select id="alphaFontSelect"></select>
@@ -23,10 +28,10 @@
         <input type="range" id="numericScale" min="50" max="200" step="1">
 
         <label>
-            Numeric offset (px)
+            Numeric offset factor
             <span class="valueBadge" id="numericOffsetValue"></span>
         </label>
-        <input type="range" id="numericOffset" min="-100" max="100" step="1">
+        <input type="range" id="numericOffset" min="-1" max="1" step="0.01">
 
         <label>
             Alpha scale
@@ -35,49 +40,57 @@
         <input type="range" id="alphaScale" min="50" max="200" step="1">
 
         <label>
-            Alpha offset (px)
+            Alpha offset factor
             <span class="valueBadge" id="alphaOffsetValue"></span>
         </label>
-        <input type="range" id="alphaOffset" min="-100" max="100" step="1">
+        <input type="range" id="alphaOffset" min="-1" max="1" step="0.01">
+
     </div>
 
     <div class="section">
-        <h3>Date line</h3>
+        <h3>Clock sizing</h3>
+
         <label>
-            Color
+            Gap weight
+            <span class="valueBadge" id="weightGapValue"></span>
+        </label>
+        <input type="range" id="weightGap" min="0.01" max="0.99" step="0.01">
+
+        <label>
+            Font ratio date/time
+            <span class="valueBadge" id="frValue"></span>
+        </label>
+        <input type="range" id="fr" min="0.01" max="0.99" step="0.01">
+
+        <label>
+            Font ratio hours / seconds
+            <span class="valueBadge" id="secFontFactorValue"></span>
+        </label>
+        <input type="range" id="secFontFactor" min="0.1" max="2" step="0.01">
+    </div>
+
+    <div class="section">
+        <h3>Clock Colors</h3>
+        <label>
+            Date
             <input type="color" id="dateColor">
         </label>
         <label>
-            Font size
-            <span class="valueBadge" id="dateFontSizeValue"></span>
-        </label>
-        <input type="range" id="dateFontSize" min="1" max="400" step="1">
-    </div>
-
-    <div class="section">
-        <h3>Time (HH:MM)</h3>
-        <label>
-            Color
+            Time (HH:MM)
             <input type="color" id="timeColor">
         </label>
         <label>
-            Font size
-            <span class="valueBadge" id="timeFontSizeValue"></span>
+            Seconds
+            <input type="color" id="secColor">
         </label>
-        <input type="range" id="timeFontSize" min="1" max="400" step="1">
     </div>
 
     <div class="section">
-        <h3>Seconds (:SS)</h3>
+        <h3>Debug</h3>
         <label>
-            Color
-            <input type="color" id="secColor">
+            <input type="checkbox" id="showDebug">
+            Show debug overlay
         </label>
-        <label>
-            Font size
-            <span class="valueBadge" id="secFontSizeValue"></span>
-        </label>
-        <input type="range" id="secFontSize" min="1" max="400" step="1">
     </div>
 
     <div class="section">
@@ -94,6 +107,5 @@
             Load profile
         </label>
         <select id="profileSelect"></select>
-        <button id="loadProfileBtn">Load</button>
     </div>
 </div>
