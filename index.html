@@ -414,12 +414,114 @@ function measureRowInkBounds(lineEl) {
   };
 }
 
+function transformBounds(rawBounds, hLocalOffset, hOffsetVp, vOffsetVp, rotation, scale, Cx, Cy) {
+  if (!rawBounds) return null;
+  const theta = rotation * Math.PI / 180;
+  const cos = Math.cos(theta);
+  const sin = Math.sin(theta);
+
+  // Four corners of the raw bounding box
+  const corners = [
+    { x: rawBounds.left, y: rawBounds.top },
+    { x: rawBounds.right, y: rawBounds.top },
+    { x: rawBounds.left, y: rawBounds.bottom },
+    { x: rawBounds.right, y: rawBounds.bottom }
+  ];
+
+  const transCorners = corners.map(p => {
+    // 1. Apply local scale-1 horizontal translation
+    const xL = p.x + hLocalOffset;
+    const yL = p.y;
+
+    // 2. Rotate and scale around the pivot (Cx, Cy)
+    const dx = xL - Cx;
+    const dy = yL - Cy;
+
+    const xRot = (dx * cos - dy * sin) * scale;
+    const yRot = (dx * sin + dy * cos) * scale;
+
+    // 3. Project to viewport space including physical offsets
+    return {
+      x: Cx + hOffsetVp + xRot,
+      y: Cy + vOffsetVp + yRot
+    };
+  });
+
+  const xs = transCorners.map(p => p.x);
+  const ys = transCorners.map(p => p.y);
+  const left = Math.min(...xs);
+  const right = Math.max(...xs);
+  const top = Math.min(...ys);
+  const bottom = Math.max(...ys);
+
+  return {
+    left,
+    right,
+    top,
+    bottom,
+    width: right - left,
+    height: bottom - top
+  };
+}
+
 function getClockRowInkBounds(dateLine, timeLine) {
   if (!dateLine || !timeLine) return null;
+
+  const clockInner = document.getElementById("clockInner");
+  if (!clockInner) return null;
+
+  // Temporarily neutralize rotation & scale transforms to get reliable unrotated sizing
+  const savedClockInnerTransform = clockInner.style.transform;
+  const savedTimeLineTransform = timeLine.style.transform;
+
+  clockInner.style.transform = "none";
+  if (timeLine) timeLine.style.transform = "none";
+
   const dateBounds = measureRowInkBounds(dateLine);
   const timeBounds = measureRowInkBounds(timeLine);
+
+  clockInner.style.transform = savedClockInnerTransform;
+  if (timeLine) timeLine.style.transform = savedTimeLineTransform;
+
   if (!dateBounds && !timeBounds) return null;
-  return { dateBounds, timeBounds };
+
+  // Grab the parameter context used during the last applyClockTransform layout run
+  const params = window.lastTransformParams || {
+    scale: 1,
+    rotation: 0,
+    hLocalOffset: 0,
+    hOffsetVp: 0,
+    vOffsetVp: 0,
+    Cx: window.innerWidth / 2,
+    Cy: window.innerHeight / 2
+  };
+
+  const transformedDateBounds = transformBounds(
+    dateBounds,
+    0,
+    params.hOffsetVp,
+    params.vOffsetVp,
+    params.rotation,
+    params.scale,
+    params.Cx,
+    params.Cy
+  );
+
+  const transformedTimeBounds = transformBounds(
+    timeBounds,
+    params.hLocalOffset,
+    params.hOffsetVp,
+    params.vOffsetVp,
+    params.rotation,
+    params.scale,
+    params.Cx,
+    params.Cy
+  );
+
+  return {
+    dateBounds: transformedDateBounds,
+    timeBounds: transformedTimeBounds
+  };
 }
 
 function getVisualBlockHeight(dateLine, timeLine) {
@@ -821,39 +923,57 @@ function applyClockTransform(animated = false) {
     scale *= SCALE_SAFETY;
   }
 
-  // Suppress the CSS transition for routine updates (tick, resize, font change).
-  // Only animate when explicitly requested (e.g. rotateClock).
+  // Calculate unrotated centering & alignment parameters to center ink in viewport.
+  let hLocalOffset = 0;
+  let hOffsetVp = 0;
+  let vOffsetVp = 0;
+
+  if (timeBounds) {
+    const timeInkCenterX = timeBounds.left + timeBounds.width / 2;
+    hLocalOffset = (vw / 2) - timeInkCenterX;
+  }
+
+  const combinedTop = (dateBounds && timeBounds) ? Math.min(dateBounds.top, timeBounds.top) : (dateBounds ? dateBounds.top : (timeBounds ? timeBounds.top : 0));
+  const combinedBottom = (dateBounds && timeBounds) ? Math.max(dateBounds.bottom, timeBounds.bottom) : (dateBounds ? dateBounds.bottom : (timeBounds ? timeBounds.bottom : 0));
+
+  if (combinedBottom > combinedTop) {
+    const combinedInkCenterY = (combinedTop + combinedBottom) / 2;
+    const vOffset = (vh / 2) - combinedInkCenterY;
+    const theta = rotation * Math.PI / 180;
+    hOffsetVp = -vOffset * scale * Math.sin(theta);
+    vOffsetVp = vOffset * scale * Math.cos(theta);
+  }
+
+  // Save layout context params for getClockRowInkBounds
+  window.lastTransformParams = {
+    scale,
+    rotation,
+    hLocalOffset,
+    hOffsetVp,
+    vOffsetVp,
+    Cx: vw / 2,
+    Cy: vh / 2
+  };
+
+  // Suppress transition timing if not animated to avoid visual jumping or lag on routine tick updates.
   const shouldAnimate = animated === true;
-  if (!shouldAnimate) clockInner.style.transition = "none";
-  clockInner.style.transform = `rotate(${rotation}deg) scale(${scale})`;
-  if (!shouldAnimate) { void clockInner.offsetWidth; clockInner.style.transition = ""; }
+  if (!shouldAnimate) {
+    clockInner.style.transition = "none";
+    if (timeLine) timeLine.style.transition = "none";
+  }
 
-  // Post-scale ink-centering corrections (non-rotated orientations only).
-  // Measure both rows once with scale active, then:
-  //   • horizontal: translateX on timeLine so its ink midpoint aligns with vw/2
-  //   • vertical:   translateY on clockInner so combined ink group centres at vh/2
-  // The translateY is prepended to the clockInner transform so it operates in
-  // viewport space (CSS applies the list right-to-left; at 0° rotation the
-  // post-rotate coordinate frame is identical to the viewport frame).
-  if (orientation % 180 === 0) {
-    const dBoundsVp = measureRowInkBounds(dateLine);
-    const tBoundsVp = measureRowInkBounds(timeLine);
+  // Apply high precision unrotated horizontal translation local to timeLine
+  if (timeLine) {
+    timeLine.style.transform = `translateX(${hLocalOffset}px)`;
+  }
 
-    // Horizontal: shift timeLine so its ink midpoint aligns with vw/2.
-    if (timeLine && tBoundsVp && tBoundsVp.width > 0) {
-      const inkCenterX = tBoundsVp.left + tBoundsVp.width / 2;
-      const hOffsetVp = vw / 2 - inkCenterX;
-      // Divide by scale: timeLine is inside clockInner which has scale(s).
-      timeLine.style.transform = `translateX(${hOffsetVp / scale}px)`;
-    }
+  // Apply unified physical scale, rotation & viewport coordinates offset transform
+  clockInner.style.transform = `translateX(${hOffsetVp}px) translateY(${vOffsetVp}px) rotate(${rotation}deg) scale(${scale})`;
 
-    // Vertical: shift clockInner so combined ink group is centred at vh/2.
-    if (dBoundsVp && tBoundsVp) {
-      const inkCenterY = (dBoundsVp.top + tBoundsVp.top + tBoundsVp.height) / 2;
-      const vOffsetVp = vh / 2 - inkCenterY;
-      clockInner.style.transform =
-        `translateY(${vOffsetVp}px) rotate(${rotation}deg) scale(${scale})`;
-    }
+  if (!shouldAnimate) {
+    void clockInner.offsetWidth; // force style recalculation
+    clockInner.style.transition = "";
+    if (timeLine) timeLine.style.transition = "";
   }
 
   scheduleRowCoordinateDisplayUpdate();
