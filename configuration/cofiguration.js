@@ -3,15 +3,15 @@
 // ---------------- FORM / UI BINDING ----------------
 
 const FONT_CORRECTION = {
-    AlarmClock: { size: 1.2, baseline: 0 },
-    DSEG7Classic: { size: 0.75, baseline: 0.06 },
-    DSEG7ClassicMini: { size: 0.75, baseline: 0.06 },
-    DSEG14Classic: { size: 0.75, baseline: 0.06 },
-    DigitalDisplay: { size: 1.14, baseline: -0.12 },
-    Digital7Mono: { colonMargin: -0.25, gapAdjust: 0.5 },
-    FourteenSegment: { size: 1.16, baseline: 0.1, colon: "-" },
-    SevenSegment: { size: 1.1, baseline: -0.09 },
-    LCDDot: { size: 0.4, baseline: 0.4, letterSpacing: 0, colonMargin: -0.01 },
+    // AlarmClock: { size: 1.2, baseline: 0 },
+    // DSEG7Classic: { size: 0.75, baseline: 0.06 },
+    // DSEG7ClassicMini: { size: 0.75, baseline: 0.06 },
+    // DSEG14Classic: { size: 0.75, baseline: 0.06 },
+    // DigitalDisplay: { size: 1.14, baseline: -0.0 },
+    Digital7Mono: { colonMargin: -0.25 },
+    // FourteenSegment: { size: 1.16, baseline: 0.1, colon: "-" },
+    // SevenSegment: { size: 1.1, baseline: -0.09 },
+    // LCDDot: { size: 0.4, baseline: 0.4, letterSpacing: 0, colonMargin: -0.01 },
 };
 
 function normalizeFontName(value) {
@@ -54,7 +54,7 @@ function normalizeSizingWeight(value, fallback) {
 }
 
 function computeSizingWeights(weightGap, fr) {
-    const normalizedGap = normalizeSizingWeight(weightGap, 0.07);
+    const normalizedGap = normalizeSizingWeight(weightGap, 0.12);
     const normalizedFr = normalizeSizingWeight(fr, 0.07);
     const remaining = Math.max(0, 1 - normalizedGap);
     const weightTime = remaining / (normalizedFr + 1);
@@ -229,7 +229,7 @@ function initConfiguration() {
         state.dualFont = state.dualFont !== false;
         state.numericOffset = normalizeOffsetFactor(state.numericOffset);
         state.alphaOffset = normalizeOffsetFactor(state.alphaOffset);
-        state.weightGap = normalizeSizingWeight(state.weightGap, 0.07);
+        state.weightGap = normalizeSizingWeight(state.weightGap, 0.12);
         state.fr = normalizeSizingWeight(state.fr, 0.07);
         state.secFontFactor = normalizeSecFontFactor(state.secFontFactor);
 

@@ -8,7 +8,7 @@ const DEFAULT_STATE = {
     alphaScale: 100,
     numericOffset: 0,
     alphaOffset: 0,
-    weightGap: 0.07,
+    weightGap: 0.12,
     fr: 0.07,
     dateColor: "#fb04ad",
     timeColor: "#04fb62",
