@@ -174,17 +174,17 @@ html, body {
 
 #menuButton {
     position: fixed;
-    top: 1vh;
-    right: 1vh;
-    width: 16vh;
-    height: 16vh;
-    line-height: 16vh;
+    top: 0;
+    right: 0;
+    width: 11.2vh;
+    height: 11.2vh;
+    line-height: 11.2vh;
     text-align: center;
-    background: transparent;
+    background: #6f6f6f;
     color: var(--on-color);
     border-radius: 4px;
     cursor: pointer;
-    font-size: 10vh;
+    font-size: 7vh;
     z-index: 1000;
     user-select: none;
     display: none;
