@@ -11,7 +11,7 @@ const FONT_CORRECTION = {
     Digital7Mono: { colonMargin: -0.25 },
     FourteenSegment: { colon: "-" },
     // SevenSegment: { size: 1.1, baseline: -0.09 },
-    // LCDDot: { size: 0.4, baseline: 0.4, letterSpacing: 0, colonMargin: -0.01 },
+    LCDDot: { baseline: 0.4, letterSpacing: 0.10 },
 };
 
 function normalizeFontName(value) {
