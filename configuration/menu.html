@@ -12,7 +12,7 @@
             Dual font
         </label>
 
-        <label>
+        <label id="alphaFontLabel">
             Alpha font
         </label>
         <select id="alphaFontSelect"></select>
@@ -33,13 +33,13 @@
         </label>
         <input type="range" id="numericOffset" min="-1" max="1" step="0.01">
 
-        <label>
+        <label id="alphaScaleLabel">
             Alpha scale
             <span class="valueBadge" id="alphaScaleValue"></span>
         </label>
         <input type="range" id="alphaScale" min="50" max="200" step="1">
 
-        <label>
+        <label id="alphaOffsetLabel">
             Alpha offset factor
             <span class="valueBadge" id="alphaOffsetValue"></span>
         </label>
@@ -67,6 +67,12 @@
             <span class="valueBadge" id="secFontFactorValue"></span>
         </label>
         <input type="range" id="secFontFactor" min="0.1" max="2" step="0.01">
+
+        <label>
+            Seconds colon distance
+            <span class="valueBadge" id="secColonDistanceValue"></span>
+        </label>
+        <input type="range" id="secColonDistance" min="0" max="1" step="0.01">
 
         <label>
             Maximum fill

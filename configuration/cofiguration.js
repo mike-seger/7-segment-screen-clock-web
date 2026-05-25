@@ -73,10 +73,13 @@ function initConfiguration() {
         numericFontSelect: document.getElementById("numericFontSelect"),
         dualFont:         document.getElementById("dualFont"),
         alphaFontSelect:   document.getElementById("alphaFontSelect"),
+        alphaFontLabel:    document.getElementById("alphaFontLabel"),
         numericScale:      document.getElementById("numericScale"),
         alphaScale:        document.getElementById("alphaScale"),
+        alphaScaleLabel:   document.getElementById("alphaScaleLabel"),
         numericOffset:     document.getElementById("numericOffset"),
         alphaOffset:       document.getElementById("alphaOffset"),
+        alphaOffsetLabel:  document.getElementById("alphaOffsetLabel"),
         weightGap:         document.getElementById("weightGap"),
         fr:                document.getElementById("fr"),
 
@@ -94,6 +97,8 @@ function initConfiguration() {
         secColor:          document.getElementById("secColor"),
         secFontFactor:     document.getElementById("secFontFactor"),
         secFontFactorValue:document.getElementById("secFontFactorValue"),
+        secColonDistance:  document.getElementById("secColonDistance"),
+        secColonDistanceValue: document.getElementById("secColonDistanceValue"),
 
         showDebug:         document.getElementById("showDebug"),
         sizeBudget:        document.getElementById("sizeBudget"),
@@ -117,6 +122,9 @@ function initConfiguration() {
         els.weightGapValue.textContent    = sizing.weightGap.toFixed(2) + "x";
         els.frValue.textContent           = sizing.fr.toFixed(2) + "x";
         els.secFontFactorValue.textContent = state.secFontFactor.toFixed(2) + "x";
+        if (els.secColonDistanceValue) {
+            els.secColonDistanceValue.textContent = state.secColonDistance.toFixed(2) + "em";
+        }
         if (els.sizeBudgetValue) els.sizeBudgetValue.textContent = (state.sizeBudget * 100).toFixed(0) + "%";
     }
 
@@ -127,6 +135,22 @@ function initConfiguration() {
         }
         if (els.alphaFontSelect) {
             els.alphaFontSelect.disabled = !dualEnabled;
+            els.alphaFontSelect.style.display = dualEnabled ? '' : 'none';
+        }
+        if (els.alphaFontLabel) {
+            els.alphaFontLabel.style.display = dualEnabled ? '' : 'none';
+        }
+        if (els.alphaScale) {
+            els.alphaScale.style.display = dualEnabled ? '' : 'none';
+        }
+        if (els.alphaScaleLabel) {
+            els.alphaScaleLabel.style.display = dualEnabled ? '' : 'none';
+        }
+        if (els.alphaOffset) {
+            els.alphaOffset.style.display = dualEnabled ? '' : 'none';
+        }
+        if (els.alphaOffsetLabel) {
+            els.alphaOffsetLabel.style.display = dualEnabled ? '' : 'none';
         }
         if (!dualEnabled) {
             state.alphaFont = state.numericFont;
@@ -250,6 +274,9 @@ function initConfiguration() {
 
         els.secColor.value      = state.secColor;
         els.secFontFactor.value = state.secFontFactor;
+        if (els.secColonDistance) {
+            els.secColonDistance.value = state.secColonDistance || 0;
+        }
         if (els.showDebug) els.showDebug.checked = state.showDebug === true;
         if (els.sizeBudget) els.sizeBudget.value = state.sizeBudget;
 
@@ -275,6 +302,9 @@ function initConfiguration() {
 
         state.secColor      = els.secColor.value;
         state.secFontFactor = normalizeSecFontFactor(els.secFontFactor.value);
+        if (els.secColonDistance) {
+            state.secColonDistance = Math.min(1, Math.max(0, Number(els.secColonDistance.value) || 0));
+        }
         if (els.sizeBudget) state.sizeBudget = Math.min(1, Math.max(0.1, Number(els.sizeBudget.value) || 0.95));
 
         if (els.numericFontSelect.value) {
@@ -368,6 +398,14 @@ function initConfiguration() {
             el.style.margin = `0 ${numericColonMargin}em`;
         });
 
+        // Apply additional padding to seconds colon based on secColonDistance
+        if (colonSecEl && typeof state.secColonDistance === "number") {
+            const baseMargin = numericColonMargin;
+            const additionalDistance = state.secColonDistance;
+            colonSecEl.style.paddingLeft = `${additionalDistance}em`;
+            colonSecEl.style.paddingRight = `${additionalDistance}em`;
+        }
+
         const probeColonMinEl = document.querySelector("#timeScaleProbe .probe-colon-min");
         const probeColonSecEl = document.querySelector("#timeScaleProbe .probe-colon-sec");
 
@@ -378,6 +416,13 @@ function initConfiguration() {
             if (!el) return;
             el.style.margin = `0 ${numericColonMargin}em`;
         });
+
+        // Apply additional padding to probe seconds colon
+        if (probeColonSecEl && typeof state.secColonDistance === "number") {
+            const additionalDistance = state.secColonDistance;
+            probeColonSecEl.style.paddingLeft = `${additionalDistance}em`;
+            probeColonSecEl.style.paddingRight = `${additionalDistance}em`;
+        }
 
         if (typeof window.applyClockTransform === "function") {
             window.applyClockTransform();
@@ -391,7 +436,7 @@ function initConfiguration() {
             els.weightGap, els.fr,
             els.dateColor,
             els.timeColor,
-            els.secColor, els.secFontFactor,
+            els.secColor, els.secFontFactor, els.secColonDistance,
             els.numericFontSelect, els.alphaFontSelect,
             els.dualFont,
             els.sizeBudget

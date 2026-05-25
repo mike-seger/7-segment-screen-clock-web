@@ -146,6 +146,20 @@ html, body {
     color: #00aaff;
 }
 
+#sec {
+    cursor: pointer;
+    position: relative;
+}
+
+#sec::before {
+    content: '';
+    position: absolute;
+    top: -1em;
+    bottom: -1em;
+    left: -0.2em;
+    right: -0.2em;
+}
+
 #colon-sec {
     transform: translateX(-0.03em);
 }

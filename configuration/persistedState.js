@@ -14,6 +14,7 @@ const DEFAULT_STATE = {
     timeColor: "#04fb62",
     secColor: "#00aaff",
     secFontFactor: 0.625,
+    secColonDistance: 0,
     sizeBudget: 0.95
 };
 

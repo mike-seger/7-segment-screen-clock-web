@@ -604,8 +604,9 @@ async function updateRowCoordinateDisplay() {
 
   const hourEl = document.getElementById("hour");
   const timeFontPx = hourEl ? Math.round(parseFloat(getComputedStyle(hourEl).fontSize)) : null;
+  const timeFontFamily = hourEl ? getComputedStyle(hourEl).fontFamily.split(',')[0].trim().replace(/['"]/g, '') : "n/a";
   const simPart = cycleTimer !== null ? ` | sim ${(cycleStep - 1) % 40}` : "";
-  display.textContent = `date ${formatVisualBounds(dateBounds)} | time ${formatVisualBounds(timeBounds)} | gap ${Number.isFinite(gapHeight) ? Math.round(gapHeight) : "n/a"} px | vwh ${window.innerWidth},${window.innerHeight} | time font ${timeFontPx !== null ? timeFontPx + " px" : "n/a"}${simPart}`;}
+  display.textContent = `date ${formatVisualBounds(dateBounds)} | time ${formatVisualBounds(timeBounds)} | gap ${Number.isFinite(gapHeight) ? Math.round(gapHeight) : "n/a"} px | vwh ${window.innerWidth},${window.innerHeight} | time font ${timeFontFamily} ${timeFontPx !== null ? timeFontPx + " px" : "n/a"}${simPart}`;}
 
 function scheduleRowCoordinateDisplayUpdate() {
   if (rowCoordinateUpdatePending) return;
@@ -640,6 +641,31 @@ window.requestLayoutAfterFonts = requestLayoutAfterFonts;
 
 function activateConfigurationMode() {
   if (typeof window.toggleConfigUI === "function") window.toggleConfigUI();
+}
+
+function toggleDebugMode() {
+  if (typeof state === "undefined") return;
+  state.showDebug = !state.showDebug;
+  if (typeof saveShowDebug === "function") saveShowDebug(state.showDebug);
+  
+  // Update the checkbox if it exists in the config UI
+  const showDebugCheckbox = document.getElementById("showDebug");
+  if (showDebugCheckbox) showDebugCheckbox.checked = state.showDebug;
+  
+  scheduleRowCoordinateDisplayUpdate();
+}
+
+function cycleFont(direction = 1) {
+  const numericFontSelect = document.getElementById("numericFontSelect");
+  if (!numericFontSelect || numericFontSelect.options.length === 0) return;
+  
+  const currentIndex = numericFontSelect.selectedIndex;
+  const totalOptions = numericFontSelect.options.length;
+  const nextIndex = (currentIndex + direction + totalOptions) % totalOptions;
+  numericFontSelect.selectedIndex = nextIndex;
+  
+  // Trigger input event to apply the change
+  numericFontSelect.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
 function stopDigitCycle() {
@@ -769,6 +795,16 @@ function handleKeyDown(e) {
   const key = e.key;
   if (key === "x" || key === "X") {
     activateConfigurationMode();
+    return;
+  }
+
+  if (key === "d" || key === "D") {
+    toggleDebugMode();
+    return;
+  }
+
+  if (key === "f" || key === "F") {
+    cycleFont(key === "f" ? 1 : -1);
     return;
   }
 

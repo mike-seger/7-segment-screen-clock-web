@@ -14,7 +14,8 @@ window.BUILTIN_PROFILES = [
       "dateColor": "#fb04ad",
       "timeColor": "#04fb62",
       "secColor": "#00aaff",
-      "secFontFactor": 0.63,
+      "secFontFactor": 0.56,
+      "secColonDistance": 0.08,
       "sizeBudget": 1
     }
   },
