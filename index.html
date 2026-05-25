@@ -828,17 +828,31 @@ function applyClockTransform(animated = false) {
   clockInner.style.transform = `rotate(${rotation}deg) scale(${scale})`;
   if (!shouldAnimate) { void clockInner.offsetWidth; clockInner.style.transition = ""; }
 
-  // Ink-centre the time row: shift timeLine so its ink midpoint aligns with
-  // the viewport horizontal midpoint.  Re-measure with scale now active so we
-  // get viewport coordinates.  Skip for rotated orientations.
-  if (timeLine && orientation % 180 === 0) {
+  // Post-scale ink-centering corrections (non-rotated orientations only).
+  // Measure both rows once with scale active, then:
+  //   • horizontal: translateX on timeLine so its ink midpoint aligns with vw/2
+  //   • vertical:   translateY on clockInner so combined ink group centres at vh/2
+  // The translateY is prepended to the clockInner transform so it operates in
+  // viewport space (CSS applies the list right-to-left; at 0° rotation the
+  // post-rotate coordinate frame is identical to the viewport frame).
+  if (orientation % 180 === 0) {
+    const dBoundsVp = measureRowInkBounds(dateLine);
     const tBoundsVp = measureRowInkBounds(timeLine);
-    if (tBoundsVp && tBoundsVp.width > 0) {
+
+    // Horizontal: shift timeLine so its ink midpoint aligns with vw/2.
+    if (timeLine && tBoundsVp && tBoundsVp.width > 0) {
       const inkCenterX = tBoundsVp.left + tBoundsVp.width / 2;
-      const offsetVp = vw / 2 - inkCenterX;
-      // Divide by scale to convert viewport-px offset to pre-scale CSS px,
-      // since timeLine lives inside clockInner which has scale(s) applied.
-      timeLine.style.transform = `translateX(${offsetVp / scale}px)`;
+      const hOffsetVp = vw / 2 - inkCenterX;
+      // Divide by scale: timeLine is inside clockInner which has scale(s).
+      timeLine.style.transform = `translateX(${hOffsetVp / scale}px)`;
+    }
+
+    // Vertical: shift clockInner so combined ink group is centred at vh/2.
+    if (dBoundsVp && tBoundsVp) {
+      const inkCenterY = (dBoundsVp.top + tBoundsVp.top + tBoundsVp.height) / 2;
+      const vOffsetVp = vh / 2 - inkCenterY;
+      clockInner.style.transform =
+        `translateY(${vOffsetVp}px) rotate(${rotation}deg) scale(${scale})`;
     }
   }
 
