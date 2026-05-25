@@ -99,8 +99,9 @@ function initConfiguration() {
 
         profileName:       document.getElementById("profileName"),
         profileSelect:     document.getElementById("profileSelect"),
-        saveProfileBtn:    document.getElementById("saveProfileBtn"),
-        deleteProfileBtn:  document.getElementById("deleteProfileBtn")
+        saveProfileBtn:      document.getElementById("saveProfileBtn"),
+        deleteProfileBtn:    document.getElementById("deleteProfileBtn"),
+        downloadProfileBtn:  document.getElementById("downloadProfileBtn")
     };
 
     function updateBadgesFromState() {
@@ -419,8 +420,9 @@ function initConfiguration() {
 
         const updateProfileButtons = () => {
             const selected = (els.profileSelect.value || "").trim();
-            const isDefault = typeof isDefaultProfile === "function" && isDefaultProfile(selected);
-            els.deleteProfileBtn.disabled = isDefault;
+            const isBuiltin = typeof isBuiltinProfile === "function" && isBuiltinProfile(selected);
+            els.deleteProfileBtn.disabled = isBuiltin;
+            els.downloadProfileBtn.disabled = !selected;
         };
 
         attachSelectArrowKeys(els.numericFontSelect);
@@ -430,9 +432,7 @@ function initConfiguration() {
         els.saveProfileBtn.onclick = () => {
             const name = els.profileName.value.trim();
             if (name) {
-                if (typeof isDefaultProfile === "function" && isDefaultProfile(name)) {
-                    return;
-                }
+                if (typeof isBuiltinProfile === "function" && isBuiltinProfile(name)) return;
                 readFormIntoState();
                 applyState();
                 saveCurrentState();
@@ -449,9 +449,32 @@ function initConfiguration() {
             }
         };
 
+        els.downloadProfileBtn.onclick = () => {
+            const name = els.profileSelect.value;
+            if (!name) return;
+            const builtin = Array.isArray(window.BUILTIN_PROFILES)
+                ? window.BUILTIN_PROFILES.find(p => p.name === name)
+                : null;
+            const profileData = builtin
+                ? { ...builtin.data }
+                : (() => { try { return JSON.parse(localStorage.getItem(PROFILE_PREFIX + name) || "null"); } catch (e) { return null; } })();
+            if (!profileData) return;
+            const safeName = name.replace(/[^a-zA-Z0-9_-]/g, "_");
+            const entry = { name, data: profileData };
+            const js = `${JSON.stringify(entry, null, 2)}\n`;
+            const blob = new Blob([js], { type: "text/javascript" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `screen-clock-profile-${safeName}.js`;
+            a.click();
+            URL.revokeObjectURL(url);
+        };
+
         els.profileSelect.addEventListener("change", () => {
             const name = els.profileSelect.value;
             if (name) {
+                els.profileName.value = name;
                 loadProfile(name);
             }
             updateProfileButtons();
@@ -461,6 +484,7 @@ function initConfiguration() {
 
     function populateProfileSelect() {
         const names = loadProfileNames();
+        const prev = els.profileSelect.value;
         els.profileSelect.innerHTML = "";
         names.forEach(name => {
             const opt = document.createElement("option");
@@ -468,6 +492,12 @@ function initConfiguration() {
             opt.textContent = name;
             els.profileSelect.appendChild(opt);
         });
+        // Restore previous selection or fall back to Default
+        const preferred = prev && names.includes(prev) ? prev
+            : names.includes(DEFAULT_PROFILE_NAME) ? DEFAULT_PROFILE_NAME
+            : names[0] || "";
+        els.profileSelect.value = preferred;
+        els.profileName.value = preferred;
     }
 
     // Bridge for profile persistence helpers defined in persistedState.js.

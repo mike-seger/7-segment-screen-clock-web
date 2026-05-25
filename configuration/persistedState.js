@@ -17,6 +17,13 @@ const DEFAULT_STATE = {
     showDebug: false
 };
 
+{
+    const _b = Array.isArray(window.BUILTIN_PROFILES)
+        ? window.BUILTIN_PROFILES.find(p => p.name === "Default")
+        : null;
+    if (_b && _b.data) Object.assign(DEFAULT_STATE, _b.data);
+}
+
 let state = { ...DEFAULT_STATE };
 
 const STORAGE_KEY_CURRENT  = "screenClock_state";
@@ -94,6 +101,11 @@ function isDefaultProfile(name) {
     return String(name || "").trim() === DEFAULT_PROFILE_NAME;
 }
 
+function isBuiltinProfile(name) {
+    return Array.isArray(window.BUILTIN_PROFILES)
+        && window.BUILTIN_PROFILES.some(p => p.name === String(name || "").trim());
+}
+
 function loadCurrentState() {
     try {
         const raw = localStorage.getItem(STORAGE_KEY_CURRENT);
@@ -115,22 +127,25 @@ function saveCurrentState() {
 }
 
 function loadProfileNames() {
+    const builtinNames = Array.isArray(window.BUILTIN_PROFILES)
+        ? window.BUILTIN_PROFILES.map(p => p.name).filter(Boolean)
+        : [DEFAULT_PROFILE_NAME];
     try {
         const raw = localStorage.getItem(STORAGE_KEY_PROFILES);
         const parsed = raw ? JSON.parse(raw) : [];
         const custom = Array.isArray(parsed)
-            ? parsed.filter(name => typeof name === "string" && name && !isDefaultProfile(name))
+            ? parsed.filter(name => typeof name === "string" && name && !isBuiltinProfile(name))
             : [];
-        return [DEFAULT_PROFILE_NAME, ...custom];
+        return [...builtinNames, ...custom];
     } catch {
-        return [DEFAULT_PROFILE_NAME];
+        return builtinNames;
     }
 }
 
 function saveProfileNames(list) {
     try {
         const custom = Array.isArray(list)
-            ? list.filter(name => typeof name === "string" && name && !isDefaultProfile(name))
+            ? list.filter(name => typeof name === "string" && name && !isBuiltinProfile(name))
             : [];
         localStorage.setItem(STORAGE_KEY_PROFILES, JSON.stringify(custom));
     } catch {}
@@ -151,8 +166,11 @@ function saveProfile(name) {
 
 function loadProfile(name) {
     if (!name) return;
-    if (isDefaultProfile(name)) {
-        state = { ...DEFAULT_STATE };
+    const builtin = Array.isArray(window.BUILTIN_PROFILES)
+        ? window.BUILTIN_PROFILES.find(p => p.name === name)
+        : null;
+    if (builtin) {
+        state = normalizeSizingState({ ...DEFAULT_STATE, ...builtin.data });
         applyLoadedStateUI();
         saveCurrentState();
         return;
@@ -172,7 +190,7 @@ function loadProfile(name) {
 
 function deleteProfile(name) {
     if (!name) return;
-    if (isDefaultProfile(name)) return;
+    if (isBuiltinProfile(name)) return;
     const key = PROFILE_PREFIX + name;
     localStorage.removeItem(key);
     let names = loadProfileNames().filter(n => n !== name);
