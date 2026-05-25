@@ -4,12 +4,12 @@
 
 const FONT_CORRECTION = {
     // AlarmClock: { size: 1.2, baseline: 0 },
-    // DSEG7Classic: { size: 0.75, baseline: 0.06 },
+    DSEG7Classic: { colonMargin: -0.15 },
     // DSEG7ClassicMini: { size: 0.75, baseline: 0.06 },
     // DSEG14Classic: { size: 0.75, baseline: 0.06 },
     // DigitalDisplay: { size: 1.14, baseline: -0.0 },
     Digital7Mono: { colonMargin: -0.25 },
-    // FourteenSegment: { size: 1.16, baseline: 0.1, colon: "-" },
+    FourteenSegment: { colon: "-" },
     // SevenSegment: { size: 1.1, baseline: -0.09 },
     // LCDDot: { size: 0.4, baseline: 0.4, letterSpacing: 0, colonMargin: -0.01 },
 };

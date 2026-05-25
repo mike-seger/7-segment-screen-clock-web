@@ -634,6 +634,7 @@ function setSimulationModeByKey(key) {
 }
 
 function handleKeyDown(e) {
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
   const key = e.key;
   if (key === "x" || key === "X") {
     activateConfigurationMode();
@@ -659,7 +660,7 @@ function handleKeyDown(e) {
 }
 
 let rotation = 0;
-function applyClockTransform() {
+function applyClockTransform(animated = false) {
   const clock = document.getElementById("clock");
   const clockInner = document.getElementById("clockInner");
   const dateLine = document.getElementById("dateLine");
@@ -787,13 +788,18 @@ function applyClockTransform() {
     scale *= SCALE_SAFETY;
   }
 
+  // Suppress the CSS transition for routine updates (tick, resize, font change).
+  // Only animate when explicitly requested (e.g. rotateClock).
+  const shouldAnimate = animated === true;
+  if (!shouldAnimate) clockInner.style.transition = "none";
   clockInner.style.transform = `rotate(${rotation}deg) scale(${scale})`;
+  if (!shouldAnimate) { void clockInner.offsetWidth; clockInner.style.transition = ""; }
   scheduleRowCoordinateDisplayUpdate();
 }
 
 function rotateClock() {
   rotation += 90;
-  applyClockTransform();
+  applyClockTransform(true);
 }
 
 function normalizeRotationIfNeeded() {
