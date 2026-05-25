@@ -4,12 +4,12 @@
 
 const FONT_CORRECTION = {
     // AlarmClock: { size: 1.2, baseline: 0 },
-    DSEG7Classic: { colonMargin: -0.15 },
+    DSEG7Classic: { colonMargin: 0.08 },
+    "Automata": { colonMarginLeft: -0.2, colonMargin: 0 },
+    "Automate Regular W00 Regular": { colonMargin: -0.2 },
     // DSEG7ClassicMini: { size: 0.75, baseline: 0.06 },
     // DSEG14Classic: { size: 0.75, baseline: 0.06 },
-    // DigitalDisplay: { size: 1.14, baseline: -0.0 },
-    Digital7Mono: { colonMargin: -0.20, letterSpacing: 0.02 },
-    FourteenSegment: { colon: "-" },
+    Digital7Mono: { colonMargin: -0.20, letterSpacing: 0.02, excludeMonoTweaks: true },
     // SevenSegment: { size: 1.1, baseline: -0.09 },
     LCDDot: { baseline: 0.4, letterSpacing: 0.10 },
 };
@@ -23,7 +23,7 @@ function normalizeFontName(value) {
 }
 
 function getFontCorrection(fontName) {
-    const defaults = { size: 1, baseline: 0, letterSpacing: 0.09, colonMargin: -0.12, colon: ":", gapAdjust: 1 };
+    const defaults = { size: 1, baseline: 0, letterSpacing: 0.09, colonMargin: -0.12, colonMarginLeft: null, colon: ":", gapAdjust: 1, excludeMonoTweaks: false, o40: false };
     const name = normalizeFontName(fontName);
     if (!name) return { ...defaults };
 
@@ -340,6 +340,7 @@ function initConfiguration() {
         const numericLetterSpacing = numericCorrectionMeta.letterSpacing;
         const alphaLetterSpacing = alphaCorrectionMeta.letterSpacing;
         const numericColonMargin = numericCorrectionMeta.colonMargin;
+        const numericColonMarginLeft = numericCorrectionMeta.colonMarginLeft ?? numericColonMargin;
         const numericColon = numericCorrectionMeta.colon || ":";
         const sizing = computeSizingWeights(state.weightGap, state.fr);
 
@@ -349,7 +350,9 @@ function initConfiguration() {
             alpha: alphaCorrection,
             numericBaseline: numericBaselineOffset,
             alphaBaseline: alphaBaselineOffset,
-            gapAdjust: numericCorrectionMeta.gapAdjust
+            gapAdjust: numericCorrectionMeta.gapAdjust,
+            excludeMonoTweaks: numericCorrectionMeta.excludeMonoTweaks,
+            o40: numericCorrectionMeta.o40
         };
 
         dateLine.style.color     = state.dateColor;
@@ -395,7 +398,10 @@ function initConfiguration() {
 
         [colonMinEl, colonSecEl].forEach(el => {
             if (!el) return;
-            el.style.margin = `0 ${numericColonMargin}em`;
+            el.style.marginTop = "0";
+            el.style.marginBottom = "0";
+            el.style.marginLeft = `${numericColonMarginLeft}em`;
+            el.style.marginRight = `${numericColonMargin}em`;
         });
 
         // Apply additional padding to seconds colon based on secColonDistance
@@ -414,7 +420,10 @@ function initConfiguration() {
 
         [probeColonMinEl, probeColonSecEl].forEach(el => {
             if (!el) return;
-            el.style.margin = `0 ${numericColonMargin}em`;
+            el.style.marginTop = "0";
+            el.style.marginBottom = "0";
+            el.style.marginLeft = `${numericColonMarginLeft}em`;
+            el.style.marginRight = `${numericColonMargin}em`;
         });
 
         // Apply additional padding to probe seconds colon
@@ -424,7 +433,9 @@ function initConfiguration() {
             probeColonSecEl.style.paddingRight = `${additionalDistance}em`;
         }
 
-        if (typeof window.applyClockTransform === "function") {
+        if (typeof window.requestLayoutAfterFonts === "function" && (state.numericFont || state.alphaFont)) {
+            window.requestLayoutAfterFonts([state.numericFont, state.alphaFont]);
+        } else if (typeof window.applyClockTransform === "function") {
             window.applyClockTransform();
         }
     }

@@ -704,11 +704,11 @@ function ensureTimeScaleProbe() {
   const probe = document.createElement("div");
   probe.id = "timeScaleProbe";
   probe.innerHTML = `
-    <span class="numeric-group">88</span>
-    <span class="numeric-group probe-colon-min">:</span>
-    <span class="numeric-group">88</span>
-    <span class="numeric-group probe-colon-sec probe-sec">:</span>
-    <span class="numeric-group probe-sec">88</span>
+    <span class="numeric-group">${wrapDigits("88")}</span>
+    <span class="numeric-group probe-colon-min">${wrapDigits(":")}</span>
+    <span class="numeric-group">${wrapDigits("88")}</span>
+    <span class="numeric-group probe-colon-sec probe-sec">${wrapDigits(":")}</span>
+    <span class="numeric-group probe-sec">${wrapDigits("88")}</span>
   `;
 
   document.body.appendChild(probe);
@@ -728,6 +728,38 @@ function getWorstCaseTimeWidth() {
   return probeBounds && probeBounds.width > 0 ? probeBounds.width : (probe.offsetWidth || 0);
 }
 
+// Helper function to wrap each character in a fixed-width span
+// Only applies to sequences containing only 0-9, :, and .
+function wrapDigits(str) {
+  let result = str;
+  
+  // Replace 0s with Os if o40 flag is set
+  if (window.clockSizeCorrection && window.clockSizeCorrection.o40) {
+    result = result.replace(/0/g, 'O');
+  }
+  
+  // Check if font has excludeMonoTweaks enabled
+  if (window.clockSizeCorrection && window.clockSizeCorrection.excludeMonoTweaks) {
+    return result;
+  }
+  
+  // Check if string contains only allowed characters (including O if o40 is enabled)
+  const pattern = window.clockSizeCorrection && window.clockSizeCorrection.o40 
+    ? /^[0-9.:O]+$/ 
+    : /^[0-9.:]+$/;
+  
+  if (pattern.test(result)) {
+    return Array.from(result).map(char => {
+      // Use different class for colons and dots
+      const className = /[:.]/.test(char) ? 'colon-dot-char' : 'digit-char';
+      return `<span class="${className}">${char}</span>`;
+    }).join('');
+  }
+  
+  // If other characters present, return as-is
+  return result;
+}
+
 function updateClock() {
     const now = new Date();
   const hRaw = String(now.getHours());
@@ -745,14 +777,16 @@ function updateClock() {
 
   const timeLine = document.getElementById("timeLine");
 
-    document.getElementById("hour").textContent     = h;
-    document.getElementById("minute").textContent   = m;
-    document.getElementById("sec").textContent      = s;
+    document.getElementById("hour").innerHTML      = wrapDigits(h);
+    document.getElementById("colon-min").innerHTML = wrapDigits(":");
+    document.getElementById("minute").innerHTML    = wrapDigits(m);
+    document.getElementById("colon-sec").innerHTML = wrapDigits(":");
+    document.getElementById("sec").innerHTML       = wrapDigits(s);
 
-    document.getElementById("weekday").textContent  = simulationWeekday || days[now.getDay()];
-    document.getElementById("day").textContent      = d;
-    document.getElementById("month").textContent    = month;
-    document.getElementById("year").textContent     = y;
+    document.getElementById("weekday").innerHTML  = wrapDigits(simulationWeekday || days[now.getDay()]);
+    document.getElementById("day").innerHTML      = wrapDigits(d);
+    document.getElementById("month").innerHTML    = wrapDigits(month);
+    document.getElementById("year").innerHTML     = wrapDigits(y);
 
     if (timeLine) {
       const hourLeadingOne = h.length === 2 && h.startsWith("1");

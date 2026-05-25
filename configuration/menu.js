@@ -1,5 +1,25 @@
 // ------------- MENU LAZY-LOAD -------------
 
+// ---------------- MENU STATE PERSISTENCE ----------------
+
+const STORAGE_KEY_MENU_OPEN = "screenClock_menuOpen";
+
+function loadMenuOpenState() {
+    try {
+        return localStorage.getItem(STORAGE_KEY_MENU_OPEN) === "true";
+    } catch {
+        return false;
+    }
+}
+
+function saveMenuOpenState(isOpen) {
+    try {
+        localStorage.setItem(STORAGE_KEY_MENU_OPEN, isOpen ? "true" : "false");
+    } catch (e) {
+        console.warn("Failed to save menu state", e);
+    }
+}
+
 // ---------------- MENU TOGGLE ----------------
 
 const menuButton = document.getElementById("menuButton");
@@ -59,7 +79,9 @@ async function toggleMenuPanel() {
     if (!panel) return;
 
     loadMenuCSS();
-    panel.style.display = (panel.style.display === "block" ? "none" : "block");
+    const isOpen = panel.style.display !== "block";
+    panel.style.display = isOpen ? "block" : "none";
+    saveMenuOpenState(isOpen);
 }
 
 if (menuButton) {
@@ -71,6 +93,7 @@ window.openMenuPanel = async function() {
     await ensureConfigurationInitialized();
     const panel = document.getElementById('menuPanel');
     if (!panel) return;
+    saveMenuOpenState(true);
     loadMenuCSS();
     panel.style.display = "block";
 };
@@ -82,6 +105,7 @@ window.toggleConfigUI = async function() {
     if (panelVisible) {
         panel.style.display = "none";
         if (menuButton) menuButton.style.display = "none";
+        saveMenuOpenState(false);
     } else {
         if (menuButton) menuButton.style.display = "block";
         await ensureConfigurationInitialized();
@@ -89,8 +113,23 @@ window.toggleConfigUI = async function() {
         if (!p) return;
         loadMenuCSS();
         p.style.display = "block";
+        saveMenuOpenState(true);
     }
 };
 
 // Apply persisted configuration immediately, even before entering configuration mode.
 ensureConfigurationInitialized();
+
+// Restore menu open state on page load
+(async function restoreMenuState() {
+    const wasOpen = loadMenuOpenState();
+    if (wasOpen) {
+        if (menuButton) menuButton.style.display = "block";
+        await ensureConfigurationInitialized();
+        const panel = document.getElementById('menuPanel');
+        if (panel) {
+            loadMenuCSS();
+            panel.style.display = "block";
+        }
+    }
+})();
