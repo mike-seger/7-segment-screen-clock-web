@@ -8,7 +8,7 @@ const FONT_CORRECTION = {
     // DSEG7ClassicMini: { size: 0.75, baseline: 0.06 },
     // DSEG14Classic: { size: 0.75, baseline: 0.06 },
     // DigitalDisplay: { size: 1.14, baseline: -0.0 },
-    Digital7Mono: { colonMargin: -0.25 },
+    Digital7Mono: { colonMargin: -0.20, letterSpacing: 0.02 },
     FourteenSegment: { colon: "-" },
     // SevenSegment: { size: 1.1, baseline: -0.09 },
     LCDDot: { baseline: 0.4, letterSpacing: 0.10 },
