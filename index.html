@@ -668,6 +668,19 @@ function cycleFont(direction = 1) {
   numericFontSelect.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
+function cycleProfile(direction = 1) {
+  const profileSelect = document.getElementById("profileSelect");
+  if (!profileSelect || profileSelect.options.length === 0) return;
+
+  const currentIndex = profileSelect.selectedIndex;
+  const totalOptions = profileSelect.options.length;
+  const nextIndex = (currentIndex + direction + totalOptions) % totalOptions;
+  profileSelect.selectedIndex = nextIndex;
+
+  // Trigger change/input handlers to load the selected profile.
+  profileSelect.dispatchEvent(new Event("change", { bubbles: true }));
+}
+
 function stopDigitCycle() {
   if (!cycleTimer) return;
   clearInterval(cycleTimer);
@@ -839,6 +852,11 @@ function handleKeyDown(e) {
 
   if (key === "f" || key === "F") {
     cycleFont(key === "f" ? 1 : -1);
+    return;
+  }
+
+  if (key === "p" || key === "P") {
+    cycleProfile(key === "p" ? 1 : -1);
     return;
   }
 

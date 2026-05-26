@@ -8,7 +8,7 @@ const FONT_CORRECTION = {
     "Automate Regular W00 Regular": { colonMargin: -0.2 },
     DSEG14Classic: { colonMargin: -0.3, o40: true },
     Digital7Mono: { colonMargin: -0.10, letterSpacing: 0.02, excludeMonoTweaks: true },
-    LCDDot: { o40: true, colonMarginLeft: 0.1 },
+    LCDDot: { o40: true, colonMargin: -0.3, colonMarginLeft: -4.1 },
     MatrixSansRaster: { o40: true },
     MatrixSansScreen: { o40: true },
     RepetitionScrolling: { colonMarginLeft: -0.1, colonMargin: -0.2, excludeMonoTweaks: true  },

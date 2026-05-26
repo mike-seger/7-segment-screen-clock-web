@@ -54,5 +54,5 @@ window.BUILTIN_PROFILES = [
       "secColor": "#f72222",
       "secFontFactor": 0.59
     }
-  }
+  },
 ];
