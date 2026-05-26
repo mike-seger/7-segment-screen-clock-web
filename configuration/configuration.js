@@ -4,15 +4,15 @@
 
 const FONT_CORRECTION = {
     // AlarmClock: { size: 1.2, baseline: 0 },
-    DSEG7Classic: { colonMargin: -0.3 },
-    DSEG7ClassicMini: { colonMargin: -0.3 },
-    "Automata": { colonMarginLeft: -0.2, colonMargin: 0 },
-    "Automate Regular W00 Regular": { colonMargin: -0.2 },
+    "/^DSEG7/": { colonMargin: -0.3 },
+   // "Automata": { colonMarginLeft: -0.2, colonMargin: 0 },
+    "/Automate/": { colonMarginLeft: -0.3, colonMargin: -0.1 },
+    "/Automata/": { colonMargin: 0, colonMarginLeft: -0.2 },
     // DSEG7ClassicMini: { size: 0.75, baseline: 0.06 },
-    DSEG14Classic: { colonMargin: -0.3, o40: true },
+    "/^DSEG14/": { colonMargin: -0.3, o40: true },
     Digital7Mono: { colonMargin: -0.10, letterSpacing: 0.02, excludeMonoTweaks: true },
     // SevenSegment: { size: 1.1, baseline: -0.09 },
-    LCDDot: { o40: true, colonMarginLeft: 0.1 },
+    LCDDot: { o40: true, colonMarginLeft: -0.09 },
     MatrixSansRaster: { o40: true },
     MatrixSansScreen: { o40: true },
     RepetitionScrolling: { colonMarginLeft: -0.1, colonMargin: -0.2, excludeMonoTweaks: true  },
@@ -31,18 +31,24 @@ function getFontCorrection(fontName) {
     const name = normalizeFontName(fontName);
     if (!name) return { ...defaults };
 
-    const normalizedMap = {};
-    Object.entries(FONT_CORRECTION).forEach(([k, v]) => {
-        normalizedMap[normalizeFontName(k)] = v;
-    });
-
-    if (Object.prototype.hasOwnProperty.call(normalizedMap, name)) {
-        return { ...defaults, ...normalizedMap[name] };
+    // 1. Try exact normalized match
+    for (const [k, v] of Object.entries(FONT_CORRECTION)) {
+        if (normalizeFontName(k) === name) {
+            return { ...defaults, ...v };
+        }
     }
 
-    // DSEG7Classic is the renamed family backing the previous Digital7Mono entry.
-    if (name === "dseg7classic" && Object.prototype.hasOwnProperty.call(normalizedMap, "digital7mono")) {
-        return { ...defaults, ...normalizedMap.digital7mono };
+    // 2. Try regex keys — key must start with / and end with /[flags]
+    for (const [k, v] of Object.entries(FONT_CORRECTION)) {
+        const m = k.match(/^\/(.+)\/([gimsuy]*)$/);
+        if (!m) continue;
+        try {
+            if (new RegExp(m[1], m[2]).test(fontName)) {
+                return { ...defaults, ...v };
+            }
+        } catch (e) {
+            // ignore malformed regex keys
+        }
     }
 
     return { ...defaults };
@@ -459,18 +465,17 @@ function initConfiguration() {
 
         function attachSelectArrowKeys(selectEl) {
             if (!selectEl) return;
+            if (selectEl.dataset.arrowKeysAttached) return;
+            selectEl.dataset.arrowKeysAttached = "true";
             selectEl.addEventListener("keydown", (e) => {
                 if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+                e.preventDefault();    // prevent native macOS popup
+                e.stopPropagation();   // prevent window keydown handler from also firing
                 const dir = e.key === "ArrowDown" ? 1 : -1;
                 const next = Math.max(0, Math.min(selectEl.options.length - 1, selectEl.selectedIndex + dir));
-                if (next === selectEl.selectedIndex) {
-                    e.preventDefault();
-                    return;
-                }
-
+                if (next === selectEl.selectedIndex) return;
                 selectEl.selectedIndex = next;
                 selectEl.dispatchEvent(new Event("input", { bubbles: true }));
-                e.preventDefault();
             });
         }
 
@@ -586,7 +591,7 @@ function initConfiguration() {
             state.numericFont,
             state.alphaFont,
             ...fontList
-        ].filter(Boolean))];
+        ].filter(Boolean))].sort((a, b) => a.localeCompare(b));
 
         numericSel.innerHTML = "";
         alphaSel.innerHTML   = "";
@@ -631,7 +636,8 @@ function initConfiguration() {
     window.configurationFontsReadyPromise = fetch("fonts/fonts.css")
         .then(r => r.text())
         .then(cssText => {
-            const fontFamilies = Array.from(cssText.matchAll(/font-family:\s*["']([^"']+)["']/g))
+            const stripped = cssText.replace(/\/\*[\s\S]*?\*\//g, "");
+            const fontFamilies = Array.from(stripped.matchAll(/font-family:\s*["']([^"']+)["']/g))
                                     .map(m => m[1]);
             const unique = [...new Set(fontFamilies)];
             populateFontSelects(unique);

@@ -7,41 +7,33 @@
 @font-face {
     font-family: "DSEG7Classic";
     src:
-        url("DSEG7Classic-Regular.woff2") format("woff2"),
-        url("DSEG7Classic-Regular.woff")  format("woff"),
-        url("DSEG7Classic-Regular.ttf")   format("truetype");
+        url("DSEG7Classic-Regular.woff2") format("woff2");
     font-display: swap;
 }
 
 @font-face {
     font-family: "DSEG14Classic";
     src:
-        url("DSEG14Classic-Regular.woff2") format("woff2"),
-        url("DSEG14Classic-Regular.woff")  format("woff"),
-        url("DSEG14Classic-Regular.ttf")   format("truetype");
+        url("DSEG14Classic-Regular.woff2") format("woff2");
     font-display: swap;
 }
 
 @font-face {
     font-family: "DSEG7ClassicMini";
     src:
-        url("DSEG7ClassicMini-Regular.woff2") format("woff2"),
-        url("DSEG7ClassicMini-Regular.woff")  format("woff"),
-        url("DSEG7ClassicMini-Regular.ttf")   format("truetype");
+        url("DSEG7ClassicMini-Regular.woff2") format("woff2");
     font-display: swap;
 }
 
 @font-face {
     font-family: "LCDDot";
-    src: url("lcddot.otf.woff2") format("woff2"),
-            url("lcddot.otf") format("opentype");
+    src: url("lcddot.otf.woff2") format("woff2");
     font-display: swap;
 }
 
 @font-face {
     font-family: "AlarmClock";
-    src: url("alarm-clock.otf.woff2") format("woff2"),
-            url("alarm-clock.otf") format("opentype");
+    src: url("alarm-clock.otf.woff2") format("woff2");
     font-display: swap;
 }
 
@@ -58,26 +50,14 @@
 }
 
 @font-face {
-    font-family: "LEDBoard7";
-    src: url("LED-Board-7.ttf.woff") format("woff"),
-        url("LED-Board-7.ttf.svg") format("svg"),
-        url("LED-Board-7.ttf.eot");
-    font-display: swap;
-}
-
-@font-face {
     font-family: "RepetitionScrolling";
-    src: url("Repetition-Scrolling.ttf.woff") format("woff"),
-        url("Repetition-Scrolling.ttf.svg") format("svg"),
-        url("Repetition-Scrolling.ttf.eot");
+    src: url("Repetition-Scrolling.ttf.woff") format("woff");
     font-display: swap;
 }
 
 @font-face {
     font-family: "SquareDotMatrix";
-    src: url("Square-Dot-Matrix.ttf.woff") format("woff"),
-        url("Square-Dot-Matrix.ttf.svg") format("svg"),
-        url("Square-Dot-Matrix.ttf.eot");
+    src: url("Square-Dot-Matrix.ttf.woff") format("woff");
     font-display: swap;
 }
 
@@ -89,77 +69,57 @@
 }
 
 @font-face {
-    font-family: "LondonUnderground";
-    src: url("London Underground Bold.ttf") format("truetype");
-    font-weight: 700;
-    font-display: swap;
-}
-
-@font-face {
-    font-family: "LondonUnderground";
+    font-family: "LondonUnderground Heavy";
     src: url("London Underground Heavy.ttf") format("truetype");
     font-weight: 900;
     font-display: swap;
 }
 
 @font-face {
-    font-family: "Automata";
+    font-family: "Automata ExtraLight";
     src: url("AutomataTRIALCopyrightEnricoSogari-ExtraLight-BF67906caa724f9.otf") format("opentype");
     font-weight: 200;
     font-display: swap;
 }
 
 @font-face {
-    font-family: "Automata";
+    font-family: "Automata Light";
     src: url("AutomataTRIALCopyrightEnricoSogari-Light-BF67906caa82e87.otf") format("opentype");
     font-weight: 300;
     font-display: swap;
 }
 
 @font-face {
-    font-family: "Automata";
+    font-family: "Automata Regular";
     src: url("AutomataTRIALCopyrightEnricoSogari-Regular-BF67906caaa40e3.otf") format("opentype");
     font-weight: 400;
     font-display: swap;
 }
 
 @font-face {
-    font-family: "Automata";
+    font-family: "Automata SemiBold";
     src: url("AutomataTRIALCopyrightEnricoSogari-SemiBold-BF67906caa42a5a.otf") format("opentype");
     font-weight: 600;
     font-display: swap;
 }
 
-@font-face {
-    font-family: "Automata";
+/* @font-face {
+    font-family: "Automata Bold";
     src: url("AutomataTRIALCopyrightEnricoSogari-Bold-BF67906caa529f3.otf") format("opentype");
     font-weight: 700;
     font-display: swap;
 }
 
 @font-face {
-    font-family: "Automata";
+    font-family: "Automata Black";
     src: url("AutomataTRIALCopyrightEnricoSogari-Black-BF67906caa33909.otf") format("opentype");
     font-weight: 900;
     font-display: swap;
-}
+} */
 
 @font-face {
-    font-family: "Automate Regular W00 Regular";
-    src: url("78355c383a5f5507a1eba592ee9f2c0a.woff2") format("woff2"),
-        url("78355c383a5f5507a1eba592ee9f2c0a.woff") format("woff"),
-        url("78355c383a5f5507a1eba592ee9f2c0a.ttf") format("truetype");
-    font-display: swap;
-}
-
-@font-face {
-    font-family: "Automate";
-    src:
-        url("AutomateLightW00-Regular.woff2") format("woff2"),
-        url("AutomateLightW00-Regular.woff") format("woff"),
-        url("AutomateLightW00-Regular.ttf") format("truetype"),
-        url("AutomateLightW00-Regular.eot") format("embedded-opentype"),
-        url("AutomateLightW00-Regular.svg") format("svg");
+    font-family: "Automate Light";
+    src: url("AutomateLightW00.woff2") format("woff2");
     font-weight: 300;
     font-style: normal;
     font-display: swap;
@@ -167,13 +127,16 @@
 
 @font-face {
     font-family: "Automate";
-    src:
-        url("AutomateRegularW00-Regular.woff2") format("woff2"),
-        url("AutomateRegularW00-Regular.woff") format("woff"),
-        url("AutomateRegularW00-Regular.ttf") format("truetype"),
-        url("AutomateRegularW00-Regular.eot") format("embedded-opentype"),
-        url("AutomateRegularW00-Regular.svg") format("svg");
+    src: url("AutomateRegularW00.woff2") format("woff2");
     font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: "Automate Bold";
+    src: url("AutomateBoldW00.woff2") format("woff2");
+    font-weight: 700;
     font-style: normal;
     font-display: swap;
 }

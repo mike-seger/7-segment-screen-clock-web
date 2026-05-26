@@ -66,13 +66,21 @@ async function loadMenuPanel() {
     }
 }
 
+let initializationPromise = null;
+
 async function ensureConfigurationInitialized() {
     if (configurationInitialized) return;
-    await loadMenuPanel();
-    if (typeof initConfiguration === 'function') {
-        initConfiguration();
-        configurationInitialized = true;
+    if (initializationPromise) {
+        return initializationPromise;
     }
+    initializationPromise = (async () => {
+        await loadMenuPanel();
+        if (typeof initConfiguration === 'function') {
+            initConfiguration();
+            configurationInitialized = true;
+        }
+    })();
+    return initializationPromise;
 }
 
 async function toggleMenuPanel() {

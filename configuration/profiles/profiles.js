@@ -20,21 +20,23 @@ window.BUILTIN_PROFILES = [
     }
   },
   {
-    name: "Tech",
-    data: {
-      "numericFont": "DSEG7Classic",
-      "alphaFont": "DSEG14Classic",
-      "dualFont": true,
+    "name": "Automate",
+    "data": {
+      "numericFont": "Automate Light",
+      "alphaFont": "Automata Regular",
+      "dualFont": false,
       "numericScale": 100,
       "alphaScale": 100,
       "numericOffset": 0,
       "alphaOffset": 0,
       "weightGap": 0.19,
       "fr": 0.23,
-      "dateColor": "#fbe704",
-      "timeColor": "#2b4ac5",
-      "secColor": "#f72222",
-      "secFontFactor": 0.59
+      "dateColor": "#fb04b9",
+      "timeColor": "#4568f2",
+      "secColor": "#24b742",
+      "secFontFactor": 0.59,
+      "secColonDistance": 0.08,
+      "sizeBudget": 1
     }
   },
   {
@@ -42,7 +44,7 @@ window.BUILTIN_PROFILES = [
     "data": {
       "numericFont": "LCDDot",
       "alphaFont": "LCDDot",
-      "dualFont": true,
+      "dualFont": false,
       "numericScale": 100,
       "alphaScale": 100,
       "numericOffset": 0,
@@ -51,6 +53,24 @@ window.BUILTIN_PROFILES = [
       "fr": 0.23,
       "dateColor": "#4de0bb",
       "timeColor": "#f72222",
+      "secColor": "#f72222",
+      "secFontFactor": 0.59
+    }
+  },
+  {
+    name: "Segment",
+    data: {
+      "numericFont": "DSEG7Classic",
+      "alphaFont": "DSEG14Classic",
+      "dualFont": true,
+      "numericScale": 100,
+      "alphaScale": 100,
+      "numericOffset": 0,
+      "alphaOffset": 0,
+      "weightGap": 0.32,
+      "fr": 0.23,
+      "dateColor": "#fbe704",
+      "timeColor": "#2b4ac5",
       "secColor": "#f72222",
       "secFontFactor": 0.59
     }
