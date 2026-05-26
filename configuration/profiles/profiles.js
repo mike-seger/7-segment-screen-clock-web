@@ -1,6 +1,6 @@
 window.BUILTIN_PROFILES = [
   {
-    "name": "Default",
+    "name": "Digital7",
     "data": {
       "numericFont": "Digital7Mono",
       "alphaFont": "Digital7Mono",
@@ -21,6 +21,7 @@ window.BUILTIN_PROFILES = [
   },
   {
     "name": "Automate",
+    "default": true,
     "data": {
       "numericFont": "Automate Light",
       "alphaFont": "Automata Regular",

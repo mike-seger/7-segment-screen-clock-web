@@ -24,10 +24,20 @@ const DEFAULT_STATE = {
     sizeBudget: 0.95
 };
 
+function getDefaultBuiltinProfile() {
+    if (!Array.isArray(window.BUILTIN_PROFILES) || window.BUILTIN_PROFILES.length === 0) return null;
+    return window.BUILTIN_PROFILES.find(p => p && p.default === true)
+        || window.BUILTIN_PROFILES[0]
+        || null;
+}
+
+function getDefaultProfileName() {
+    const p = getDefaultBuiltinProfile();
+    return (p && p.name) ? p.name : "";
+}
+
 {
-    const _b = Array.isArray(window.BUILTIN_PROFILES)
-        ? window.BUILTIN_PROFILES.find(p => p.name === "Default")
-        : null;
+    const _b = getDefaultBuiltinProfile();
     if (_b && _b.data) Object.assign(DEFAULT_STATE, _b.data);
 }
 
@@ -37,7 +47,7 @@ const STORAGE_KEY_CURRENT  = "screenClock_state";
 const STORAGE_KEY_PROFILES = "screenClock_profiles";   // JSON array of names
 const STORAGE_KEY_DEBUG    = "screenClock_debug";
 const PROFILE_PREFIX       = "screenClock_profile_";
-const DEFAULT_PROFILE_NAME = "Default";
+
 
 const MIN_WEIGHT = 0;
 const MAX_WEIGHT = 0.99;
@@ -120,7 +130,7 @@ function applyLoadedStateUI() {
 }
 
 function isDefaultProfile(name) {
-    return String(name || "").trim() === DEFAULT_PROFILE_NAME;
+    return String(name || "").trim() === getDefaultProfileName();
 }
 
 function isBuiltinProfile(name) {
@@ -162,7 +172,7 @@ function saveShowDebug(val) {
 function loadProfileNames() {
     const builtinNames = Array.isArray(window.BUILTIN_PROFILES)
         ? window.BUILTIN_PROFILES.map(p => p.name).filter(Boolean)
-        : [DEFAULT_PROFILE_NAME];
+        : (getDefaultProfileName() ? [getDefaultProfileName()] : []);
     try {
         const raw = localStorage.getItem(STORAGE_KEY_PROFILES);
         const parsed = raw ? JSON.parse(raw) : [];

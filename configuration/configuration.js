@@ -705,9 +705,10 @@ function initConfiguration() {
             opt.textContent = name;
             els.profileSelect.appendChild(opt);
         });
-        // Restore previous selection or fall back to Default
+        // Restore previous selection or fall back to flagged default / first profile
+        const defaultName = (typeof getDefaultProfileName === "function") ? getDefaultProfileName() : "";
         const preferred = prev && names.includes(prev) ? prev
-            : names.includes(DEFAULT_PROFILE_NAME) ? DEFAULT_PROFILE_NAME
+            : (defaultName && names.includes(defaultName)) ? defaultName
             : names[0] || "";
         els.profileSelect.value = preferred;
         els.profileName.value = preferred;
