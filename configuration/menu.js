@@ -47,11 +47,16 @@ async function loadMenuPanel() {
             return;
         }
         const html = await resp.text();
+        const doc = new DOMParser().parseFromString(html, 'text/html');
+        const panel = doc.getElementById('menuPanel');
+        if (!panel) {
+            console.error('menuPanel not found in menu.html');
+            return;
+        }
 
-        // inject at end of body (or into #menuPlaceholder)
-        document.body.insertAdjacentHTML('beforeend', html);
-        const panel = document.getElementById('menuPanel');
-        if (panel) panel.style.display = 'none';
+        const host = document.getElementById('menuPlaceholder') || document.body;
+        host.appendChild(panel);
+        panel.style.display = 'none';
         menuLoaded = true;
 
         // if you have menu-init logic, call it here:

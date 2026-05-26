@@ -568,7 +568,7 @@ function updateDebugRowBox(box, bounds) {
 
 function formatVisualBounds(bounds) {
   if (!bounds) return "n/a";
-  return `dim ${Math.round(bounds.left)},${Math.round(bounds.top)},${Math.round(bounds.width)},${Math.round(bounds.height)}`;
+  return `${Math.round(bounds.left)},${Math.round(bounds.top)},${Math.round(bounds.width)},${Math.round(bounds.height)}`;
 }
 
 async function updateRowCoordinateDisplay() {
