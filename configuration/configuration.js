@@ -1,3 +1,5 @@
+
+
 // ---------------- FORM / UI BINDING ----------------
 
 const FONT_CORRECTION = {
@@ -6,8 +8,10 @@ const FONT_CORRECTION = {
     DSEG7ClassicMini: { colonMargin: -0.3 },
     "Automata": { colonMarginLeft: -0.2, colonMargin: 0 },
     "Automate Regular W00 Regular": { colonMargin: -0.2 },
+    // DSEG7ClassicMini: { size: 0.75, baseline: 0.06 },
     DSEG14Classic: { colonMargin: -0.3, o40: true },
     Digital7Mono: { colonMargin: -0.10, letterSpacing: 0.02, excludeMonoTweaks: true },
+    // SevenSegment: { size: 1.1, baseline: -0.09 },
     LCDDot: { o40: true, colonMarginLeft: 0.1 },
     MatrixSansRaster: { o40: true },
     MatrixSansScreen: { o40: true },

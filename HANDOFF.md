@@ -17,7 +17,7 @@ Resolve remaining layout/fit issues in the 7-segment clock after recent multi-fo
 ## Files Involved
 - `index.html`
 - `style.css`
-- `configuration/cofiguration.js`
+- `configuration/configuration.js`
 - `configuration/persistedState.js`
 - `configuration/menu.html`
 - `configuration/menu.js`
@@ -43,7 +43,7 @@ Resolve remaining layout/fit issues in the 7-segment clock after recent multi-fo
   - sets `timeLine.style.marginTop` compensation to match desired visual gap
 
 ### Config path
-- `configuration/cofiguration.js`:
+- `configuration/configuration.js`:
   - contains per-font correction metadata (`size`, `baseline`, `letterSpacing`, `colonMargin`, `colon`)
   - writes:
     - `dateLine.dataset.baseFontSizePx`

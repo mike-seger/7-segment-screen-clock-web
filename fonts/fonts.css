@@ -151,3 +151,29 @@
         url("78355c383a5f5507a1eba592ee9f2c0a.ttf") format("truetype");
     font-display: swap;
 }
+
+@font-face {
+    font-family: "Automate";
+    src:
+        url("AutomateLightW00-Regular.woff2") format("woff2"),
+        url("AutomateLightW00-Regular.woff") format("woff"),
+        url("AutomateLightW00-Regular.ttf") format("truetype"),
+        url("AutomateLightW00-Regular.eot") format("embedded-opentype"),
+        url("AutomateLightW00-Regular.svg") format("svg");
+    font-weight: 300;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: "Automate";
+    src:
+        url("AutomateRegularW00-Regular.woff2") format("woff2"),
+        url("AutomateRegularW00-Regular.woff") format("woff"),
+        url("AutomateRegularW00-Regular.ttf") format("truetype"),
+        url("AutomateRegularW00-Regular.eot") format("embedded-opentype"),
+        url("AutomateRegularW00-Regular.svg") format("svg");
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+}
