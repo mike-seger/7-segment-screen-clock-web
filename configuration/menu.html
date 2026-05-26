@@ -14,14 +14,19 @@
         <select id="numericFontSelect"></select>
 
         <label>
-            <input type="checkbox" id="dualFont" checked>
-            Dual font
+            <input type="checkbox" id="multiFont" checked>
+            Multi Font
         </label>
 
         <label id="alphaFontLabel">
             Alpha font
         </label>
         <select id="alphaFontSelect"></select>
+
+        <label id="colonFontLabel">
+            Colon font
+        </label>
+        <select id="colonFontSelect"></select>
     </div>
 
     <div class="section">
@@ -50,6 +55,18 @@
             <span class="valueBadge" id="alphaOffsetValue"></span>
         </label>
         <input type="range" id="alphaOffset" min="-1" max="1" step="0.01">
+
+        <label id="colonScaleLabel">
+            Colon scale
+            <span class="valueBadge" id="colonScaleValue"></span>
+        </label>
+        <input type="range" id="colonScale" min="50" max="200" step="1">
+
+        <label id="colonOffsetLabel">
+            Colon offset factor
+            <span class="valueBadge" id="colonOffsetValue"></span>
+        </label>
+        <input type="range" id="colonOffset" min="-1" max="1" step="0.01">
 
     </div>
 
@@ -81,6 +98,12 @@
         <input type="range" id="secColonDistance" min="0" max="1" step="0.01">
 
         <label>
+            Seconds (:SS) vertical offset
+            <span class="valueBadge" id="secOffsetValue"></span>
+        </label>
+        <input type="range" id="secOffset" min="-1" max="1" step="0.01">
+
+        <label>
             Maximum fill
             <span class="valueBadge" id="sizeBudgetValue"></span>
         </label>
@@ -96,6 +119,14 @@
         <label>
             Time (HH:MM)
             <input type="color" id="timeColor">
+        </label>
+        <label id="colonColorLabel">
+            Colons (:)
+            <input type="color" id="colonColor">
+        </label>
+        <label id="inheritColonColorLabel">
+            <input type="checkbox" id="inheritColonColor">
+            Inherit colon colors
         </label>
         <label>
             Seconds

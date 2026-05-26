@@ -95,7 +95,8 @@ html, body {
 /* Grouped parts */
 
 .numeric-group,
-.alpha-group {
+.alpha-group,
+.colon-group {
     display: inline-block;
     letter-spacing: 0.1em;
     font-variant-numeric: tabular-nums;
@@ -249,6 +250,27 @@ html, body {
     pointer-events: none;
     opacity: 0;
     transition: opacity 0.15s ease;
+}
+
+#profileSwitchToast {
+    position: fixed;
+    left: 1.5rem;
+    top: 1.5rem;
+    z-index: 950;
+    padding: 0.4rem 1rem;
+    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.75);
+    color: #04fb62;
+    border: 1px solid rgba(4, 251, 98, 0.3);
+    font-family: monospace;
+    font-size: 13px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+}
+
+#profileSwitchToast.visible {
+    opacity: 1;
 }
 
 #debugCopyToast.visible {

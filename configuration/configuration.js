@@ -81,34 +81,48 @@ function computeSizingWeights(weightGap, fr) {
 function initConfiguration() {
     const els = {
         numericFontSelect: document.getElementById("numericFontSelect"),
-        dualFont:         document.getElementById("dualFont"),
+        multiFont:         document.getElementById("multiFont"),
         alphaFontSelect:   document.getElementById("alphaFontSelect"),
         alphaFontLabel:    document.getElementById("alphaFontLabel"),
+        colonFontSelect:   document.getElementById("colonFontSelect"),
+        colonFontLabel:    document.getElementById("colonFontLabel"),
         numericScale:      document.getElementById("numericScale"),
         alphaScale:        document.getElementById("alphaScale"),
         alphaScaleLabel:   document.getElementById("alphaScaleLabel"),
+        colonScale:        document.getElementById("colonScale"),
+        colonScaleLabel:   document.getElementById("colonScaleLabel"),
         numericOffset:     document.getElementById("numericOffset"),
         alphaOffset:       document.getElementById("alphaOffset"),
         alphaOffsetLabel:  document.getElementById("alphaOffsetLabel"),
+        colonOffset:       document.getElementById("colonOffset"),
+        colonOffsetLabel:  document.getElementById("colonOffsetLabel"),
         weightGap:         document.getElementById("weightGap"),
         fr:                document.getElementById("fr"),
 
         numericScaleValue: document.getElementById("numericScaleValue"),
         alphaScaleValue:   document.getElementById("alphaScaleValue"),
+        colonScaleValue:   document.getElementById("colonScaleValue"),
         numericOffsetValue:document.getElementById("numericOffsetValue"),
         alphaOffsetValue:  document.getElementById("alphaOffsetValue"),
+        colonOffsetValue:  document.getElementById("colonOffsetValue"),
         weightGapValue:    document.getElementById("weightGapValue"),
         frValue:           document.getElementById("frValue"),
 
         dateColor:         document.getElementById("dateColor"),
 
         timeColor:         document.getElementById("timeColor"),
+        colonColor:        document.getElementById("colonColor"),
+        colonColorLabel:   document.getElementById("colonColorLabel"),
+        inheritColonColor: document.getElementById("inheritColonColor"),
+        inheritColonColorLabel: document.getElementById("inheritColonColorLabel"),
 
         secColor:          document.getElementById("secColor"),
         secFontFactor:     document.getElementById("secFontFactor"),
         secFontFactorValue:document.getElementById("secFontFactorValue"),
         secColonDistance:  document.getElementById("secColonDistance"),
         secColonDistanceValue: document.getElementById("secColonDistanceValue"),
+        secOffset:         document.getElementById("secOffset"),
+        secOffsetValue:    document.getElementById("secOffsetValue"),
 
         showDebug:         document.getElementById("showDebug"),
         sizeBudget:        document.getElementById("sizeBudget"),
@@ -124,8 +138,10 @@ function initConfiguration() {
     function updateBadgesFromState() {
         els.numericScaleValue.textContent = state.numericScale + "%";
         els.alphaScaleValue.textContent   = state.alphaScale + "%";
+        if (els.colonScaleValue) els.colonScaleValue.textContent = state.colonScale + "%";
         els.numericOffsetValue.textContent = state.numericOffset.toFixed(2) + "x";
         els.alphaOffsetValue.textContent   = state.alphaOffset.toFixed(2) + "x";
+        if (els.colonOffsetValue) els.colonOffsetValue.textContent = state.colonOffset.toFixed(2) + "x";
         const sizing = computeSizingWeights(state.weightGap, state.fr);
         state.weightGap = sizing.weightGap;
         state.fr = sizing.fr;
@@ -135,37 +151,80 @@ function initConfiguration() {
         if (els.secColonDistanceValue) {
             els.secColonDistanceValue.textContent = state.secColonDistance.toFixed(2) + "em";
         }
+        if (els.secOffsetValue) {
+            els.secOffsetValue.textContent = (state.secOffset || 0).toFixed(2) + "x";
+        }
         if (els.sizeBudgetValue) els.sizeBudgetValue.textContent = (state.sizeBudget * 100).toFixed(0) + "%";
     }
 
-    function syncDualFontUi() {
-        const dualEnabled = state.dualFont !== false;
-        if (els.dualFont) {
-            els.dualFont.checked = dualEnabled;
+    function syncMultiFontUi() {
+        const multiEnabled = state.multiFont !== false;
+        if (els.multiFont) {
+            els.multiFont.checked = multiEnabled;
         }
         if (els.alphaFontSelect) {
-            els.alphaFontSelect.disabled = !dualEnabled;
-            els.alphaFontSelect.style.display = dualEnabled ? '' : 'none';
+            els.alphaFontSelect.disabled = !multiEnabled;
+            els.alphaFontSelect.style.display = multiEnabled ? '' : 'none';
         }
         if (els.alphaFontLabel) {
-            els.alphaFontLabel.style.display = dualEnabled ? '' : 'none';
+            els.alphaFontLabel.style.display = multiEnabled ? '' : 'none';
         }
         if (els.alphaScale) {
-            els.alphaScale.style.display = dualEnabled ? '' : 'none';
+            els.alphaScale.style.display = multiEnabled ? '' : 'none';
         }
         if (els.alphaScaleLabel) {
-            els.alphaScaleLabel.style.display = dualEnabled ? '' : 'none';
+            els.alphaScaleLabel.style.display = multiEnabled ? '' : 'none';
         }
         if (els.alphaOffset) {
-            els.alphaOffset.style.display = dualEnabled ? '' : 'none';
+            els.alphaOffset.style.display = multiEnabled ? '' : 'none';
         }
         if (els.alphaOffsetLabel) {
-            els.alphaOffsetLabel.style.display = dualEnabled ? '' : 'none';
+            els.alphaOffsetLabel.style.display = multiEnabled ? '' : 'none';
         }
-        if (!dualEnabled) {
+
+        // Colon separate configurations compatibility/flexibility
+        if (els.colonFontSelect) {
+            els.colonFontSelect.disabled = !multiEnabled;
+            els.colonFontSelect.style.display = multiEnabled ? '' : 'none';
+        }
+        if (els.colonFontLabel) {
+            els.colonFontLabel.style.display = multiEnabled ? '' : 'none';
+        }
+        if (els.colonScale) {
+            els.colonScale.style.display = multiEnabled ? '' : 'none';
+        }
+        if (els.colonScaleLabel) {
+            els.colonScaleLabel.style.display = multiEnabled ? '' : 'none';
+        }
+        if (els.colonOffset) {
+            els.colonOffset.style.display = multiEnabled ? '' : 'none';
+        }
+        if (els.colonOffsetLabel) {
+            els.colonOffsetLabel.style.display = multiEnabled ? '' : 'none';
+        }
+        if (els.colonColorLabel) {
+            els.colonColorLabel.style.display = (multiEnabled && !state.inheritColonColor) ? '' : 'none';
+        }
+        if (els.inheritColonColorLabel) {
+            els.inheritColonColorLabel.style.display = multiEnabled ? '' : 'none';
+        }
+
+        if (!multiEnabled) {
             state.alphaFont = state.numericFont;
+            state.colonFont = state.numericFont;
+            state.alphaScale = state.numericScale;
+            state.colonScale = state.numericScale;
+            state.alphaOffset = state.numericOffset;
+            state.colonOffset = state.numericOffset;
+            state.colonColor = state.timeColor;
             if (els.alphaFontSelect && els.numericFontSelect) {
                 els.alphaFontSelect.value = els.numericFontSelect.value;
+            }
+            if (els.colonFontSelect && els.numericFontSelect) {
+                els.colonFontSelect.value = els.numericFontSelect.value;
+            }
+            if (els.colonColor && els.timeColor) {
+                els.colonColor.value = els.timeColor.value;
             }
         }
     }
@@ -264,33 +323,41 @@ function initConfiguration() {
     }
 
     function initFormFromState() {
-        state.dualFont = state.dualFont !== false;
+        state.multiFont = state.multiFont !== false;
         state.numericOffset = normalizeOffsetFactor(state.numericOffset);
         state.alphaOffset = normalizeOffsetFactor(state.alphaOffset);
+        state.colonOffset = normalizeOffsetFactor(state.colonOffset);
+        state.secOffset = normalizeOffsetFactor(state.secOffset);
         state.weightGap = normalizeSizingWeight(state.weightGap, 0.12);
         state.fr = normalizeSizingWeight(state.fr, 0.07);
         state.secFontFactor = normalizeSecFontFactor(state.secFontFactor);
 
         els.numericScale.value  = state.numericScale;
         els.alphaScale.value    = state.alphaScale;
+        if (els.colonScale) els.colonScale.value = state.colonScale;
         els.numericOffset.value = state.numericOffset;
         els.alphaOffset.value   = state.alphaOffset;
+        if (els.colonOffset) els.colonOffset.value = state.colonOffset;
+        if (els.secOffset) els.secOffset.value = state.secOffset;
         els.weightGap.value     = state.weightGap;
         els.fr.value            = state.fr;
 
         els.dateColor.value     = state.dateColor;
-
         els.timeColor.value     = state.timeColor;
+        if (els.colonColor) els.colonColor.value = state.colonColor;
 
         els.secColor.value      = state.secColor;
         els.secFontFactor.value = state.secFontFactor;
         if (els.secColonDistance) {
             els.secColonDistance.value = state.secColonDistance || 0;
         }
+        if (els.inheritColonColor) {
+            els.inheritColonColor.checked = state.inheritColonColor === true;
+        }
         if (els.showDebug) els.showDebug.checked = state.showDebug === true;
         if (els.sizeBudget) els.sizeBudget.value = state.sizeBudget;
 
-        syncDualFontUi();
+        syncMultiFontUi();
 
         updateBadgesFromState();
 
@@ -298,35 +365,46 @@ function initConfiguration() {
     }
 
     function readFormIntoState() {
-        state.dualFont = els.dualFont ? els.dualFont.checked : true;
+        state.multiFont = els.multiFont ? els.multiFont.checked : true;
         state.numericScale  = Number(els.numericScale.value);
         state.alphaScale    = Number(els.alphaScale.value);
+        if (els.colonScale) state.colonScale = Number(els.colonScale.value);
         state.numericOffset = normalizeOffsetFactor(els.numericOffset.value);
         state.alphaOffset   = normalizeOffsetFactor(els.alphaOffset.value);
+        if (els.colonOffset) state.colonOffset = normalizeOffsetFactor(els.colonOffset.value);
+        if (els.secOffset) state.secOffset = normalizeOffsetFactor(els.secOffset.value);
         state.weightGap     = normalizeSizingWeight(els.weightGap.value, state.weightGap);
         state.fr            = normalizeSizingWeight(els.fr.value, state.fr);
 
         state.dateColor     = els.dateColor.value;
-
         state.timeColor     = els.timeColor.value;
+        if (els.colonColor) state.colonColor = els.colonColor.value;
 
         state.secColor      = els.secColor.value;
         state.secFontFactor = normalizeSecFontFactor(els.secFontFactor.value);
         if (els.secColonDistance) {
             state.secColonDistance = Math.min(1, Math.max(0, Number(els.secColonDistance.value) || 0));
         }
+        if (els.inheritColonColor) {
+            state.inheritColonColor = els.inheritColonColor.checked;
+        }
         if (els.sizeBudget) state.sizeBudget = Math.min(1, Math.max(0.1, Number(els.sizeBudget.value) || 0.95));
 
         if (els.numericFontSelect.value) {
             state.numericFont = els.numericFontSelect.value;
         }
-        if (state.dualFont && els.alphaFontSelect.value) {
+        if (state.multiFont && els.alphaFontSelect.value) {
             state.alphaFont = els.alphaFontSelect.value;
         } else {
             state.alphaFont = state.numericFont;
         }
+        if (state.multiFont && els.colonFontSelect.value) {
+            state.colonFont = els.colonFontSelect.value;
+        } else {
+            state.colonFont = state.numericFont;
+        }
 
-        syncDualFontUi();
+        syncMultiFontUi();
 
         updateBadgesFromState();
     }
@@ -343,23 +421,33 @@ function initConfiguration() {
 
         const numericCorrectionMeta = getFontCorrection(state.numericFont);
         const alphaCorrectionMeta = getFontCorrection(state.alphaFont);
+        const colonCorrectionMeta = getFontCorrection(state.colonFont);
+
         const numericCorrection = numericCorrectionMeta.size;
         const alphaCorrection = alphaCorrectionMeta.size;
+        const colonCorrection = colonCorrectionMeta.size;
+
         const numericBaselineOffset = numericCorrectionMeta.baseline;
         const alphaBaselineOffset = alphaCorrectionMeta.baseline;
+        const colonBaselineOffset = colonCorrectionMeta.baseline;
+
         const numericLetterSpacing = numericCorrectionMeta.letterSpacing;
         const alphaLetterSpacing = alphaCorrectionMeta.letterSpacing;
-        const numericColonMargin = numericCorrectionMeta.colonMargin;
-        const numericColonMarginLeft = numericCorrectionMeta.colonMarginLeft ?? numericColonMargin;
-        const numericColon = numericCorrectionMeta.colon || ":";
+        const colonLetterSpacing = colonCorrectionMeta.letterSpacing;
+
+        const numericColonMargin = colonCorrectionMeta.colonMargin;
+        const numericColonMarginLeft = colonCorrectionMeta.colonMarginLeft ?? numericColonMargin;
+        const numericColon = colonCorrectionMeta.colon || ":";
         const sizing = computeSizingWeights(state.weightGap, state.fr);
 
         // Share active correction factors with the main auto-fit scaler.
         window.clockSizeCorrection = {
             numeric: numericCorrection,
             alpha: alphaCorrection,
+            colon: colonCorrection,
             numericBaseline: numericBaselineOffset,
             alphaBaseline: alphaBaselineOffset,
+            colonBaseline: colonBaselineOffset,
             gapAdjust: numericCorrectionMeta.gapAdjust,
             excludeMonoTweaks: numericCorrectionMeta.excludeMonoTweaks,
             o40: numericCorrectionMeta.o40
@@ -378,17 +466,36 @@ function initConfiguration() {
 
         hourEl.style.color     = state.timeColor;
         minEl.style.color     = state.timeColor;
-        colonMinEl.style.color     = state.timeColor;
 
-        secEl.style.color        = state.secColor;
-        colonSecEl.style.color        = state.secColor;
+        let colonMinColor = state.timeColor;
+        let colonSecColor = state.secColor;
+        if (state.multiFont) {
+            if (state.inheritColonColor) {
+                colonMinColor = state.timeColor;
+                colonSecColor = state.secColor;
+            } else {
+                colonMinColor = state.colonColor;
+                colonSecColor = state.colonColor;
+            }
+        }
+
+        colonMinEl.style.color = colonMinColor;
+
+        secEl.style.color      = state.secColor;
+        colonSecEl.style.color = colonSecColor;
         colonMinEl.textContent = numericColon;
         colonSecEl.textContent = numericColon;
 
-        // numeric vs alpha groups
+        // numeric vs alpha vs colon groups
         const dateNumericScale = (state.numericScale / 100) * (numericCorrection / Math.max(alphaCorrection, 0.01));
         const dateNumericOffset = (state.numericOffset + numericBaselineOffset) * (state.numericScale / 100);
         const alphaOffset = (state.alphaOffset + alphaBaselineOffset) * (state.alphaScale / 100);
+
+        const colonScale = state.multiFont ? state.colonScale : state.numericScale;
+        const colonOffsetVal = state.multiFont ? state.colonOffset : state.numericOffset;
+        const colonOffsetEm = (colonOffsetVal + colonBaselineOffset) * (colonScale / 100);
+        const colonScaleVal = (colonScale / 100);
+
         document.querySelectorAll("#dateLine > .numeric-group").forEach(el => {
             el.style.transform  =
             `translateY(${dateNumericOffset}em) scale(${dateNumericScale})`;
@@ -405,6 +512,22 @@ function initConfiguration() {
             el.style.transform  =
                 `translateY(${alphaOffset}em) scale(${state.alphaScale/100})`;
         });
+
+        document.querySelectorAll(".colon-group").forEach(el => {
+            el.style.fontFamily = `"${state.colonFont}", monospace`;
+            el.style.letterSpacing = `${colonLetterSpacing}em`;
+            el.style.transform = `translateY(${colonOffsetEm}em) scale(${colonScaleVal})`;
+        });
+
+        if (colonSecEl) {
+            const secColonOffsetEm = (colonOffsetVal + (state.secOffset || 0) + colonBaselineOffset) * (colonScale / 100);
+            colonSecEl.style.transform = `translateY(${secColonOffsetEm}em) scale(${colonScaleVal})`;
+        }
+
+        if (secEl) {
+            const secOffsetEm = ((state.secOffset || 0) + numericBaselineOffset) * (state.numericScale / 100);
+            secEl.style.transform = `translateY(${secOffsetEm}em)`;
+        }
 
         [colonMinEl, colonSecEl].forEach(el => {
             if (!el) return;
@@ -443,8 +566,8 @@ function initConfiguration() {
             probeColonSecEl.style.paddingRight = `${additionalDistance}em`;
         }
 
-        if (typeof window.requestLayoutAfterFonts === "function" && (state.numericFont || state.alphaFont)) {
-            window.requestLayoutAfterFonts([state.numericFont, state.alphaFont]);
+        if (typeof window.requestLayoutAfterFonts === "function" && (state.numericFont || state.alphaFont || state.colonFont)) {
+            window.requestLayoutAfterFonts([state.numericFont, state.alphaFont, state.colonFont]);
         } else if (typeof window.applyClockTransform === "function") {
             window.applyClockTransform();
         }
@@ -452,16 +575,17 @@ function initConfiguration() {
 
     function attachFormListeners() {
         const inputs = [
-            els.numericScale, els.alphaScale,
-            els.numericOffset, els.alphaOffset,
+            els.numericScale, els.alphaScale, els.colonScale,
+            els.numericOffset, els.alphaOffset, els.colonOffset,
             els.weightGap, els.fr,
             els.dateColor,
-            els.timeColor,
-            els.secColor, els.secFontFactor, els.secColonDistance,
-            els.numericFontSelect, els.alphaFontSelect,
-            els.dualFont,
+            els.timeColor, els.colonColor,
+            els.secColor, els.secFontFactor, els.secColonDistance, els.secOffset,
+            els.numericFontSelect, els.alphaFontSelect, els.colonFontSelect,
+            els.multiFont,
+            els.inheritColonColor,
             els.sizeBudget
-        ];
+        ].filter(Boolean);
 
         function attachSelectArrowKeys(selectEl) {
             if (!selectEl) return;
@@ -503,6 +627,7 @@ function initConfiguration() {
 
         attachSelectArrowKeys(els.numericFontSelect);
         attachSelectArrowKeys(els.alphaFontSelect);
+        attachSelectArrowKeys(els.colonFontSelect);
         attachSelectArrowKeys(els.profileSelect);
 
         els.saveProfileBtn.onclick = () => {
@@ -548,10 +673,26 @@ function initConfiguration() {
             if (name) {
                 els.profileName.value = name;
                 loadProfile(name);
+                showProfileToast(name);
             }
             updateProfileButtons();
         });
         updateProfileButtons();
+    }
+
+    function showProfileToast(name) {
+        let toast = document.getElementById("profileSwitchToast");
+        if (!toast) {
+            toast = document.createElement("div");
+            toast.id = "profileSwitchToast";
+            document.body.appendChild(toast);
+        }
+        toast.textContent = name;
+        toast.classList.add("visible");
+        clearTimeout(toast._hideTimer);
+        toast._hideTimer = setTimeout(() => {
+            toast.classList.remove("visible");
+        }, 1500);
     }
 
     function populateProfileSelect() {
@@ -585,16 +726,19 @@ function initConfiguration() {
     function populateFontSelects(fontList) {
         const numericSel = els.numericFontSelect;
         const alphaSel   = els.alphaFontSelect;
+        const colonSel   = els.colonFontSelect;
 
         const mergedFonts = [...new Set([
             "Digital7Mono",
             state.numericFont,
             state.alphaFont,
+            state.colonFont,
             ...fontList
         ].filter(Boolean))].sort((a, b) => a.localeCompare(b));
 
         numericSel.innerHTML = "";
         alphaSel.innerHTML   = "";
+        if (colonSel) colonSel.innerHTML = "";
 
         mergedFonts.forEach(font => {
             const o1 = document.createElement("option");
@@ -606,6 +750,13 @@ function initConfiguration() {
             o2.value = font;
             o2.textContent = font;
             alphaSel.appendChild(o2);
+
+            if (colonSel) {
+                const o3 = document.createElement("option");
+                o3.value = font;
+                o3.textContent = font;
+                colonSel.appendChild(o3);
+            }
         });
 
         // set selected values from state (if present in fonts list)
@@ -615,19 +766,27 @@ function initConfiguration() {
         if (mergedFonts.includes(state.alphaFont)) {
             alphaSel.value = state.alphaFont;
         }
+        if (colonSel && mergedFonts.includes(state.colonFont)) {
+            colonSel.value = state.colonFont;
+        }
 
-        if (state.dualFont === false) {
+        if (state.multiFont === false) {
             state.alphaFont = state.numericFont;
+            state.colonFont = state.numericFont;
             alphaSel.value = numericSel.value;
+            if (colonSel) colonSel.value = numericSel.value;
         }
 
         // ensure state uses whatever select currently shows
         state.numericFont = numericSel.value || state.numericFont;
-        state.alphaFont   = state.dualFont === false
+        state.alphaFont   = state.multiFont === false
             ? state.numericFont
             : (alphaSel.value || state.alphaFont);
+        state.colonFont   = state.multiFont === false
+            ? state.numericFont
+            : ((colonSel && colonSel.value) || state.colonFont);
 
-        syncDualFontUi();
+        syncMultiFontUi();
 
         applyState();
     }

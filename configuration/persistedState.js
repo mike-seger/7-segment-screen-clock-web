@@ -3,18 +3,24 @@
 const DEFAULT_STATE = {
     numericFont: "Digital7Mono",
     alphaFont: "Digital7Mono",
-    dualFont: true,
+    colonFont: "Digital7Mono",
+    multiFont: true,
     numericScale: 100,
     alphaScale: 100,
+    colonScale: 100,
     numericOffset: 0,
     alphaOffset: 0,
+    colonOffset: 0,
     weightGap: 0.12,
     fr: 0.07,
     dateColor: "#fb04ad",
     timeColor: "#04fb62",
+    colonColor: "#04fb62",
+    inheritColonColor: true,
     secColor: "#00aaff",
     secFontFactor: 0.625,
     secColonDistance: 0,
+    secOffset: 0,
     sizeBudget: 0.95
 };
 
@@ -46,7 +52,18 @@ function normalizeSizingState(inputState) {
     const source = inputState && typeof inputState === "object" ? inputState : {};
     const next = { ...DEFAULT_STATE, ...source };
 
-    next.dualFont = source.dualFont !== false;
+    next.multiFont = Object.prototype.hasOwnProperty.call(source, "multiFont")
+        ? source.multiFont
+        : (source.dualFont !== false);
+
+    next.colonFont = source.colonFont || source.numericFont || "Digital7Mono";
+    next.colonScale = Number.isFinite(source.colonScale) ? Number(source.colonScale) : 100;
+    next.colonOffset = Number.isFinite(source.colonOffset) ? Number(source.colonOffset) : 0;
+    next.secOffset = Number.isFinite(source.secOffset) ? Number(source.secOffset) : 0;
+    next.colonColor = source.colonColor || source.timeColor || "#04fb62";
+    next.inheritColonColor = Object.prototype.hasOwnProperty.call(source, "inheritColonColor")
+        ? !!source.inheritColonColor
+        : true;
 
     const legacyDateFontSize = Number(source.dateFontSize);
     const legacyTimeFontSize = Number(source.timeFontSize);

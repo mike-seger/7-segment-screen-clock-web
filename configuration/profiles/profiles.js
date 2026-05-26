@@ -4,7 +4,7 @@ window.BUILTIN_PROFILES = [
     "data": {
       "numericFont": "Digital7Mono",
       "alphaFont": "Digital7Mono",
-      "dualFont": false,
+      "multiFont": false,
       "numericScale": 100,
       "alphaScale": 100,
       "numericOffset": 0,
@@ -24,7 +24,7 @@ window.BUILTIN_PROFILES = [
     "data": {
       "numericFont": "Automate Light",
       "alphaFont": "Automata Regular",
-      "dualFont": false,
+      "multiFont": false,
       "numericScale": 100,
       "alphaScale": 100,
       "numericOffset": 0,
@@ -40,22 +40,56 @@ window.BUILTIN_PROFILES = [
     }
   },
   {
+    "name": "Automata Extra",
+    "data": {
+      "numericFont": "Automata ExtraLight",
+      "alphaFont": "Automata ExtraLight",
+      "colonFont": "Automate",
+      "multiFont": true,
+      "numericScale": 100,
+      "alphaScale": 100,
+      "colonScale": 71,
+      "numericOffset": 0,
+      "alphaOffset": 0,
+      "colonOffset": 0,
+      "weightGap": 0.27,
+      "fr": 0.23,
+      "dateColor": "#fb04b9",
+      "timeColor": "#4568f2",
+      "colonColor": "#04fb62",
+      "inheritColonColor": true,
+      "secColor": "#24b742",
+      "secFontFactor": 0.59,
+      "secColonDistance": 0.08,
+      "sizeBudget": 0.94,
+      "dualFont": true
+    }
+  },
+  {
     "name": "Matrix",
     "data": {
       "numericFont": "LCDDot",
       "alphaFont": "LCDDot",
-      "dualFont": false,
+      "colonFont": "LCDDot",
+      "multiFont": true,
       "numericScale": 100,
       "alphaScale": 100,
+      "colonScale": 100,
       "numericOffset": 0,
       "alphaOffset": 0,
-      "weightGap": 0.19,
+      "colonOffset": -0.06,
+      "weightGap": 0.31,
       "fr": 0.23,
       "dateColor": "#4de0bb",
       "timeColor": "#f72222",
-      "secColor": "#f72222",
+      "colonColor": "#f72222",
+      "inheritColonColor": true,
+      "secColor": "#5d87ea",
       "secFontFactor": 0.59,
-      "sizeBudget": 0.94
+      "secColonDistance": 0.06,
+      "secOffset": -0.2,
+      "sizeBudget": 0.94,
+      "dualFont": false
     }
   },
   {
@@ -63,7 +97,7 @@ window.BUILTIN_PROFILES = [
     data: {
       "numericFont": "DSEG7Classic",
       "alphaFont": "DSEG14Classic",
-      "dualFont": true,
+      "multiFont": true,
       "numericScale": 100,
       "alphaScale": 100,
       "numericOffset": 0,
