@@ -29,14 +29,14 @@ window.BUILTIN_PROFILES = [
       "alphaScale": 100,
       "numericOffset": 0,
       "alphaOffset": 0,
-      "weightGap": 0.19,
+      "weightGap": 0.27,
       "fr": 0.23,
       "dateColor": "#fb04b9",
       "timeColor": "#4568f2",
       "secColor": "#24b742",
       "secFontFactor": 0.59,
       "secColonDistance": 0.08,
-      "sizeBudget": 1
+      "sizeBudget": 0.94
     }
   },
   {
@@ -54,7 +54,8 @@ window.BUILTIN_PROFILES = [
       "dateColor": "#4de0bb",
       "timeColor": "#f72222",
       "secColor": "#f72222",
-      "secFontFactor": 0.59
+      "secFontFactor": 0.59,
+      "sizeBudget": 0.94
     }
   },
   {
