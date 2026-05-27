@@ -190,6 +190,18 @@ html, body {
 
 #weekday {
     margin-right: 1.5ch;
+    cursor: pointer;
+    touch-action: manipulation;
+    position: relative;
+}
+
+#weekday::before {
+    content: '';
+    position: absolute;
+    top: -1.5em;
+    bottom: -1.5em;
+    left: -1em;
+    right: -1em;
 }
 
 #menuButton {

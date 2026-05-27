@@ -3,9 +3,13 @@ package com.github.mikeseger.wvclock
 import android.content.Context
 import android.util.Log
 import fi.iki.elonen.NanoHTTPD
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
 import java.io.InputStream
+import java.net.DatagramPacket
+import java.net.DatagramSocket
+import java.net.InetAddress
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.Executors
@@ -36,11 +40,105 @@ class ClockServer(
         Thread(r, "wv-clock-sse-heartbeat").apply { isDaemon = true }
     }
 
+    // Network discovery / clock synchronization states
+    private val serverId = java.util.UUID.randomUUID().toString()
+    private val discoveredClocks = ConcurrentHashMap<String, DiscoveredClock>()
+
+    private data class DiscoveredClock(
+        val id: String,
+        val name: String,
+        val url: String,
+        val lastSeen: Long
+    )
+
+    private var udpSocket: DatagramSocket? = null
+    private var udpReceiverThread: Thread? = null
+    private val udpSenderExecutor = Executors.newSingleThreadScheduledExecutor { r ->
+        Thread(r, "wv-clock-udp-sender").apply { isDaemon = true }
+    }
+
     init {
         heartbeat.scheduleAtFixedRate({
             val bytes = ": ping\n\n".toByteArray()
             for (c in sseClients) c.offer(bytes)
         }, 15, 15, TimeUnit.SECONDS)
+    }
+
+    override fun start(timeout: Int, daemon: Boolean) {
+        super.start(timeout, daemon)
+        startUdpDiscovery()
+    }
+
+    private fun startUdpDiscovery() {
+        try {
+            val socket = DatagramSocket(8766).apply {
+                reuseAddress = true
+                broadcast = true
+            }
+            udpSocket = socket
+
+            udpReceiverThread = Thread({
+                val buffer = ByteArray(2048)
+                while (!socket.isClosed) {
+                    try {
+                        val packet = DatagramPacket(buffer, buffer.size)
+                        socket.receive(packet)
+                        val message = String(packet.data, 0, packet.length, Charsets.UTF_8)
+                        if (message.startsWith("WvClockDiscovery:")) {
+                            val jsonStr = message.substring("WvClockDiscovery:".length)
+                            val obj = JSONObject(jsonStr)
+                            val id = obj.getString("id")
+                            if (id != serverId) {
+                                val name = obj.getString("name")
+                                val url = obj.getString("url")
+                                discoveredClocks[id] = DiscoveredClock(
+                                    id = id,
+                                    name = name,
+                                    url = url,
+                                    lastSeen = System.currentTimeMillis()
+                                )
+                            }
+                        }
+                    } catch (e: Exception) {
+                        if (socket.isClosed) break
+                        Log.e(TAG, "UDP receive error", e)
+                    }
+                }
+            }, "wv-clock-udp-receiver").apply { isDaemon = true }.also { it.start() }
+
+            udpSenderExecutor.scheduleAtFixedRate({
+                val url = lanUrlProvider()
+                if (url != null) {
+                    try {
+                        val payload = JSONObject().apply {
+                            put("id", serverId)
+                            put("name", android.os.Build.MODEL)
+                            put("url", url)
+                        }
+                        val msg = "WvClockDiscovery:$payload"
+                        val bytes = msg.toByteArray(Charsets.UTF_8)
+                        val address = InetAddress.getByName("255.255.255.255")
+                        val packet = DatagramPacket(bytes, bytes.size, address, 8766)
+                        socket.send(packet)
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Failed to send UDP broadcast", e)
+                    }
+                }
+            }, 1, 5, TimeUnit.SECONDS)
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to initialize UDP discovery", e)
+        }
+    }
+
+    private fun stopUdpDiscovery() {
+        try {
+            udpSocket?.close()
+        } catch (_: Exception) {}
+        try {
+            udpSenderExecutor.shutdownNow()
+        } catch (_: Exception) {}
+        udpReceiverThread?.interrupt()
     }
 
     // Root-level static assets (not under web/) that the server exposes directly.
@@ -51,8 +149,20 @@ class ClockServer(
 
     override fun serve(session: IHTTPSession): Response {
         val uri = session.uri ?: "/"
-        return try {
+        
+        // CORS preflight requests
+        if (session.method == Method.OPTIONS) {
+            return newFixedLengthResponse(Response.Status.OK, "text/plain", "").apply {
+                addHeader("Access-Control-Allow-Origin", "*")
+                addHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+                addHeader("Access-Control-Allow-Headers", "Content-Type")
+            }
+        }
+
+        val response = try {
             when {
+                uri == "/api/clocks" && session.method == Method.GET -> handleGetClocks()
+                uri == "/api/time" && session.method == Method.GET -> handleGetTime()
                 uri == "/api/state" && session.method == Method.GET -> handleGetState()
                 uri == "/api/state" && session.method == Method.POST -> handlePostState(session)
                 uri == "/api/events" && session.method == Method.GET -> handleSse()
@@ -71,9 +181,56 @@ class ClockServer(
                 t.message ?: "error"
             )
         }
+
+        // Add CORS to any /api/ endpoint responses
+        if (uri.startsWith("/api/")) {
+            response.addHeader("Access-Control-Allow-Origin", "*")
+            response.addHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+            response.addHeader("Access-Control-Allow-Headers", "Content-Type")
+        }
+        return response
+    }
+
+    private fun handleGetClocks(): Response {
+        val now = System.currentTimeMillis()
+        val list = discoveredClocks.values.filter { now - it.lastSeen < 15000 }
+        val array = JSONArray()
+        for (clk in list) {
+            val obj = JSONObject().apply {
+                put("id", clk.id)
+                put("name", clk.name)
+                put("url", clk.url)
+                put("isSelf", false)
+            }
+            array.put(obj)
+        }
+        val selfUrl = lanUrlProvider() ?: "http://127.0.0.1:$port/"
+        val selfObj = JSONObject().apply {
+            put("id", serverId)
+            put("name", android.os.Build.MODEL + " (This Clock)")
+            put("url", selfUrl)
+            put("isSelf", true)
+        }
+        array.put(selfObj)
+
+        return newFixedLengthResponse(Response.Status.OK, "application/json", array.toString()).apply {
+            addHeader("Cache-Control", "no-store")
+        }
     }
 
     // ---------------- state ----------------
+
+    private fun handleGetTime(): Response {
+        val t1 = System.currentTimeMillis()
+        val json = JSONObject().apply {
+            put("t1", t1)
+            put("t2", System.currentTimeMillis())
+            put("now", t1) // legacy field for older bridge versions
+        }.toString()
+        return newFixedLengthResponse(Response.Status.OK, "application/json", json).apply {
+            addHeader("Cache-Control", "no-store")
+        }
+    }
 
     private fun handleGetState(): Response {
         val json = JSONObject(state as Map<*, *>).toString()
@@ -188,6 +345,7 @@ class ClockServer(
     }
 
     override fun stop() {
+        stopUdpDiscovery()
         try { heartbeat.shutdownNow() } catch (_: Exception) {}
         for (c in sseClients) try { c.close() } catch (_: IOException) {}
         sseClients.clear()

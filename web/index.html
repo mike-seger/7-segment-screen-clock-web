@@ -627,6 +627,16 @@ function requestLayoutAfterFonts(fontFamilies) {
     .filter(Boolean))];
   if (!families.length) return;
 
+  const clock = document.getElementById("clock");
+  // Check if any of the target fonts are not fully loaded yet.
+  // If there are unloaded fonts, temporarily hide the clock
+  // so we don't display a mismatched, horribly unaligned layout
+  // with fallback monospace fonts.
+  const anyUnloaded = families.some(family => !document.fonts.check(`120px "${family}"`));
+  if (anyUnloaded && clock) {
+    clock.style.visibility = "hidden";
+  }
+
   const token = ++fontLayoutRequestToken;
   Promise.all(families.map(family =>
     document.fonts.load(`120px "${family}"`).catch(() => null)
@@ -635,6 +645,12 @@ function requestLayoutAfterFonts(fontFamilies) {
     updateClock();
     applyClockTransform();
     scheduleRowCoordinateDisplayUpdate();
+    if (clock && anyUnloaded) {
+      // Allow browser single-frame settling, then make visible
+      requestAnimationFrame(() => {
+        clock.style.visibility = "visible";
+      });
+    }
   });
 }
 
@@ -775,7 +791,7 @@ function wrapDigits(str) {
 }
 
 function updateClock() {
-    const now = new Date();
+    const now = new Date(Date.now() + (window.__timeMasterOffsetMs || 0));
   const hRaw = String(now.getHours());
   const mRaw = String(now.getMinutes()).padStart(2, "0");
   const sRaw = String(now.getSeconds()).padStart(2, "0");
@@ -880,6 +896,22 @@ function handleKeyDown(e) {
 }
 
 let rotation = 0;
+try {
+  const storedRotation = localStorage.getItem("screenClock_rotation");
+  if (storedRotation !== null) {
+    rotation = parseInt(storedRotation, 10) || 0;
+  }
+} catch (e) {
+  console.warn("Failed to load rotation", e);
+}
+
+function saveRotationState() {
+  try {
+    localStorage.setItem("screenClock_rotation", rotation);
+  } catch (e) {
+    console.warn("Failed to save rotation", e);
+  }
+}
 function applyClockTransform(animated = false) {
   const clock = document.getElementById("clock");
   const clockInner = document.getElementById("clockInner");
@@ -1068,8 +1100,13 @@ function applyClockTransform(animated = false) {
   scheduleRowCoordinateDisplayUpdate();
 }
 
+let lastRotationTime = 0;
 function rotateClock() {
+  const now = Date.now();
+  if (now - lastRotationTime < 350) return;
+  lastRotationTime = now;
   rotation += 90;
+  saveRotationState();
   applyClockTransform(true);
 }
 
@@ -1083,6 +1120,7 @@ function normalizeRotationIfNeeded() {
   // Snap 360, 720, ... back to 0 without an extra animated jump.
   clockInner.style.transition = "none";
   rotation = 0;
+  saveRotationState();
   applyClockTransform();
   void clockInner.offsetWidth;
   clockInner.style.transition = "";
@@ -1114,7 +1152,52 @@ setInterval(updateClock, 250);
 updateClock();
 applyClockTransform();
 document.getElementById("year").addEventListener("click", toggleFullscreen);
-document.getElementById("weekday").addEventListener("click", rotateClock);
+(function() {
+  const el = document.getElementById("weekday");
+  
+  function isTapOnWeekday(clientX, clientY) {
+    const rect = el.getBoundingClientRect();
+    if (!rect || rect.width === 0 || rect.height === 0) return false;
+    // Pad the bounding rect of `#weekday` to make tapping extremely forgiving and robust
+    const padX = 40;
+    const padY = 40;
+    return (
+      clientX >= rect.left - padX &&
+      clientX <= rect.right + padX &&
+      clientY >= rect.top - padY &&
+      clientY <= rect.bottom + padY
+    );
+  }
+
+  function handleInteraction(clientX, clientY, e) {
+    if (isTapOnWeekday(clientX, clientY)) {
+      e.stopPropagation();
+      e.preventDefault();
+      rotateClock();
+      return true;
+    }
+    return false;
+  }
+
+  // Click handler
+  window.addEventListener("click", function(e) {
+    if (e.target.id === "menuButton" || document.getElementById("menuPanel")?.contains(e.target)) {
+      return;
+    }
+    handleInteraction(e.clientX, e.clientY, e);
+  }, { capture: true });
+
+  // Touch handler (handles immediate physical taps on Android)
+  window.addEventListener("touchend", function(e) {
+    if (e.target.id === "menuButton" || document.getElementById("menuPanel")?.contains(e.target)) {
+      return;
+    }
+    if (e.changedTouches && e.changedTouches.length > 0) {
+      const touch = e.changedTouches[0];
+      handleInteraction(touch.clientX, touch.clientY, e);
+    }
+  }, { capture: true, passive: false });
+})();
 document.getElementById("sec").addEventListener("click", activateConfigurationMode);
 window.addEventListener("resize", applyClockTransform);
 window.addEventListener("orientationchange", applyClockTransform);
