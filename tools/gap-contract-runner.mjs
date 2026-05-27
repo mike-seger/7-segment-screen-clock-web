@@ -45,7 +45,7 @@ function waitForServer(url, timeoutMs = 10_000) {
 
 function startServer() {
   const child = spawn("python3", ["-m", "http.server", String(port), "--bind", host], {
-    cwd: repoRoot,
+    cwd: path.join(repoRoot, "web"),
     stdio: ["ignore", "pipe", "pipe"]
   });
 

@@ -94,6 +94,7 @@ async function toggleMenuPanel() {
     loadMenuCSS();
     const isOpen = panel.style.display !== "block";
     panel.style.display = isOpen ? "block" : "none";
+    if (!isOpen) menuButton.style.display = "none";
     saveMenuOpenState(isOpen);
 }
 

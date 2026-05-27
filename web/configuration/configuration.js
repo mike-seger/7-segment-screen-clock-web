@@ -600,6 +600,7 @@ function initConfiguration() {
                 if (next === selectEl.selectedIndex) return;
                 selectEl.selectedIndex = next;
                 selectEl.dispatchEvent(new Event("input", { bubbles: true }));
+                selectEl.dispatchEvent(new Event("change", { bubbles: true }));
             });
         }
 
@@ -819,4 +820,13 @@ function initConfiguration() {
     populateProfileSelect();
     applyState();
     saveCurrentState();
+
+    // Expose a single entry point that re-reads localStorage (e.g. after a
+    // remote control client pushed a new state) and refreshes both the
+    // configuration form and the live clock to match.
+    window.refreshFromStoredState = function () {
+        try { loadCurrentState(); } catch (e) {}
+        try { initFormFromState(); } catch (e) {}
+        try { applyState(); } catch (e) {}
+    };
 }

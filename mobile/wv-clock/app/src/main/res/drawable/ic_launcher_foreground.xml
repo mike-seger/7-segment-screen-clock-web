@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Derived from web/icon.svg -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="1024"
+    android:viewportHeight="1024">
+
+    <!-- Outer clock arc -->
+    <path
+        android:strokeColor="#4C6FFF"
+        android:strokeWidth="36"
+        android:strokeLineCap="round"
+        android:pathData="M760,760 C700,820 620,860 512,860 C330,860 180,710 180,528 C180,346 330,196 512,196 C694,196 844,346 844,528" />
+
+    <!-- Clock hands -->
+    <path
+        android:strokeColor="#4C6FFF"
+        android:strokeWidth="36"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M512,400 L512,560 L620,632" />
+</vector>
