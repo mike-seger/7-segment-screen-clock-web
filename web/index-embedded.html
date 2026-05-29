@@ -282,8 +282,17 @@ async function toggleFullscreen() {
   else console.warn("Fullscreen API not supported on this device/browser");
 }
 
-setInterval(updateClock, 250);
-updateClock();
+let lastRenderSecond = -1;
+function tick() {
+  const nowMs = Date.now() + (window.__timeMasterOffsetMs || 0);
+  const nowSec = Math.floor(nowMs / 1000);
+  if (nowSec !== lastRenderSecond) {
+    lastRenderSecond = nowSec;
+    updateClock();
+  }
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
 applyClockTransform();
 document.getElementById("year").addEventListener("click", toggleFullscreen);
 document.getElementById("weekday").addEventListener("click", rotateClock);

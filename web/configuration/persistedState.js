@@ -21,7 +21,8 @@ const DEFAULT_STATE = {
     secFontFactor: 0.625,
     secColonDistance: 0,
     secOffset: 0,
-    sizeBudget: 0.95
+    sizeBudget: 0.95,
+    ntpServer: ""
 };
 
 function getDefaultBuiltinProfile() {

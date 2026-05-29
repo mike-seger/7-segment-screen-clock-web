@@ -24,6 +24,12 @@ expressApp.use(express.json());
 // In memory state
 let systemState = {};
 
+let calculatedOffsetMs = 0;
+let lastNtpSyncTime = 0;
+let lastP2pSyncTime = 0;
+const NTP_SYNC_INTERVAL = 300000; // 5 minutes standard NTP sync
+const P2P_SYNC_INTERVAL = 2000;   // 2 seconds P2P sync
+
 // Handle state synchronisation endpoints
 expressApp.get('/api/state', (req, res) => {
   res.json(systemState);
@@ -36,6 +42,10 @@ expressApp.post('/api/state', (req, res) => {
       delete systemState[key];
     } else {
       systemState[key] = value;
+    }
+    if (key === "screenClock_timeMasterUrl" || key === "screenClock_ntpServer") {
+      lastNtpSyncTime = 0;
+      lastP2pSyncTime = 0;
     }
   }
   res.json({ success: true });
@@ -74,8 +84,8 @@ expressApp.get('/api/url', (req, res) => {
 
 expressApp.get('/api/time', (req, res) => {
   res.set('Cache-Control', 'no-store');
-  const t1 = Date.now();
-  res.json({ t1: t1, t2: Date.now(), now: t1 });
+  const t1 = Date.now() + calculatedOffsetMs;
+  res.json({ t1: t1, t2: Date.now() + calculatedOffsetMs, now: t1 });
 });
 
 const SERVER_ID = `desktop-mac-${HOST_IP}`;
@@ -159,6 +169,211 @@ setInterval(() => {
   }
 }, 5000);
 
+// ---------------- High-precision Synchronization System ----------------
+
+// Helper to check if this clock is currently the Master
+function isMaster() {
+  const masterUrl = systemState["screenClock_timeMasterUrl"];
+  return !masterUrl || masterUrl === "" || masterUrl === `http://127.0.0.1:${EXPRESS_PORT}/` || masterUrl === `http://${HOST_IP}:${EXPRESS_PORT}/` || masterUrl === `http://localhost:${EXPRESS_PORT}/`;
+}
+
+// Extraction helper for master IP/hostname
+function getMasterHost() {
+  const masterUrl = systemState["screenClock_timeMasterUrl"];
+  if (!masterUrl) return null;
+  try {
+    const url = new URL(masterUrl);
+    return url.hostname;
+  } catch (e) {
+    const match = masterUrl.match(/https?:\/\/([^:/]+)/);
+    return match ? match[1] : null;
+  }
+}
+
+// Update time offset inside the Electron frontend web view
+function updateWebOffset() {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.executeJavaScript(`window.__timeMasterOffsetMs = ${calculatedOffsetMs};`).catch(() => {});
+  }
+}
+
+// Query upstream NTP server using raw binary SNTP (RFC 4330)
+function queryNtp(host, callback) {
+  const socket = dgram.createSocket('udp4');
+  const packet = Buffer.alloc(48);
+  packet[0] = 0x1b; // LI = 0, VN = 3, Mode = 3 (Client)
+
+  const t0 = Date.now();
+  const seconds = Math.floor(t0 / 1000) + 2208988800;
+  const fraction = Math.round(((t0 % 1000) / 1000) * 0x100000000);
+  packet.writeUInt32BE(seconds, 40);
+  packet.writeUInt32BE(fraction, 44);
+
+  const timeoutId = setTimeout(() => {
+    try { socket.close(); } catch (e) {}
+    callback(new Error('NTP query timeout'));
+  }, 4000);
+
+  socket.on('message', (msg) => {
+    const t3 = Date.now();
+    clearTimeout(timeoutId);
+    socket.close();
+
+    if (msg.length < 48) {
+      callback(new Error('Invalid NTP packet length'));
+      return;
+    }
+
+    function readTimestamp(offset) {
+      const secs = msg.readUInt32BE(offset);
+      const frac = msg.readUInt32BE(offset + 4);
+      return Math.round((secs - 2208988800) * 1000 + (frac / 0x100000000) * 1000);
+    }
+
+    const t1 = readTimestamp(32); // Server Receive
+    const t2 = readTimestamp(40); // Server Transmit
+
+    let rtt = (t3 - t0) - (t2 - t1);
+    if (rtt < 0) rtt = t3 - t0;
+
+    const offset = Math.round(((t1 - t0) + (t2 - t3)) / 2);
+    callback(null, offset, rtt);
+  });
+
+  socket.on('error', (err) => {
+    clearTimeout(timeoutId);
+    socket.close();
+    callback(err);
+  });
+
+  socket.send(packet, 0, packet.length, 123, host, (err) => {
+    if (err) {
+      clearTimeout(timeoutId);
+      socket.close();
+      callback(err);
+    }
+  });
+}
+
+// Sync to Master clock using UDP packet exchange (Cristian's algorithm)
+function performP2pSync(masterHost) {
+  const clientSocket = dgram.createSocket('udp4');
+  const t0 = Date.now();
+  const requestPayload = JSON.stringify({ type: "ping", t0: t0 });
+  const buffer = Buffer.from(requestPayload);
+
+  const timeoutId = setTimeout(() => {
+    try { clientSocket.close(); } catch (e) {}
+  }, 1500);
+
+  clientSocket.on('message', (msg) => {
+    const t3 = Date.now();
+    clearTimeout(timeoutId);
+    clientSocket.close();
+    try {
+      const response = JSON.parse(msg.toString().trim());
+      if (response && response.type === "pong" && response.t0 === t0) {
+        const t1 = response.t1;
+        const t2 = response.t2;
+
+        let rtt = (t3 - t0) - (t2 - t1);
+        if (rtt < 0) rtt = t3 - t0;
+
+        const offset = Math.round(((t1 - t0) + (t2 - t3)) / 2);
+        calculatedOffsetMs = offset;
+        lastP2pSyncTime = Date.now();
+        console.log(`[DESKTOP] P2P sync successful. Offset: ${offset}ms, RTT: ${rtt}ms`);
+        updateWebOffset();
+      }
+    } catch (e) {
+      console.warn(`[DESKTOP] P2P response parse failed:`, e);
+    }
+  });
+
+  clientSocket.on('error', (err) => {
+    clearTimeout(timeoutId);
+    clientSocket.close();
+    console.warn(`[DESKTOP] P2P socket error during sync to ${masterHost}:`, err.message);
+  });
+
+  clientSocket.send(buffer, 0, buffer.length, 8767, masterHost, (err) => {
+    if (err) {
+      clearTimeout(timeoutId);
+      clientSocket.close();
+      console.warn(`[DESKTOP] P2P send error to ${masterHost}:`, err.message);
+    }
+  });
+}
+
+// UDP Sync Server (Port 8767) for responding to Cristian's algorithm requests
+const syncSocket = dgram.createSocket({ type: 'udp4', reuseAddr: true });
+
+syncSocket.on('listening', () => {
+  console.log(`[DESKTOP] UDP Sync Server listening on port 8767`);
+});
+
+syncSocket.on('message', (msg, rinfo) => {
+  try {
+    const rawData = msg.toString().trim();
+    const packet = JSON.parse(rawData);
+    if (packet && packet.type === 'ping') {
+      const t1 = Date.now() + calculatedOffsetMs;
+      const responsePayload = JSON.stringify({
+        type: 'pong',
+        t0: packet.t0,
+        t1: t1,
+        t2: Date.now() + calculatedOffsetMs
+      });
+      const responseBuffer = Buffer.from(responsePayload);
+      syncSocket.send(responseBuffer, 0, responseBuffer.length, rinfo.port, rinfo.address);
+    }
+  } catch (err) {
+    // Ignore invalid JSON payloads on the sync port
+  }
+});
+
+syncSocket.on('error', (err) => {
+  console.error('[DESKTOP] UDP Sync Server error:', err);
+});
+
+try {
+  syncSocket.bind(8767);
+} catch (e) {
+  console.error('[DESKTOP] Could not bind UDP sync port 8767:', e);
+}
+
+// Standard 1-second interval execution loop
+setInterval(() => {
+  const now = Date.now();
+  if (isMaster()) {
+    // Queries upstream NTP
+    if (now - lastNtpSyncTime > NTP_SYNC_INTERVAL) {
+      const serverHost = systemState["screenClock_ntpServer"] || "pool.ntp.org";
+      console.log(`[DESKTOP] Syncing with upstream NTP server: ${serverHost}`);
+      queryNtp(serverHost, (err, offset, rtt) => {
+        if (!err) {
+          calculatedOffsetMs = offset;
+          lastNtpSyncTime = Date.now();
+          console.log(`[DESKTOP] Upstream NTP sync successful. Offset: ${offset}ms, RTT: ${rtt}ms`);
+          updateWebOffset();
+        } else {
+          console.warn(`[DESKTOP] Upstream NTP sync failed: ${err.message}`);
+          // Retry faster on failure (30 seconds)
+          lastNtpSyncTime = now - NTP_SYNC_INTERVAL + 30000;
+        }
+      });
+    }
+  } else {
+    // Queries master clock via UDP P2P
+    if (now - lastP2pSyncTime > P2P_SYNC_INTERVAL) {
+      const masterHost = getMasterHost();
+      if (masterHost) {
+        performP2pSync(masterHost);
+      }
+    }
+  }
+}, 1000);
+
 // Electron UI initialization
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -175,6 +390,10 @@ function createWindow() {
   // Load Express clock index
   mainWindow.loadURL(`http://localhost:${EXPRESS_PORT}/index.html`);
 
+  mainWindow.webContents.on('did-finish-load', () => {
+    updateWebOffset();
+  });
+
   mainWindow.on('closed', function () {
     mainWindow = null;
   });
@@ -185,6 +404,7 @@ app.on('ready', createWindow);
 app.on('window-all-closed', function () {
   try {
     udpSocket.close();
+    syncSocket.close();
     server.close();
   } catch (e) {}
   if (process.platform !== 'darwin') {

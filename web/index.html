@@ -991,9 +991,9 @@ function applyClockTransform(animated = false) {
     el.style.fontSize = `${renderedSecFontSize / numericCorrection}px`;
   });
 
-  // Ink bounds from current content (font-metric math, no DOM mutation).
-  const dateBounds = measureRowInkBounds(dateLine);
-  const timeBounds = measureRowInkBounds(timeLine);
+  // Ink bounds from current content.
+  const dateBounds = getRenderedTextBounds(dateLine) || measureRowInkBounds(dateLine);
+  const timeBounds = getRenderedTextBounds(timeLine) || measureRowInkBounds(timeLine);
 
   // Gap = gapWeight * time ink height (pre-transform).
   // Use baseSizing.weightGap (the raw slider value) so per-font gapAdjust
@@ -1148,8 +1148,17 @@ async function toggleFullscreen() {
   else console.warn("Fullscreen API not supported on this device/browser");
 }
 
-setInterval(updateClock, 250);
-updateClock();
+let lastRenderSecond = -1;
+function tick() {
+  const nowMs = Date.now() + (window.__timeMasterOffsetMs || 0);
+  const nowSec = Math.floor(nowMs / 1000);
+  if (nowSec !== lastRenderSecond) {
+    lastRenderSecond = nowSec;
+    updateClock();
+  }
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
 applyClockTransform();
 document.getElementById("year").addEventListener("click", toggleFullscreen);
 (function() {

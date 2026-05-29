@@ -206,7 +206,7 @@ async function main() {
       failures
     };
 
-    const reportPath = path.join(repoRoot, "screens", "gap-contract-report.json");
+    const reportPath = path.join(repoRoot, "web", "screens", "gap-contract-report.json");
     await fs.writeFile(reportPath, JSON.stringify(report, null, 2), "utf8");
 
     console.log(`\nReport written to ${reportPath}`);

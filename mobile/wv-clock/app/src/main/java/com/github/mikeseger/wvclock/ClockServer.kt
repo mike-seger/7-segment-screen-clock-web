@@ -57,6 +57,27 @@ class ClockServer(
         Thread(r, "wv-clock-udp-sender").apply { isDaemon = true }
     }
 
+    @Volatile
+    var calculatedOffsetMs: Long = 0
+        private set(value) {
+            val changed = field != value
+            field = value
+            if (changed) {
+                onOffsetChangedListener?.invoke(value)
+            }
+        }
+
+    var onOffsetChangedListener: ((Long) -> Unit)? = null
+
+    private var p2pSocket: DatagramSocket? = null
+    private var p2pThread: Thread? = null
+
+    private var lastNtpSyncTime = 0L
+    private var lastP2pSyncTime = 0L
+    private val syncExecutor = Executors.newSingleThreadScheduledExecutor { r ->
+        Thread(r, "wv-clock-dynamic-sync").apply { isDaemon = true }
+    }
+
     init {
         heartbeat.scheduleAtFixedRate({
             val bytes = ": ping\n\n".toByteArray()
@@ -67,6 +88,8 @@ class ClockServer(
     override fun start(timeout: Int, daemon: Boolean) {
         super.start(timeout, daemon)
         startUdpDiscovery()
+        startP2pServer()
+        startDynamicSyncScheduler()
     }
 
     private fun startUdpDiscovery() {
@@ -139,6 +162,174 @@ class ClockServer(
             udpSenderExecutor.shutdownNow()
         } catch (_: Exception) {}
         udpReceiverThread?.interrupt()
+    }
+
+    private fun startP2pServer() {
+        try {
+            val socket = DatagramSocket(8767).apply {
+                reuseAddress = true
+            }
+            p2pSocket = socket
+
+            p2pThread = Thread({
+                val buffer = ByteArray(2048)
+                while (!socket.isClosed) {
+                    try {
+                        val packet = DatagramPacket(buffer, buffer.size)
+                        socket.receive(packet)
+                        
+                        if (isMaster()) {
+                            val requestStr = String(packet.data, 0, packet.length, Charsets.UTF_8)
+                            val requestJson = JSONObject(requestStr)
+                            if (requestJson.optString("type") == "ping") {
+                                val t0 = requestJson.getLong("t0")
+                                val t1 = System.currentTimeMillis() + calculatedOffsetMs
+                                
+                                val responseJson = JSONObject().apply {
+                                    put("type", "pong")
+                                    put("t0", t0)
+                                    put("t1", t1)
+                                    put("t2", System.currentTimeMillis() + calculatedOffsetMs)
+                                }
+                                val responseBytes = responseJson.toString().toByteArray(Charsets.UTF_8)
+                                val responsePacket = DatagramPacket(
+                                    responseBytes, responseBytes.size,
+                                    packet.address, packet.port
+                                )
+                                socket.send(responsePacket)
+                            }
+                        }
+                    } catch (e: Exception) {
+                        if (socket.isClosed) break
+                        Log.e(TAG, "P2P UDP receive error", e)
+                    }
+                }
+            }, "wv-clock-p2p-receiver").apply { isDaemon = true }.also { it.start() }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to start P2P UDP port 8767 server", e)
+        }
+    }
+
+    private fun stopP2pServer() {
+        try {
+            p2pSocket?.close()
+        } catch (_: Exception) {}
+        try {
+            p2pThread?.interrupt()
+        } catch (_: Exception) {}
+    }
+
+    private fun isMaster(): Boolean {
+        val masterUrl = state["screenClock_timeMasterUrl"]
+        if (masterUrl.isNullOrEmpty()) return true
+        val selfUrl = lanUrlProvider() ?: ""
+        if (selfUrl.isNotEmpty() && masterUrl.startsWith(selfUrl)) return true
+        if (masterUrl.contains("127.0.0.1") || masterUrl.contains("localhost")) return true
+        return false
+    }
+
+    private fun getSelectedNtpServer(): String {
+        val custom = state["screenClock_ntpServer"]
+        return if (!custom.isNullOrBlank()) custom.trim() else "pool.ntp.org"
+    }
+
+    private fun extractHostFromUrl(url: String?): String? {
+        if (url.isNullOrEmpty()) return null
+        try {
+            var clean = url.substringAfter("://").substringBefore("/")
+            if (clean.contains(":")) {
+                clean = clean.substringBefore(":")
+            }
+            return clean
+        } catch (e: Exception) {
+            Log.e(TAG, "Error parsing host from URL: $url", e)
+        }
+        return null
+    }
+
+    private fun performP2pSync(masterHost: String): Long? {
+        var clientSocket: DatagramSocket? = null
+        try {
+            val address = InetAddress.getByName(masterHost)
+            clientSocket = DatagramSocket().apply { soTimeout = 1000 }
+            
+            val t0 = System.currentTimeMillis()
+            val requestJson = JSONObject().apply {
+                put("type", "ping")
+                put("t0", t0)
+            }
+            val requestBytes = requestJson.toString().toByteArray(Charsets.UTF_8)
+            val requestPacket = DatagramPacket(requestBytes, requestBytes.size, address, 8767)
+            clientSocket.send(requestPacket)
+            
+            val buffer = ByteArray(2048)
+            val receivePacket = DatagramPacket(buffer, buffer.size)
+            clientSocket.receive(receivePacket)
+            val t3 = System.currentTimeMillis()
+            
+            val responseStr = String(receivePacket.data, 0, receivePacket.length, Charsets.UTF_8)
+            val responseJson = JSONObject(responseStr)
+            if (responseJson.optString("type") == "pong" && responseJson.optLong("t0") == t0) {
+                val t1 = responseJson.getLong("t1")
+                val t2 = responseJson.getLong("t2")
+                
+                var rtt = (t3 - t0) - (t2 - t1)
+                if (rtt < 0) rtt = t3 - t0
+                
+                val offset = ((t1 - t0) + (t2 - t3)) / 2
+                Log.d(TAG, "P2P sync successful. RTT: ${rtt}ms, Offset: ${offset}ms")
+                return offset
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "P2P sync to master $masterHost failed")
+        } finally {
+            clientSocket?.close()
+        }
+        return null
+    }
+
+    private fun startDynamicSyncScheduler() {
+        syncExecutor.scheduleAtFixedRate({
+            try {
+                val now = System.currentTimeMillis()
+                val masterUrl = state["screenClock_timeMasterUrl"]
+                val isSelf = isMaster()
+                
+                if (isSelf) {
+                    // MASTER MODE: Poll Upstream NTP
+                    val interval = 30000L
+                    if (now - lastNtpSyncTime >= interval) {
+                        val ntpHost = getSelectedNtpServer()
+                        val offset = SntpClient.getOffset(ntpHost)
+                        if (offset != null) {
+                            calculatedOffsetMs = offset
+                            lastNtpSyncTime = now
+                            Log.i(TAG, "NTP Sync successful. New offset: $calculatedOffsetMs ms")
+                        } else {
+                            lastNtpSyncTime = now - interval + 5000L // retry in 5s
+                        }
+                    }
+                } else {
+                    // SLAVE MODE: Query Master P2P
+                    val interval = 5000L
+                    if (now - lastP2pSyncTime >= interval) {
+                        val host = extractHostFromUrl(masterUrl)
+                        if (host != null) {
+                            val offset = performP2pSync(host)
+                            if (offset != null) {
+                                calculatedOffsetMs = offset
+                                lastP2pSyncTime = now
+                                Log.i(TAG, "P2P Sync successful. New offset: $calculatedOffsetMs ms")
+                            } else {
+                                lastP2pSyncTime = now - interval + 2000L // retry in 2s
+                            }
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Dynamic sync scheduler error", e)
+            }
+        }, 1, 1, TimeUnit.SECONDS)
     }
 
     // Root-level static assets (not under web/) that the server exposes directly.
@@ -221,10 +412,10 @@ class ClockServer(
     // ---------------- state ----------------
 
     private fun handleGetTime(): Response {
-        val t1 = System.currentTimeMillis()
+        val t1 = System.currentTimeMillis() + calculatedOffsetMs
         val json = JSONObject().apply {
             put("t1", t1)
-            put("t2", System.currentTimeMillis())
+            put("t2", System.currentTimeMillis() + calculatedOffsetMs)
             put("now", t1) // legacy field for older bridge versions
         }.toString()
         return newFixedLengthResponse(Response.Status.OK, "application/json", json).apply {
@@ -247,6 +438,12 @@ class ClockServer(
         val key = obj.getString("key")
         val value: String? = if (obj.isNull("value")) null else obj.optString("value", "")
         if (value == null) state.remove(key) else state[key] = value
+
+        if (key == "screenClock_timeMasterUrl" || key == "screenClock_ntpServer") {
+            lastNtpSyncTime = 0L
+            lastP2pSyncTime = 0L
+        }
+
         broadcast(key, value)
         return newFixedLengthResponse(Response.Status.OK, "application/json", "{\"ok\":true}")
     }
@@ -346,6 +543,8 @@ class ClockServer(
 
     override fun stop() {
         stopUdpDiscovery()
+        stopP2pServer()
+        try { syncExecutor.shutdownNow() } catch (_: Exception) {}
         try { heartbeat.shutdownNow() } catch (_: Exception) {}
         for (c in sseClients) try { c.close() } catch (_: IOException) {}
         sseClients.clear()
@@ -419,5 +618,85 @@ class ClockServer(
 
     companion object {
         private const val TAG = "ClockServer"
+    }
+}
+
+object SntpClient {
+    private const val NTP_PORT = 123
+    private const val NTP_PACKET_SIZE = 48
+    private const val OFFSET_1900_TO_1970 = 2208988800L
+    private const val TAG = "SntpClient"
+
+    fun getOffset(host: String, timeoutMs: Int = 3000): Long? {
+        var socket: DatagramSocket? = null
+        try {
+            socket = DatagramSocket().apply { soTimeout = timeoutMs }
+            val address = InetAddress.getByName(host)
+            val buffer = ByteArray(NTP_PACKET_SIZE)
+            
+            // Set LI = 0, VN = 3, Mode = 3 (Client)
+            buffer[0] = 0x1B
+            
+            val t0 = System.currentTimeMillis()
+            writeTimestamp(buffer, 40, t0) // Transmit timestamp
+            
+            val packet = DatagramPacket(buffer, buffer.size, address, NTP_PORT)
+            socket.send(packet)
+            
+            val responsePacket = DatagramPacket(buffer, buffer.size)
+            socket.receive(responsePacket)
+            val t3 = System.currentTimeMillis()
+            
+            val t1 = readTimestamp(buffer, 32)
+            val t2 = readTimestamp(buffer, 40)
+            
+            // Calculate RTT: (t3 - t0) - (t2 - t1)
+            var rtt = (t3 - t0) - (t2 - t1)
+            if (rtt < 0) rtt = t3 - t0
+            
+            val offset = ((t1 - t0) + (t2 - t3)) / 2
+            Log.i(TAG, "NTP synchronization complete. RTT: ${rtt}ms, Offset: ${offset}ms")
+            return offset
+        } catch (e: Exception) {
+            Log.w(TAG, "NTP sync to $host failed: ${e.message}")
+            return null
+        } finally {
+            socket?.close()
+        }
+    }
+
+    private fun writeTimestamp(buffer: ByteArray, offset: Int, timeMs: Long) {
+        val seconds = timeMs / 1000L + OFFSET_1900_TO_1970
+        val ms = timeMs % 1000L
+        val fraction = (ms * 0x100000000L / 1000L)
+        
+        // Write seconds
+        buffer[offset] = (seconds shr 24).toByte()
+        buffer[offset + 1] = (seconds shr 16).toByte()
+        buffer[offset + 2] = (seconds shr 8).toByte()
+        buffer[offset + 3] = seconds.toByte()
+        
+        // Write fraction
+        buffer[offset + 4] = (fraction shr 24).toByte()
+        buffer[offset + 5] = (fraction shr 16).toByte()
+        buffer[offset + 6] = (fraction shr 8).toByte()
+        buffer[offset + 7] = fraction.toByte()
+    }
+
+    private fun readTimestamp(buffer: ByteArray, offset: Int): Long {
+        val s0 = buffer[offset].toLong() and 0xFF
+        val s1 = buffer[offset + 1].toLong() and 0xFF
+        val s2 = buffer[offset + 2].toLong() and 0xFF
+        val s3 = buffer[offset + 3].toLong() and 0xFF
+        val seconds = (s0 shl 24) or (s1 shl 16) or (s2 shl 8) or s3
+
+        val f0 = buffer[offset + 4].toLong() and 0xFF
+        val f1 = buffer[offset + 5].toLong() and 0xFF
+        val f2 = buffer[offset + 6].toLong() and 0xFF
+        val f3 = buffer[offset + 7].toLong() and 0xFF
+        val fraction = (f0 shl 24) or (f1 shl 16) or (f2 shl 8) or f3
+
+        val ms = (fraction * 1000L) shr 32
+        return (seconds - OFFSET_1900_TO_1970) * 1000L + ms
     }
 }

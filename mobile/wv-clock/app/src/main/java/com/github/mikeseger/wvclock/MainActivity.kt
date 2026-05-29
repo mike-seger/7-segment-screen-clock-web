@@ -19,12 +19,11 @@ class MainActivity : Activity() {
     private lateinit var webView: WebView
     private var server: ClockServer? = null
     private val port = 8765
+    private var multicastLock: android.net.wifi.WifiManager.MulticastLock? = null
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        startServer()
 
         webView = WebView(this).apply {
             settings.javaScriptEnabled = true
@@ -33,9 +32,27 @@ class MainActivity : Activity() {
             settings.loadWithOverviewMode = true
             settings.useWideViewPort = true
             setBackgroundColor(0xFF000000.toInt())
-            webViewClient = WebViewClient()
+            webViewClient = object : WebViewClient() {
+                override fun onPageFinished(view: WebView?, url: String?) {
+                    super.onPageFinished(view, url)
+                    val offset = server?.calculatedOffsetMs ?: 0L
+                    view?.evaluateJavascript("window.__timeMasterOffsetMs = $offset;", null)
+                }
+            }
         }
         setContentView(webView)
+
+        val wifiManager = applicationContext.getSystemService(Context.WIFI_SERVICE) as? android.net.wifi.WifiManager
+        try {
+            multicastLock = wifiManager?.createMulticastLock("WvClockMulticastLock")?.apply {
+                setReferenceCounted(true)
+                acquire()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to acquire multicast lock", e)
+        }
+
+        startServer()
 
         webView.loadUrl("http://127.0.0.1:$port/")
 
@@ -63,6 +80,12 @@ class MainActivity : Activity() {
     override fun onDestroy() {
         server?.stop()
         server = null
+        try {
+            multicastLock?.let {
+                if (it.isHeld) it.release()
+            }
+        } catch (_: Exception) {}
+        multicastLock = null
         super.onDestroy()
     }
 
@@ -73,6 +96,11 @@ class MainActivity : Activity() {
                 port = port,
                 lanUrlProvider = { getWifiIpv4()?.let { "http://$it:$port/" } }
             )
+            s.onOffsetChangedListener = { offset ->
+                webView.post {
+                    webView.evaluateJavascript("window.__timeMasterOffsetMs = $offset;", null)
+                }
+            }
             s.start(/* timeout */ 5000, /* daemon */ true)
             server = s
             Log.i(TAG, "ClockServer started on $port")

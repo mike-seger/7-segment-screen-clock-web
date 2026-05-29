@@ -531,6 +531,7 @@
   }
 
   function startTimeSync() {
+    if (!IS_REMOTE) return; // Native handles time sync on local device
     if (timeSyncTimer) return;
     timeSyncTimer = true;
     backoffStep = 0;
@@ -539,6 +540,7 @@
   }
 
   function forceResyncSoon() {
+    if (!IS_REMOTE) return; // Native handles time sync on local device
     // Called after the user picks a new master. Reset smoothing + rolling
     // window and run an aggressive burst to lock onto the new master.
     lastGoodOffsetMs = null;
