@@ -15,6 +15,8 @@
 
   var SYNC_PREFIX = "screenClock_";
   var suppress = false;
+  var discoveredClocksList = [];
+  var clockSleepStates = {}; // Tracks url -> boolean (true: asleep, false: awake)
 
   // A "remote" client is any browser pointing at the embedded server from a
   // different host than loopback (i.e. not the on-device WebView). Remote
@@ -567,6 +569,79 @@
 
         section.style.display = "block";
         listContainer.innerHTML = "";
+        discoveredClocksList = clocks;
+
+        // Recreate global controls block on each render to avoid stale closure references and ensure perfect sync
+        var controlsGroup = document.getElementById("globalClockPowerControls");
+        if (controlsGroup) {
+          controlsGroup.parentNode.removeChild(controlsGroup);
+        }
+
+        controlsGroup = document.createElement("div");
+        controlsGroup.id = "globalClockPowerControls";
+        controlsGroup.style.cssText = "display: flex; gap: 8px; margin-bottom: 12px;";
+
+        var wakeAllBtn = document.createElement("button");
+        wakeAllBtn.style.cssText = "flex: 1; font-size: 10px; font-weight: bold; border-radius: 4px; padding: 4px 10px; border: 1px solid #00ff66; background: #1a3a21; color: #00ff66; cursor: pointer; text-transform: uppercase; transition: background 0.1s, opacity 0.1s;";
+        wakeAllBtn.textContent = "Wake All Devices";
+        wakeAllBtn.addEventListener("mouseover", function () { wakeAllBtn.style.background = "#244d2e"; });
+        wakeAllBtn.addEventListener("mouseout", function () { wakeAllBtn.style.background = "#1a3a21"; });
+        wakeAllBtn.addEventListener("click", function () {
+          wakeAllBtn.disabled = true;
+          wakeAllBtn.style.opacity = "0.5";
+          var targets = discoveredClocksList.filter(function (clk) { return !clk.isSelf; });
+          var promises = targets.map(function (clk) {
+            clockSleepStates[clk.url] = false;
+            var targetWakeUrl = clk.url;
+            if (targetWakeUrl.lastIndexOf("/") !== targetWakeUrl.length - 1) targetWakeUrl += "/";
+            return fetch(targetWakeUrl + "api/wake", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" }
+            }).catch(function () {});
+          });
+          Promise.all(promises).then(function() {
+            wakeAllBtn.textContent = "All Woken!";
+            setTimeout(function () {
+              wakeAllBtn.disabled = false;
+              wakeAllBtn.style.opacity = "1";
+              wakeAllBtn.textContent = "Wake All Devices";
+              updateNetworkClocksUi();
+            }, 1500);
+          });
+        });
+
+        var sleepAllBtn = document.createElement("button");
+        sleepAllBtn.style.cssText = "flex: 1; font-size: 10px; font-weight: bold; border-radius: 4px; padding: 4px 10px; border: 1px solid #ff3333; background: #3a1a1a; color: #ff3333; cursor: pointer; text-transform: uppercase; transition: background 0.1s, opacity 0.1s;";
+        sleepAllBtn.textContent = "Sleep All Screens";
+        sleepAllBtn.addEventListener("mouseover", function () { sleepAllBtn.style.background = "#4d2424"; });
+        sleepAllBtn.addEventListener("mouseout", function () { sleepAllBtn.style.background = "#3a1a1a"; });
+        sleepAllBtn.addEventListener("click", function () {
+          sleepAllBtn.disabled = true;
+          sleepAllBtn.style.opacity = "0.5";
+          var targets = discoveredClocksList.filter(function (clk) { return !clk.isSelf; });
+          var promises = targets.map(function (clk) {
+            clockSleepStates[clk.url] = true;
+            var targetSleepUrl = clk.url;
+            if (targetSleepUrl.lastIndexOf("/") !== targetSleepUrl.length - 1) targetSleepUrl += "/";
+            return fetch(targetSleepUrl + "api/sleep", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" }
+            }).catch(function () {});
+          });
+          Promise.all(promises).then(function() {
+            sleepAllBtn.textContent = "All Asleep!";
+            setTimeout(function () {
+              sleepAllBtn.disabled = false;
+              sleepAllBtn.style.opacity = "1";
+              sleepAllBtn.textContent = "Sleep All Screens";
+              updateNetworkClocksUi();
+            }, 1500);
+          });
+        });
+
+        controlsGroup.appendChild(wakeAllBtn);
+        controlsGroup.appendChild(sleepAllBtn);
+        section.insertBefore(controlsGroup, listContainer);
 
         // Get currently controlled clock URLs from localStorage
         var controlledUrls = [];
@@ -580,13 +655,13 @@
 
         // Header row labels
         var header = document.createElement("div");
-        header.style.cssText = "display: grid; grid-template-columns: auto auto 1fr; gap: 8px; align-items: center; font-size: 11px; color: #888; margin-bottom: 4px;";
-        header.innerHTML = "<span>Ctrl</span><span>Time</span><span>Device</span>";
+        header.style.cssText = "display: grid; grid-template-columns: auto auto 1fr auto; gap: 8px; align-items: center; font-size: 11px; color: #888; margin-bottom: 4px;";
+        header.innerHTML = "<span>Ctrl</span><span>Time</span><span>Device</span><span>Action</span>";
         listContainer.appendChild(header);
 
         clocks.forEach(function (clk) {
           var row = document.createElement("div");
-          row.style.cssText = "display: grid; grid-template-columns: auto auto 1fr; gap: 8px; align-items: center; margin-bottom: 6px;";
+          row.style.cssText = "display: grid; grid-template-columns: auto auto 1fr auto; gap: 8px; align-items: center; margin-bottom: 6px;";
 
           // Control checkbox
           var checkbox = document.createElement("input");
@@ -652,9 +727,64 @@
           span.style.cssText = "font-size: 14px; color: " + (clk.isSelf ? "#888" : "#fff") + ";";
           span.textContent = clk.name + (clk.isSelf ? " (This Clock)" : "");
 
+          // Action buttons container
+          var actionContainer = document.createElement("div");
+          actionContainer.style.cssText = "display: flex; gap: 4px; justify-content: flex-end;";
+
+          if (clk.isSelf) {
+            // Exclude the remote controller itself from wake/sleep buttons
+            var selfControlPlaceholder = document.createElement("span");
+            selfControlPlaceholder.style.cssText = "font-size: 11px; color: #555; font-style: italic;";
+            selfControlPlaceholder.textContent = "Current Controller";
+            actionContainer.appendChild(selfControlPlaceholder);
+          } else {
+            // Combined toggle button
+            var toggleBtn = document.createElement("button");
+            var isCurrentlyAsleep = !!clockSleepStates[clk.url];
+
+            if (isCurrentlyAsleep) {
+              toggleBtn.style.cssText = "font-size: 10px; font-weight: bold; border-radius: 4px; padding: 2px 8px; border: 1px solid #00ff66; background: #1a3a21; color: #00ff66; cursor: pointer; text-transform: uppercase; transition: background 0.1s;";
+              toggleBtn.textContent = "Wake";
+              toggleBtn.addEventListener("mouseover", function () { toggleBtn.style.background = "#244d2e"; });
+              toggleBtn.addEventListener("mouseout", function () { toggleBtn.style.background = "#1a3a21"; });
+            } else {
+              toggleBtn.style.cssText = "font-size: 10px; font-weight: bold; border-radius: 4px; padding: 2px 8px; border: 1px solid #ff3333; background: #3a1a1a; color: #ff3333; cursor: pointer; text-transform: uppercase; transition: background 0.1s;";
+              toggleBtn.textContent = "Sleep";
+              toggleBtn.addEventListener("mouseover", function () { toggleBtn.style.background = "#4d2424"; });
+              toggleBtn.addEventListener("mouseout", function () { toggleBtn.style.background = "#3a1a1a"; });
+            }
+
+            toggleBtn.addEventListener("click", function () {
+              toggleBtn.disabled = true;
+              toggleBtn.style.opacity = "0.5";
+
+              var endpoint = isCurrentlyAsleep ? "api/wake" : "api/sleep";
+              var targetUrl = clk.url;
+              if (targetUrl.lastIndexOf("/") !== targetUrl.length - 1) targetUrl += "/";
+
+              fetch(targetUrl + endpoint, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" }
+              }).then(function (r) {
+                console.log(LOG, "POST " + clk.url + endpoint + " ->", r.status);
+                // Toggle guessed state
+                clockSleepStates[clk.url] = !isCurrentlyAsleep;
+                // Instantly refresh UI list
+                updateNetworkClocksUi();
+              }).catch(function (e) {
+                console.warn(LOG, "POST " + clk.url + endpoint + " failed", e);
+                toggleBtn.disabled = false;
+                toggleBtn.style.opacity = "1";
+              });
+            });
+
+            actionContainer.appendChild(toggleBtn);
+          }
+
           row.appendChild(checkbox);
           row.appendChild(radio);
           row.appendChild(span);
+          row.appendChild(actionContainer);
           listContainer.appendChild(row);
         });
       })

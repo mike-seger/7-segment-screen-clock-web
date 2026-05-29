@@ -68,6 +68,8 @@ class ClockServer(
         }
 
     var onOffsetChangedListener: ((Long) -> Unit)? = null
+    var onWakeRequestedListener: (() -> Unit)? = null
+    var onSleepRequestedListener: (() -> Unit)? = null
 
     private var p2pSocket: DatagramSocket? = null
     private var p2pThread: Thread? = null
@@ -356,6 +358,8 @@ class ClockServer(
                 uri == "/api/time" && session.method == Method.GET -> handleGetTime()
                 uri == "/api/state" && session.method == Method.GET -> handleGetState()
                 uri == "/api/state" && session.method == Method.POST -> handlePostState(session)
+                uri == "/api/wake" && session.method == Method.POST -> handlePostWake()
+                uri == "/api/sleep" && session.method == Method.POST -> handlePostSleep()
                 uri == "/api/events" && session.method == Method.GET -> handleSse()
                 uri == "/api/url" && session.method == Method.GET -> handleGetUrl()
                 rootAssets.containsKey(uri) -> {
@@ -446,6 +450,20 @@ class ClockServer(
 
         broadcast(key, value)
         return newFixedLengthResponse(Response.Status.OK, "application/json", "{\"ok\":true}")
+    }
+
+    private fun handlePostWake(): Response {
+        onWakeRequestedListener?.invoke()
+        return newFixedLengthResponse(Response.Status.OK, "application/json", "{\"ok\":true}").apply {
+            addHeader("Cache-Control", "no-store")
+        }
+    }
+
+    private fun handlePostSleep(): Response {
+        onSleepRequestedListener?.invoke()
+        return newFixedLengthResponse(Response.Status.OK, "application/json", "{\"ok\":true}").apply {
+            addHeader("Cache-Control", "no-store")
+        }
     }
 
     // ---------------- URL ----------------

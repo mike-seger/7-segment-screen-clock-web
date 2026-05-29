@@ -101,6 +101,12 @@ class MainActivity : Activity() {
                     webView.evaluateJavascript("window.__timeMasterOffsetMs = $offset;", null)
                 }
             }
+            s.onWakeRequestedListener = {
+                wakeScreen()
+            }
+            s.onSleepRequestedListener = {
+                sleepScreen()
+            }
             s.start(/* timeout */ 5000, /* daemon */ true)
             server = s
             Log.i(TAG, "ClockServer started on $port")
@@ -128,6 +134,61 @@ class MainActivity : Activity() {
                     or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
                     or View.SYSTEM_UI_FLAG_FULLSCREEN
                 )
+        }
+    }
+
+    fun wakeScreen() {
+        runOnUiThread {
+            try {
+                Log.i(TAG, "Attempting to wake screen programmatically")
+                val lp = window.attributes
+                lp.screenBrightness = android.view.WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+                window.attributes = lp
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+                    setShowWhenLocked(true)
+                    setTurnScreenOn(true)
+                } else {
+                    @Suppress("DEPRECATION")
+                    window.addFlags(
+                        android.view.WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
+                        android.view.WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON or
+                        android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+                    )
+                }
+
+                val pm = applicationContext.getSystemService(Context.POWER_SERVICE) as? android.os.PowerManager
+                val wl = pm?.newWakeLock(
+                    @Suppress("DEPRECATION")
+                    (android.os.PowerManager.SCREEN_BRIGHT_WAKE_LOCK or android.os.PowerManager.ACQUIRE_CAUSES_WAKEUP),
+                    "WvClock:ScreenWake"
+                )
+                wl?.acquire(3000)
+                applyImmersive()
+
+                webView.post {
+                    webView.evaluateJavascript("document.body.style.opacity = '1'; document.body.style.background = '';", null)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error waking screen", e)
+            }
+        }
+    }
+
+    fun sleepScreen() {
+        runOnUiThread {
+            try {
+                Log.i(TAG, "Attempting to put screen to sleep programmatically")
+                val lp = window.attributes
+                lp.screenBrightness = 0.01f // ultra-dim / off
+                window.attributes = lp
+
+                webView.post {
+                    webView.evaluateJavascript("document.body.style.opacity = '0'; document.body.style.background = '#000000';", null)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error putting screen to sleep", e)
+            }
         }
     }
 

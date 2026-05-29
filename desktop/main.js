@@ -78,6 +78,26 @@ expressApp.get('/api/clocks', (req, res) => {
   res.json(clocksList);
 });
 
+expressApp.post('/api/wake', (req, res) => {
+  if (process.platform === 'darwin') {
+    const { exec } = require('child_process');
+    exec('caffeinate -u -t 2', (err) => {
+      if (err) console.error('Failed to wake screen on macOS:', err);
+    });
+  }
+  res.json({ ok: true });
+});
+
+expressApp.post('/api/sleep', (req, res) => {
+  if (process.platform === 'darwin') {
+    const { exec } = require('child_process');
+    exec('pmset displaysleepnow', (err) => {
+      if (err) console.error('Failed to put screen to sleep on macOS:', err);
+    });
+  }
+  res.json({ ok: true });
+});
+
 expressApp.get('/api/url', (req, res) => {
   res.json({ url: `http://${HOST_IP}:${EXPRESS_PORT}/` });
 });
