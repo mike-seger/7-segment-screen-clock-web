@@ -4,7 +4,7 @@ import http from "node:http";
 import fs from "node:fs/promises";
 import path from "node:path";
 
-const repoRoot = process.cwd();
+const repoRoot = path.resolve(process.cwd(), "..");
 const host = "127.0.0.1";
 const port = 4173;
 const baseUrl = `http://${host}:${port}`;

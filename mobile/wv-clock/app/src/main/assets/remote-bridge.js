@@ -17,6 +17,10 @@
   var suppress = false;
   var discoveredClocksList = [];
   var clockSleepStates = {}; // Tracks url -> boolean (true: asleep, false: awake)
+  // Optimistic toggle state: url -> expected isAsleep value while the real
+  // server-side change is still propagating through UDP. Prevents the seed
+  // loop from overwriting an in-flight toggle with stale server data.
+  var pendingClockToggles = {};
 
   // A "remote" client is any browser pointing at the embedded server from a
   // different host than loopback (i.e. not the on-device WebView). Remote
@@ -173,6 +177,9 @@
           var msg = JSON.parse(ev.data);
           if (msg && typeof msg.key === "string") applyRemote(msg.key, msg.value);
         } catch (e) { console.log(LOG, "state parse err", String(e)); }
+      });
+      es.addEventListener("clocks", function () {
+        updateNetworkClocksUi();
       });
       es.onerror = function () {
         console.log(LOG, "SSE error; readyState=", es.readyState);
@@ -567,9 +574,32 @@
           return;
         }
 
+        // Deduplicate by URL — guards against stale UUID entries during restarts
+        var seenUrls = {};
+        clocks = clocks.filter(function (clk) {
+          if (!clk.url || seenUrls[clk.url]) return false;
+          seenUrls[clk.url] = true;
+          return true;
+        });
+
         section.style.display = "block";
         listContainer.innerHTML = "";
         discoveredClocksList = clocks;
+
+        // Seed sleep states from the real isAsleep value reported by each clock
+        clocks.forEach(function (clk) {
+          if (!clk.isSelf && typeof clk.isAsleep === "boolean") {
+            if (clk.url in pendingClockToggles) {
+              // Server confirmed the toggled state — clear the pending lock
+              if (clk.isAsleep === pendingClockToggles[clk.url]) {
+                delete pendingClockToggles[clk.url];
+              }
+              // Don't overwrite our optimistic value until server confirms
+            } else {
+              clockSleepStates[clk.url] = clk.isAsleep;
+            }
+          }
+        });
 
         // Recreate global controls block on each render to avoid stale closure references and ensure perfect sync
         var controlsGroup = document.getElementById("globalClockPowerControls");
@@ -583,7 +613,7 @@
 
         var wakeAllBtn = document.createElement("button");
         wakeAllBtn.style.cssText = "flex: 1; font-size: 10px; font-weight: bold; border-radius: 4px; padding: 4px 10px; border: 1px solid #00ff66; background: #1a3a21; color: #00ff66; cursor: pointer; text-transform: uppercase; transition: background 0.1s, opacity 0.1s;";
-        wakeAllBtn.textContent = "Wake All Devices";
+        wakeAllBtn.textContent = "Wake All";
         wakeAllBtn.addEventListener("mouseover", function () { wakeAllBtn.style.background = "#244d2e"; });
         wakeAllBtn.addEventListener("mouseout", function () { wakeAllBtn.style.background = "#1a3a21"; });
         wakeAllBtn.addEventListener("click", function () {
@@ -604,7 +634,7 @@
             setTimeout(function () {
               wakeAllBtn.disabled = false;
               wakeAllBtn.style.opacity = "1";
-              wakeAllBtn.textContent = "Wake All Devices";
+              wakeAllBtn.textContent = "Wake All";
               updateNetworkClocksUi();
             }, 1500);
           });
@@ -612,7 +642,7 @@
 
         var sleepAllBtn = document.createElement("button");
         sleepAllBtn.style.cssText = "flex: 1; font-size: 10px; font-weight: bold; border-radius: 4px; padding: 4px 10px; border: 1px solid #ff3333; background: #3a1a1a; color: #ff3333; cursor: pointer; text-transform: uppercase; transition: background 0.1s, opacity 0.1s;";
-        sleepAllBtn.textContent = "Sleep All Screens";
+        sleepAllBtn.textContent = "Sleep All";
         sleepAllBtn.addEventListener("mouseover", function () { sleepAllBtn.style.background = "#4d2424"; });
         sleepAllBtn.addEventListener("mouseout", function () { sleepAllBtn.style.background = "#3a1a1a"; });
         sleepAllBtn.addEventListener("click", function () {
@@ -633,7 +663,7 @@
             setTimeout(function () {
               sleepAllBtn.disabled = false;
               sleepAllBtn.style.opacity = "1";
-              sleepAllBtn.textContent = "Sleep All Screens";
+              sleepAllBtn.textContent = "Sleep All";
               updateNetworkClocksUi();
             }, 1500);
           });
@@ -725,30 +755,34 @@
 
           var span = document.createElement("span");
           span.style.cssText = "font-size: 14px; color: " + (clk.isSelf ? "#888" : "#fff") + ";";
-          span.textContent = clk.name + (clk.isSelf ? " (This Clock)" : "");
+          span.textContent = clk.name;
 
           // Action buttons container
           var actionContainer = document.createElement("div");
-          actionContainer.style.cssText = "display: flex; gap: 4px; justify-content: flex-end;";
+          actionContainer.style.cssText = "display: flex; gap: 4px; justify-content: flex-end; align-items: center;";
 
-          if (clk.isSelf) {
-            // Exclude the remote controller itself from wake/sleep buttons
-            var selfControlPlaceholder = document.createElement("span");
-            selfControlPlaceholder.style.cssText = "font-size: 11px; color: #555; font-style: italic;";
-            selfControlPlaceholder.textContent = "Current Controller";
-            actionContainer.appendChild(selfControlPlaceholder);
-          } else {
+          // Battery badge (shown for all entries that report battery)
+          if (typeof clk.battery === "number" && clk.battery >= 0) {
+            var bat = document.createElement("span");
+            var pct = clk.battery;
+            var batColor = pct <= 15 ? "#ff3333" : pct <= 40 ? "#ffaa00" : "#00cc55";
+            bat.style.cssText = "font-size: 10px; font-weight: bold; color: " + batColor + "; background: rgba(0,0,0,0.35); border: 1px solid " + batColor + "; border-radius: 3px; padding: 1px 4px; white-space: nowrap;";
+            bat.textContent = "⚡" + pct + "%";
+            actionContainer.appendChild(bat);
+          }
+
+          if (!clk.isSelf) {
             // Combined toggle button
             var toggleBtn = document.createElement("button");
             var isCurrentlyAsleep = !!clockSleepStates[clk.url];
 
             if (isCurrentlyAsleep) {
-              toggleBtn.style.cssText = "font-size: 10px; font-weight: bold; border-radius: 4px; padding: 2px 8px; border: 1px solid #00ff66; background: #1a3a21; color: #00ff66; cursor: pointer; text-transform: uppercase; transition: background 0.1s;";
+              toggleBtn.style.cssText = "font-size: 10px; font-weight: bold; border-radius: 4px; padding: 2px 0; border: 1px solid #00ff66; background: #1a3a21; color: #00ff66; cursor: pointer; text-transform: uppercase; transition: background 0.1s; width: 54px; box-sizing: border-box; text-align: center;";
               toggleBtn.textContent = "Wake";
               toggleBtn.addEventListener("mouseover", function () { toggleBtn.style.background = "#244d2e"; });
               toggleBtn.addEventListener("mouseout", function () { toggleBtn.style.background = "#1a3a21"; });
             } else {
-              toggleBtn.style.cssText = "font-size: 10px; font-weight: bold; border-radius: 4px; padding: 2px 8px; border: 1px solid #ff3333; background: #3a1a1a; color: #ff3333; cursor: pointer; text-transform: uppercase; transition: background 0.1s;";
+              toggleBtn.style.cssText = "font-size: 10px; font-weight: bold; border-radius: 4px; padding: 2px 0; border: 1px solid #ff3333; background: #3a1a1a; color: #ff3333; cursor: pointer; text-transform: uppercase; transition: background 0.1s; width: 54px; box-sizing: border-box; text-align: center;";
               toggleBtn.textContent = "Sleep";
               toggleBtn.addEventListener("mouseover", function () { toggleBtn.style.background = "#4d2424"; });
               toggleBtn.addEventListener("mouseout", function () { toggleBtn.style.background = "#3a1a1a"; });
@@ -767,9 +801,10 @@
                 headers: { "Content-Type": "application/json" }
               }).then(function (r) {
                 console.log(LOG, "POST " + clk.url + endpoint + " ->", r.status);
-                // Toggle guessed state
-                clockSleepStates[clk.url] = !isCurrentlyAsleep;
-                // Instantly refresh UI list
+                // Record optimistic state and update UI immediately
+                var newState = !isCurrentlyAsleep;
+                pendingClockToggles[clk.url] = newState;
+                clockSleepStates[clk.url] = newState;
                 updateNetworkClocksUi();
               }).catch(function (e) {
                 console.warn(LOG, "POST " + clk.url + endpoint + " failed", e);
@@ -797,7 +832,8 @@
   function startClocksScanning() {
     if (clocksScanTimer) return;
     updateNetworkClocksUi();
-    clocksScanTimer = setInterval(updateNetworkClocksUi, 4000);
+    // Slow safety-net poll; primary updates come via the 'clocks' SSE event.
+    clocksScanTimer = setInterval(updateNetworkClocksUi, 30000);
   }
 
   function bootstrap() {

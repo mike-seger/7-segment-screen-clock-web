@@ -26,7 +26,8 @@ import java.util.concurrent.TimeUnit
 class ClockServer(
     private val context: Context,
     private val port: Int,
-    private val lanUrlProvider: () -> String?
+    private val lanUrlProvider: () -> String?,
+    private val batteryLevelProvider: () -> Int = { -1 }
 ) : NanoHTTPD(port) {
 
     // Last-known persisted state (mirrors localStorage keys that begin with screenClock_).
@@ -41,14 +42,23 @@ class ClockServer(
     }
 
     // Network discovery / clock synchronization states
-    private val serverId = java.util.UUID.randomUUID().toString()
+    // Persisted across restarts so that other devices don't see a new peer entry
+    // every time this app is redeployed or restarted.
+    private val serverId: String = run {
+        val prefs = context.getSharedPreferences("wv_clock_server", android.content.Context.MODE_PRIVATE)
+        prefs.getString("server_id", null) ?: java.util.UUID.randomUUID().toString().also { newId ->
+            prefs.edit().putString("server_id", newId).apply()
+        }
+    }
     private val discoveredClocks = ConcurrentHashMap<String, DiscoveredClock>()
 
     private data class DiscoveredClock(
         val id: String,
         val name: String,
         val url: String,
-        val lastSeen: Long
+        val lastSeen: Long,
+        val battery: Int = -1,
+        val isAsleep: Boolean = false
     )
 
     private var udpSocket: DatagramSocket? = null
@@ -71,6 +81,15 @@ class ClockServer(
     var onWakeRequestedListener: (() -> Unit)? = null
     var onSleepRequestedListener: (() -> Unit)? = null
     var onStateChangedListener: ((String, String?) -> Unit)? = null
+
+    @Volatile
+    var isScreenAsleep: Boolean = false
+        set(value) {
+            if (field != value) {
+                field = value
+                broadcastClocksUpdate()
+            }
+        }
 
     private var p2pSocket: DatagramSocket? = null
     private var p2pThread: Thread? = null
@@ -117,12 +136,21 @@ class ClockServer(
                             if (id != serverId) {
                                 val name = obj.getString("name")
                                 val url = obj.getString("url")
+                                val battery = if (obj.has("battery")) obj.getInt("battery") else -1
+                                val isAsleep = if (obj.has("isAsleep")) obj.getBoolean("isAsleep") else false
+                                val prev = discoveredClocks[id]
+                                val changed = prev == null
+                                    || prev.isAsleep != isAsleep
+                                    || Math.abs(prev.battery - battery) >= 5
                                 discoveredClocks[id] = DiscoveredClock(
                                     id = id,
                                     name = name,
                                     url = url,
-                                    lastSeen = System.currentTimeMillis()
+                                    lastSeen = System.currentTimeMillis(),
+                                    battery = battery,
+                                    isAsleep = isAsleep
                                 )
+                                if (changed) broadcastClocksUpdate()
                             }
                         }
                     } catch (e: Exception) {
@@ -140,6 +168,8 @@ class ClockServer(
                             put("id", serverId)
                             put("name", android.os.Build.MODEL)
                             put("url", url)
+                            put("battery", batteryLevelProvider())
+                            put("isAsleep", isScreenAsleep)
                         }
                         val msg = "WvClockDiscovery:$payload"
                         val bytes = msg.toByteArray(Charsets.UTF_8)
@@ -397,6 +427,8 @@ class ClockServer(
                 put("name", clk.name)
                 put("url", clk.url)
                 put("isSelf", false)
+                put("battery", clk.battery)
+                put("isAsleep", clk.isAsleep)
             }
             array.put(obj)
         }
@@ -406,6 +438,8 @@ class ClockServer(
             put("name", android.os.Build.MODEL + " (This Clock)")
             put("url", selfUrl)
             put("isSelf", true)
+            put("battery", batteryLevelProvider())
+            put("isAsleep", isScreenAsleep)
         }
         array.put(selfObj)
 
@@ -455,6 +489,7 @@ class ClockServer(
     }
 
     private fun handlePostWake(): Response {
+        broadcastClocksUpdate()
         onWakeRequestedListener?.invoke()
         return newFixedLengthResponse(Response.Status.OK, "application/json", "{\"ok\":true}").apply {
             addHeader("Cache-Control", "no-store")
@@ -462,6 +497,7 @@ class ClockServer(
     }
 
     private fun handlePostSleep(): Response {
+        broadcastClocksUpdate()
         onSleepRequestedListener?.invoke()
         return newFixedLengthResponse(Response.Status.OK, "application/json", "{\"ok\":true}").apply {
             addHeader("Cache-Control", "no-store")
@@ -558,6 +594,11 @@ class ClockServer(
             if (value == null) put("value", JSONObject.NULL) else put("value", value)
         }.toString()
         val bytes = "event: state\ndata: $payload\n\n".toByteArray()
+        for (c in sseClients) c.offer(bytes)
+    }
+
+    private fun broadcastClocksUpdate() {
+        val bytes = "event: clocks\ndata: \n\n".toByteArray()
         for (c in sseClients) c.offer(bytes)
     }
 

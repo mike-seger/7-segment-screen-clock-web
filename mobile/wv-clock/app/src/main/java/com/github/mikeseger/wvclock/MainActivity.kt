@@ -3,7 +3,10 @@ package com.github.mikeseger.wvclock
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.net.wifi.WifiManager
+import android.os.BatteryManager
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
@@ -30,8 +33,20 @@ class MainActivity : Activity() {
     }
 
     override fun dispatchTouchEvent(ev: android.view.MotionEvent?): Boolean {
-        resetSleepTimer()
+        if (isAsleep) {
+            wakeScreen()
+        } else {
+            resetSleepTimer()
+        }
         return super.dispatchTouchEvent(ev)
+    }
+
+    override fun onKeyDown(keyCode: Int, event: android.view.KeyEvent?): Boolean {
+        if (isAsleep) {
+            wakeScreen()
+            return true
+        }
+        return super.onKeyDown(keyCode, event)
     }
 
     fun resetSleepTimer() {
@@ -131,7 +146,13 @@ class MainActivity : Activity() {
             val s = ClockServer(
                 context = applicationContext,
                 port = port,
-                lanUrlProvider = { getWifiIpv4()?.let { "http://$it:$port/" } }
+                lanUrlProvider = { getWifiIpv4()?.let { "http://$it:$port/" } },
+                batteryLevelProvider = {
+                    val intent = registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+                    val level = intent?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
+                    val scale = intent?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
+                    if (level >= 0 && scale > 0) (level * 100 / scale) else -1
+                }
             )
             s.onOffsetChangedListener = { offset ->
                 webView.post {
@@ -203,6 +224,7 @@ class MainActivity : Activity() {
                 window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
                 isAsleep = false
+                server?.isScreenAsleep = false
                 resetSleepTimer()
 
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
@@ -243,6 +265,7 @@ class MainActivity : Activity() {
                 window.attributes = lp
 
                 isAsleep = true
+                server?.isScreenAsleep = true
                 handler.removeCallbacks(sleepRunnable)
 
                 webView.post {

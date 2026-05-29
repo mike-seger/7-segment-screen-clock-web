@@ -1,4 +1,4 @@
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, powerMonitor } = require('electron');
 const path = require('path');
 const express = require('express');
 const cors = require('cors');
@@ -13,8 +13,35 @@ const UDP_PORT = 8766;
 const MULTICAST_ADDR = '255.255.255.255';
 const HOST_IP = ip.address();
 
-// Memory store for discovered clocks: { url: { name, url, lastSeen, isSelf } }
+// Memory store for discovered clocks: { url: { name, url, lastSeen, isSelf, battery } }
 const discoveredClocks = {};
+
+// SSE clients for /api/events
+const sseClients = new Set();
+
+function broadcastClocksUpdate() {
+  const msg = Buffer.from('event: clocks\ndata: \n\n');
+  for (const res of sseClients) {
+    try { res.write(msg); } catch (_) { sseClients.delete(res); }
+  }
+}
+
+// Return own battery percentage (0-100) or -1 if unavailable.
+function getSelfBattery() {
+  try {
+    const status = powerMonitor.getSystemIdleState ? powerMonitor : null;
+    if (status && typeof powerMonitor.getCurrentPowerSourceType === 'function') {
+      // Electron >= 22 exposes getBatteryStatus() on powerMonitor in some builds;
+      // fall back to -1 if not available.
+    }
+    // powerMonitor.getBatteryLevel() is available in Electron >= 31 (returns 0-1 float)
+    if (typeof powerMonitor.getBatteryLevel === 'function') {
+      const level = powerMonitor.getBatteryLevel();
+      return Math.round(level * 100);
+    }
+  } catch (_) {}
+  return -1;
+}
 
 // Express server Setup
 const expressApp = express();
@@ -59,7 +86,9 @@ expressApp.get('/api/clocks', (req, res) => {
   clocksList.push({
     name: `macOS Clock (${HOST_IP})`,
     url: `http://${HOST_IP}:${EXPRESS_PORT}`,
-    isSelf: true
+    isSelf: true,
+    battery: getSelfBattery(),
+    isAsleep: false
   });
 
   // Add others
@@ -68,7 +97,9 @@ expressApp.get('/api/clocks', (req, res) => {
       clocksList.push({
         name: discoveredClocks[url].name,
         url: discoveredClocks[url].url,
-        isSelf: false
+        isSelf: false,
+        battery: typeof discoveredClocks[url].battery === 'number' ? discoveredClocks[url].battery : -1,
+        isAsleep: !!discoveredClocks[url].isAsleep
       });
     } else {
       delete discoveredClocks[url];
@@ -85,6 +116,7 @@ expressApp.post('/api/wake', (req, res) => {
       if (err) console.error('Failed to wake screen on macOS:', err);
     });
   }
+  broadcastClocksUpdate();
   res.json({ ok: true });
 });
 
@@ -95,7 +127,23 @@ expressApp.post('/api/sleep', (req, res) => {
       if (err) console.error('Failed to put screen to sleep on macOS:', err);
     });
   }
+  broadcastClocksUpdate();
   res.json({ ok: true });
+});
+
+expressApp.get('/api/events', (req, res) => {
+  res.set({
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'X-Accel-Buffering': 'no'
+  });
+  res.flushHeaders();
+  res.write(': connected\n\n');
+  // Send a snapshot of the current state
+  res.write(`event: snapshot\ndata: ${JSON.stringify(systemState)}\n\n`);
+  sseClients.add(res);
+  req.on('close', () => sseClients.delete(res));
 });
 
 expressApp.get('/api/url', (req, res) => {
@@ -159,11 +207,20 @@ udpSocket.on('message', (msg, rinfo) => {
       const jsonStr = rawData.substring('WvClockDiscovery:'.length);
       const obj = JSON.parse(jsonStr);
       if (obj && obj.id && obj.id !== SERVER_ID) {
+        const prev = discoveredClocks[obj.id];
+        const battery = typeof obj.battery === 'number' ? obj.battery : -1;
+        const isAsleep = !!obj.isAsleep;
+        const changed = !prev
+          || prev.isAsleep !== isAsleep
+          || Math.abs((prev.battery || -1) - battery) >= 5;
         discoveredClocks[obj.id] = {
           name: obj.name,
           url: obj.url,
-          lastSeen: Date.now()
+          lastSeen: Date.now(),
+          battery,
+          isAsleep
         };
+        if (changed) broadcastClocksUpdate();
       }
     }
   } catch (err) {
@@ -179,7 +236,9 @@ setInterval(() => {
     const payload = {
       id: SERVER_ID,
       name: `macOS Clock (${HOST_IP})`,
-      url: `http://${HOST_IP}:${EXPRESS_PORT}`
+      url: `http://${HOST_IP}:${EXPRESS_PORT}`,
+      battery: getSelfBattery(),
+      isAsleep: false
     };
     const message = `WvClockDiscovery:${JSON.stringify(payload)}`;
     const buffer = Buffer.from(message);
