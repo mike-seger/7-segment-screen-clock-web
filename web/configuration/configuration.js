@@ -128,6 +128,7 @@ function initConfiguration() {
         sizeBudget:        document.getElementById("sizeBudget"),
         sizeBudgetValue:   document.getElementById("sizeBudgetValue"),
         ntpServer:         document.getElementById("ntpServerInput"),
+        sleepTimeoutSelect:document.getElementById("sleepTimeoutSelect"),
 
         profileName:       document.getElementById("profileName"),
         profileSelect:     document.getElementById("profileSelect"),
@@ -358,6 +359,7 @@ function initConfiguration() {
         if (els.showDebug) els.showDebug.checked = state.showDebug === true;
         if (els.sizeBudget) els.sizeBudget.value = state.sizeBudget;
         if (els.ntpServer) els.ntpServer.value = state.ntpServer || "";
+        if (els.sleepTimeoutSelect) els.sleepTimeoutSelect.value = state.sleepTimeout || 0;
 
         syncMultiFontUi();
 
@@ -392,6 +394,7 @@ function initConfiguration() {
         }
         if (els.sizeBudget) state.sizeBudget = Math.min(1, Math.max(0.1, Number(els.sizeBudget.value) || 0.95));
         if (els.ntpServer) state.ntpServer = els.ntpServer.value || "";
+        if (els.sleepTimeoutSelect) state.sleepTimeout = Number(els.sleepTimeoutSelect.value) || 0;
 
         if (els.numericFontSelect.value) {
             state.numericFont = els.numericFontSelect.value;
@@ -588,7 +591,8 @@ function initConfiguration() {
             els.multiFont,
             els.inheritColonColor,
             els.sizeBudget,
-            els.ntpServer
+            els.ntpServer,
+            els.sleepTimeoutSelect
         ].filter(Boolean);
 
         function attachSelectArrowKeys(selectEl) {
@@ -634,6 +638,7 @@ function initConfiguration() {
         attachSelectArrowKeys(els.alphaFontSelect);
         attachSelectArrowKeys(els.colonFontSelect);
         attachSelectArrowKeys(els.profileSelect);
+        attachSelectArrowKeys(els.sleepTimeoutSelect);
 
         els.saveProfileBtn.onclick = () => {
             const name = els.profileName.value.trim();

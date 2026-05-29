@@ -30,7 +30,7 @@ class ClockServer(
 ) : NanoHTTPD(port) {
 
     // Last-known persisted state (mirrors localStorage keys that begin with screenClock_).
-    private val state = ConcurrentHashMap<String, String>()
+    val state = ConcurrentHashMap<String, String>()
 
     // Open SSE subscribers.
     private val sseClients = CopyOnWriteArrayList<SseClient>()
@@ -70,6 +70,7 @@ class ClockServer(
     var onOffsetChangedListener: ((Long) -> Unit)? = null
     var onWakeRequestedListener: (() -> Unit)? = null
     var onSleepRequestedListener: (() -> Unit)? = null
+    var onStateChangedListener: ((String, String?) -> Unit)? = null
 
     private var p2pSocket: DatagramSocket? = null
     private var p2pThread: Thread? = null
@@ -449,6 +450,7 @@ class ClockServer(
         }
 
         broadcast(key, value)
+        onStateChangedListener?.invoke(key, value)
         return newFixedLengthResponse(Response.Status.OK, "application/json", "{\"ok\":true}")
     }
 

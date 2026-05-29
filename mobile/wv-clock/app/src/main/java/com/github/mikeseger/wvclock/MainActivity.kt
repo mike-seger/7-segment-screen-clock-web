@@ -21,6 +21,28 @@ class MainActivity : Activity() {
     private val port = 8765
     private var multicastLock: android.net.wifi.WifiManager.MulticastLock? = null
 
+    private var sleepTimeoutMinutes = 0
+    private var isAsleep = false
+    private val handler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val sleepRunnable = Runnable {
+        Log.i(TAG, "Auto-sleep timer expired. Putting screen to sleep.")
+        sleepScreen()
+    }
+
+    override fun dispatchTouchEvent(ev: android.view.MotionEvent?): Boolean {
+        resetSleepTimer()
+        return super.dispatchTouchEvent(ev)
+    }
+
+    fun resetSleepTimer() {
+        handler.removeCallbacks(sleepRunnable)
+        if (sleepTimeoutMinutes > 0 && !isAsleep) {
+            val delayMs = sleepTimeoutMinutes * 60 * 1000L
+            handler.postDelayed(sleepRunnable, delayMs)
+            Log.d(TAG, "Reset auto-sleep timer: screen will sleep in $sleepTimeoutMinutes min")
+        }
+    }
+
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -37,10 +59,25 @@ class MainActivity : Activity() {
                     super.onPageFinished(view, url)
                     val offset = server?.calculatedOffsetMs ?: 0L
                     view?.evaluateJavascript("window.__timeMasterOffsetMs = $offset;", null)
+
+                    try {
+                        val stateStr = server?.state?.get("screenClock_state")
+                        if (stateStr != null) {
+                            val obj = org.json.JSONObject(stateStr)
+                            sleepTimeoutMinutes = obj.optInt("sleepTimeout", 0)
+                            Log.i(TAG, "Initial sleep timeout loaded: $sleepTimeoutMinutes minutes")
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error parsing initial state json", e)
+                    }
+                    resetSleepTimer()
                 }
             }
         }
         setContentView(webView)
+
+        // Keep the screen on permanently while the application is in the foreground
+        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         val wifiManager = applicationContext.getSystemService(Context.WIFI_SERVICE) as? android.net.wifi.WifiManager
         try {
@@ -101,6 +138,23 @@ class MainActivity : Activity() {
                     webView.evaluateJavascript("window.__timeMasterOffsetMs = $offset;", null)
                 }
             }
+            s.onStateChangedListener = { key, value ->
+                if (key == "screenClock_state" && value != null) {
+                    try {
+                        val obj = org.json.JSONObject(value)
+                        val timeout = obj.optInt("sleepTimeout", 0)
+                        runOnUiThread {
+                            if (sleepTimeoutMinutes != timeout) {
+                                sleepTimeoutMinutes = timeout
+                                Log.i(TAG, "Sleep timeout updated to: $sleepTimeoutMinutes minutes")
+                                resetSleepTimer()
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error parsing state json for sleepTimeout", e)
+                    }
+                }
+            }
             s.onWakeRequestedListener = {
                 wakeScreen()
             }
@@ -145,6 +199,12 @@ class MainActivity : Activity() {
                 lp.screenBrightness = android.view.WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
                 window.attributes = lp
 
+                // Ensure keep screen on flag is set
+                window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+
+                isAsleep = false
+                resetSleepTimer()
+
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
                     setShowWhenLocked(true)
                     setTurnScreenOn(true)
@@ -152,8 +212,7 @@ class MainActivity : Activity() {
                     @Suppress("DEPRECATION")
                     window.addFlags(
                         android.view.WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
-                        android.view.WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON or
-                        android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+                        android.view.WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
                     )
                 }
 
@@ -182,6 +241,9 @@ class MainActivity : Activity() {
                 val lp = window.attributes
                 lp.screenBrightness = 0.01f // ultra-dim / off
                 window.attributes = lp
+
+                isAsleep = true
+                handler.removeCallbacks(sleepRunnable)
 
                 webView.post {
                     webView.evaluateJavascript("document.body.style.opacity = '0'; document.body.style.background = '#000000';", null)

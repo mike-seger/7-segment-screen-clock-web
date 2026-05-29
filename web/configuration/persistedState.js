@@ -22,7 +22,8 @@ const DEFAULT_STATE = {
     secColonDistance: 0,
     secOffset: 0,
     sizeBudget: 0.95,
-    ntpServer: ""
+    ntpServer: "",
+    sleepTimeout: 0
 };
 
 function getDefaultBuiltinProfile() {
@@ -75,6 +76,7 @@ function normalizeSizingState(inputState) {
     next.inheritColonColor = Object.prototype.hasOwnProperty.call(source, "inheritColonColor")
         ? !!source.inheritColonColor
         : true;
+    next.sleepTimeout = Number.isFinite(source.sleepTimeout) ? Number(source.sleepTimeout) : 0;
 
     const legacyDateFontSize = Number(source.dateFontSize);
     const legacyTimeFontSize = Number(source.timeFontSize);
