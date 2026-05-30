@@ -361,11 +361,16 @@ function initConfiguration() {
         if (els.ntpServer) els.ntpServer.value = state.ntpServer || "";
         if (els.sleepTimeoutSelect) els.sleepTimeoutSelect.value = state.sleepTimeout || 0;
 
+        // Font selects: set whenever fonts are already populated (e.g. profile switch).
+        // On first load populateFontSelects() handles this; setting here is harmless
+        // if options aren't ready yet (no matching option → value stays unchanged).
+        if (els.numericFontSelect) els.numericFontSelect.value = state.numericFont;
+        if (els.alphaFontSelect)   els.alphaFontSelect.value   = state.alphaFont;
+        if (els.colonFontSelect)   els.colonFontSelect.value   = state.colonFont;
+
         syncMultiFontUi();
 
         updateBadgesFromState();
-
-        // font selects are set after fonts are loaded (see populateFontSelects)
     }
 
     function readFormIntoState() {
