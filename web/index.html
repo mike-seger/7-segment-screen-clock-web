@@ -970,6 +970,7 @@ function applyClockTransform(animated = false) {
 
   if (timeLine) {
     timeLine.style.marginTop = "0px";
+    timeLine.style.fontSize = `${renderedTimeFontSize / numericCorrection}px`;
     // Neutralise CSS hour-leading-one rule and any previous frame's correction;
     // will be recomputed after scale is applied below.
     timeLine.style.transform = "translateX(0)";

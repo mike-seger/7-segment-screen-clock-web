@@ -65,7 +65,7 @@ html, body {
 }
 
 #dateLine {
-    line-height: 1em;
+    line-height: 1;
     font-size: min(16vh, 9vw);
     color: #ff006c;
     margin: 0 2em;
@@ -75,7 +75,7 @@ html, body {
 }
 
 #timeLine {
-    line-height: 1em;
+    line-height: 1;
     font-size: min(48vh, 27vw);
     font-variant-numeric: tabular-nums;
     transform: translateX(0);
@@ -139,7 +139,7 @@ html, body {
     gap: 0;
     justify-content: center;
     align-items: baseline;
-    line-height: 0.9em;
+    line-height: 0.9;
     font-size: min(48vh, 27vw);
 }
 
