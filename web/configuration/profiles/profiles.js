@@ -45,7 +45,7 @@ window.BUILTIN_PROFILES = [
     "data": {
       "numericFont": "Automata ExtraLight",
       "alphaFont": "Automata ExtraLight",
-      "colonFont": "Automate",
+      "colonFont": "Automate Light",
       "multiFont": true,
       "numericScale": 100,
       "alphaScale": 100,
@@ -53,7 +53,7 @@ window.BUILTIN_PROFILES = [
       "numericOffset": 0,
       "alphaOffset": 0,
       "colonOffset": 0,
-      "weightGap": 0.27,
+      "weightGap": 0.15,
       "fr": 0.23,
       "dateColor": "#fb04b9",
       "timeColor": "#4568f2",
@@ -62,7 +62,10 @@ window.BUILTIN_PROFILES = [
       "secColor": "#24b742",
       "secFontFactor": 0.59,
       "secColonDistance": 0.08,
+      "secOffset": 0,
       "sizeBudget": 0.94,
+      "ntpServer": "",
+      "sleepTimeout": 0,
       "dualFont": true
     }
   },
