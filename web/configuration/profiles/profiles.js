@@ -23,6 +23,8 @@ window.BUILTIN_PROFILES = [
       "secColonDistance": 0.08,
       "secOffset": 0,
       "sizeBudget": 1,
+      "padHours": false,
+      "recenterLeadingOne": true,
       "ntpServer": "",
       "sleepTimeout": 0
     }
