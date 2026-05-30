@@ -760,12 +760,16 @@ function getWorstCaseTimeWidth() {
 
 // Helper function to wrap each character in a fixed-width span
 // Only applies to sequences containing only 0-9, :, and .
-function wrapDigits(str) {
+function wrapDigits(str, alphaSubstitution = false) {
   let result = str;
   
-  // Replace 0s with Os if o40 flag is set
+  // Replace 0s with Os if numeric font has o40 flag set
   if (window.clockSizeCorrection && window.clockSizeCorrection.o40) {
     result = result.replace(/0/g, 'O');
+  }
+  // Replace Ss with 5s for alpha date text if alpha font has o40 flag set
+  if (alphaSubstitution && window.clockSizeCorrection && window.clockSizeCorrection.alphaO40) {
+    result = result.replace(/S/g, '5');
   }
   
   // Check if font has excludeMonoTweaks enabled
@@ -813,9 +817,9 @@ function updateClock() {
     document.getElementById("colon-sec").innerHTML = wrapDigits(":");
     document.getElementById("sec").innerHTML       = wrapDigits(s);
 
-    document.getElementById("weekday").innerHTML  = wrapDigits(simulationWeekday || days[now.getDay()]);
+    document.getElementById("weekday").innerHTML  = wrapDigits(simulationWeekday || days[now.getDay()], true);
     document.getElementById("day").innerHTML      = wrapDigits(d);
-    document.getElementById("month").innerHTML    = wrapDigits(month);
+    document.getElementById("month").innerHTML    = wrapDigits(month, true);
     document.getElementById("year").innerHTML     = wrapDigits(y);
 
     if (timeLine) {

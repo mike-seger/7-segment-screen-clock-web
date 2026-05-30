@@ -461,7 +461,8 @@ function initConfiguration() {
             colonBaseline: colonBaselineOffset,
             gapAdjust: numericCorrectionMeta.gapAdjust,
             excludeMonoTweaks: numericCorrectionMeta.excludeMonoTweaks,
-            o40: numericCorrectionMeta.o40
+            o40: numericCorrectionMeta.o40,
+            alphaO40: alphaCorrectionMeta.o40
         };
 
         dateLine.style.color     = state.dateColor;
