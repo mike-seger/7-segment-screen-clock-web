@@ -206,8 +206,8 @@ html, body {
 
 #menuButton {
     position: fixed;
-    top: -17px !important;
-    right: -15px !important;
+    top: 0 !important;
+    right: 0 !important;
     width: 8.96vh;
     height: 8.96vh;
     line-height: 8.96vh;
