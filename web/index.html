@@ -929,6 +929,7 @@ function applyClockTransform(animated = false) {
   clockInner.style.paddingTop = "0px";
   clockInner.style.paddingBottom = "0px";
   clockInner.style.rowGap = "0px";
+  if (timeLine) timeLine.style.marginTop = "0px";
 
   const vw = window.innerWidth;
   const vh = window.innerHeight;
@@ -997,9 +998,11 @@ function applyClockTransform(animated = false) {
   // clockInner.style.transform is already "none" here, so getBoundingClientRect
   // inside measureRowInkBounds returns clean layout-space coordinates.
   let naturalInkGap = 0;
+  let _di = null;
+  let _ti = null;
   if (dateLine && timeLine) {
-    const _di = measureRowInkBounds(dateLine);
-    const _ti = measureRowInkBounds(timeLine);
+    _di = measureRowInkBounds(dateLine);
+    _ti = measureRowInkBounds(timeLine);
     if (_di && _ti) naturalInkGap = Math.max(0, _ti.top - _di.bottom);
   }
 
@@ -1053,15 +1056,25 @@ function applyClockTransform(animated = false) {
     hLocalOffset = (vw / 2) - timeBoxCenterX;
   }
 
-  const blockTop = dateLine ? dateLine.offsetTop : (timeLine ? timeLine.offsetTop : 0);
-  const blockBottom = timeLine ? (timeLine.offsetTop + timeLine.offsetHeight) : (dateLine ? dateLine.offsetTop + dateLine.offsetHeight : 0);
-
-  if (blockBottom > blockTop) {
-    const blockCenterY = (blockTop + blockBottom) / 2;
-    const vOffset = (vh / 2) - blockCenterY;
-    const theta = rotation * Math.PI / 180;
+  const theta = rotation * Math.PI / 180;
+  if (_di && _ti) {
+    // Center on the ink midpoint rather than the element-box midpoint.  _di/_ti
+    // were measured at marginTop=0; the ink midpoint is invariant to the
+    // marginTopPx shift applied below because flex recentering of clockInner
+    // absorbs it exactly, so (_di.top + _ti.bottom)/2 is correct for any gap.
+    const inkCenterY = (_di.top + _ti.bottom) / 2;
+    const vOffset = (vh / 2) - inkCenterY;
     hOffsetVp = -vOffset * scale * Math.sin(theta);
     vOffsetVp = vOffset * scale * Math.cos(theta);
+  } else {
+    const blockTop = dateLine ? dateLine.offsetTop : (timeLine ? timeLine.offsetTop : 0);
+    const blockBottom = timeLine ? (timeLine.offsetTop + timeLine.offsetHeight) : (dateLine ? dateLine.offsetTop + dateLine.offsetHeight : 0);
+    if (blockBottom > blockTop) {
+      const blockCenterY = (blockTop + blockBottom) / 2;
+      const vOffset = (vh / 2) - blockCenterY;
+      hOffsetVp = -vOffset * scale * Math.sin(theta);
+      vOffsetVp = vOffset * scale * Math.cos(theta);
+    }
   }
 
   // Save layout context params for getClockRowInkBounds
