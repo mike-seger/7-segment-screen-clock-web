@@ -232,7 +232,7 @@ html, body {
     z-index: 900;
     padding: 0.45rem 0.75rem;
     border-top: 1px solid rgba(4, 251, 98, 0.18);
-    background: rgba(0, 0, 0, 0.72);
+    background: rgba(0, 0, 0, 0.2);
     color: #c8ffd8;
     font-family: monospace;
     font-size: 14px;
