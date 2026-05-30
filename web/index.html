@@ -796,7 +796,9 @@ function wrapDigits(str, alphaSubstitution = false) {
 
 function updateClock() {
     const now = new Date(Date.now() + (window.__timeMasterOffsetMs || 0));
-  const hRaw = String(now.getHours());
+  const hRaw = typeof state !== "undefined" && state.padHours
+    ? String(now.getHours()).padStart(2, "0")
+    : String(now.getHours());
   const mRaw = String(now.getMinutes()).padStart(2, "0");
   const sRaw = String(now.getSeconds()).padStart(2, "0");
   const dRaw = String(now.getDate()).padStart(2, "0");
@@ -1056,9 +1058,13 @@ function applyClockTransform(animated = false) {
   let hOffsetVp = 0;
   let vOffsetVp = 0;
 
-  if (timeLine) {
-    const timeBoxCenterX = timeLine.offsetLeft + timeLine.offsetWidth / 2;
-    hLocalOffset = (vw / 2) - timeBoxCenterX;
+  if (timeLine && currentState.recenterLeadingOne === true && _ti) {
+    // Center the actual ink horizontally, not the element box.
+    // Scale is around vw/2 (clockInner center = viewport center), so a
+    // layout-space shift of (vw/2 - inkCenter) maps exactly to viewport center
+    // regardless of the current scale factor.
+    const inkCenterX = (_ti.left + _ti.right) / 2;
+    hLocalOffset = (vw / 2) - inkCenterX;
   }
 
   const theta = rotation * Math.PI / 180;

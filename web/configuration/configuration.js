@@ -129,6 +129,8 @@ function initConfiguration() {
         sizeBudgetValue:   document.getElementById("sizeBudgetValue"),
         ntpServer:         document.getElementById("ntpServerInput"),
         sleepTimeoutSelect:document.getElementById("sleepTimeoutSelect"),
+        padHours:          document.getElementById("padHours"),
+        recenterLeadingOne:document.getElementById("recenterLeadingOne"),
 
         profileName:       document.getElementById("profileName"),
         profileSelect:     document.getElementById("profileSelect"),
@@ -360,6 +362,8 @@ function initConfiguration() {
         if (els.sizeBudget) els.sizeBudget.value = state.sizeBudget;
         if (els.ntpServer) els.ntpServer.value = state.ntpServer || "";
         if (els.sleepTimeoutSelect) els.sleepTimeoutSelect.value = state.sleepTimeout || 0;
+        if (els.padHours) els.padHours.checked = state.padHours === true;
+        if (els.recenterLeadingOne) els.recenterLeadingOne.checked = state.recenterLeadingOne === true;
 
         // Font selects: set whenever fonts are already populated (e.g. profile switch).
         // On first load populateFontSelects() handles this; setting here is harmless
@@ -400,6 +404,8 @@ function initConfiguration() {
         if (els.sizeBudget) state.sizeBudget = Math.min(1, Math.max(0.1, Number(els.sizeBudget.value) || 0.95));
         if (els.ntpServer) state.ntpServer = els.ntpServer.value || "";
         if (els.sleepTimeoutSelect) state.sleepTimeout = Number(els.sleepTimeoutSelect.value) || 0;
+        if (els.padHours) state.padHours = els.padHours.checked;
+        if (els.recenterLeadingOne) state.recenterLeadingOne = els.recenterLeadingOne.checked;
 
         if (els.numericFontSelect.value) {
             state.numericFont = els.numericFontSelect.value;
@@ -598,7 +604,9 @@ function initConfiguration() {
             els.inheritColonColor,
             els.sizeBudget,
             els.ntpServer,
-            els.sleepTimeoutSelect
+            els.sleepTimeoutSelect,
+            els.padHours,
+            els.recenterLeadingOne
         ].filter(Boolean);
 
         function attachSelectArrowKeys(selectEl) {

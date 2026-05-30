@@ -23,7 +23,9 @@ const DEFAULT_STATE = {
     secOffset: 0,
     sizeBudget: 0.95,
     ntpServer: "",
-    sleepTimeout: 0
+    sleepTimeout: 0,
+    padHours: false,
+    recenterLeadingOne: false
 };
 
 function getDefaultBuiltinProfile() {

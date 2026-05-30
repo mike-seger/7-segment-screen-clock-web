@@ -140,6 +140,8 @@ window.BUILTIN_PROFILES = [
       "sizeBudget": 0.94,
       "ntpServer": "",
       "sleepTimeout": 0,
+      "padHours": false,
+      "recenterLeadingOne": true,
       "dualFont": true
     }
   },
