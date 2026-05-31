@@ -27,6 +27,12 @@ let menuCssLoaded = false;
 
 function loadMenuCSS() {
     if (menuCssLoaded) return;
+
+    const symLink = document.createElement("link");
+    symLink.rel = "stylesheet";
+    symLink.href = "symbols.css";
+    document.head.appendChild(symLink);
+
     const link = document.createElement("link");
     link.rel = "stylesheet";
     link.href = "configuration/menu.css";
@@ -36,6 +42,136 @@ function loadMenuCSS() {
 
 let menuLoaded = false;
 let configurationInitialized = false;
+
+function initMenuEvents() {
+    const panel = document.getElementById('menuPanel');
+    if (!panel) return;
+
+    // ---- DRAG AND DROP POSITION PERSISTENCE ----
+    const header = document.getElementById('menuHeader');
+    const closeBtn = document.getElementById('menuCloseBtn');
+    let dragging = false;
+    let dragOffX = 0, dragOffY = 0;
+
+    // Restore Position
+    try {
+        const storedPos = localStorage.getItem('screenClock_menuPosition');
+        if (storedPos) {
+            const pos = JSON.parse(storedPos);
+            if (pos.top !== undefined && pos.left !== undefined) {
+                panel.style.top = pos.top;
+                panel.style.left = pos.left;
+                panel.style.right = 'auto';
+            }
+        }
+    } catch (e) {
+        console.warn('Failed to restore menu position:', e);
+    }
+
+    // Drag (Mouse)
+    header.addEventListener('mousedown', (e) => {
+        if (e.target === closeBtn || e.target.closest('#menuCloseBtn')) return; // Don't drag if clicking close button
+        if (e.button !== 0) return; // Left click only
+        dragging = true;
+        const rect = panel.getBoundingClientRect();
+        dragOffX = e.clientX - rect.left;
+        dragOffY = e.clientY - rect.top;
+        header.style.cursor = 'grabbing';
+        e.preventDefault();
+    });
+
+    const onMouseMove = (e) => {
+        if (!dragging) return;
+        const left = Math.max(0, Math.min(e.clientX - dragOffX, window.innerWidth - panel.offsetWidth)) + 'px';
+        const top = Math.max(0, Math.min(e.clientY - dragOffY, window.innerHeight - panel.offsetHeight)) + 'px';
+        panel.style.left = left;
+        panel.style.top = top;
+        panel.style.right = 'auto';
+        try {
+            localStorage.setItem('screenClock_menuPosition', JSON.stringify({ top, left }));
+        } catch (e) {}
+    };
+
+    const onMouseUp = () => {
+        if (dragging) {
+            dragging = false;
+            header.style.cursor = 'grab';
+        }
+    };
+
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+
+    // Drag (Touch)
+    header.addEventListener('touchstart', (e) => {
+        if (e.target === closeBtn || e.target.closest('#menuCloseBtn')) return;
+        const t = e.touches[0];
+        dragging = true;
+        const rect = panel.getBoundingClientRect();
+        dragOffX = t.clientX - rect.left;
+        dragOffY = t.clientY - rect.top;
+        e.preventDefault();
+    }, { passive: false });
+
+    const onTouchMove = (e) => {
+        if (!dragging) return;
+        const t = e.touches[0];
+        const left = Math.max(0, Math.min(t.clientX - dragOffX, window.innerWidth - panel.offsetWidth)) + 'px';
+        const top = Math.max(0, Math.min(t.clientY - dragOffY, window.innerHeight - panel.offsetHeight)) + 'px';
+        panel.style.left = left;
+        panel.style.top = top;
+        panel.style.right = 'auto';
+        try {
+            localStorage.setItem('screenClock_menuPosition', JSON.stringify({ top, left }));
+        } catch (e) {}
+        e.preventDefault();
+    };
+
+    const onTouchEnd = () => {
+        dragging = false;
+    };
+
+    document.addEventListener('touchmove', onTouchMove, { passive: false });
+    document.addEventListener('touchend', onTouchEnd);
+
+    // ---- TAB SWITCHING ----
+    const tabs = panel.querySelectorAll('.menuTab');
+    const contents = panel.querySelectorAll('.menu-tab-content');
+
+    const selectTab = (tabId) => {
+        tabs.forEach(tab => {
+            const isTarget = tab.getAttribute('data-tab') === tabId;
+            tab.classList.toggle('active', isTarget);
+        });
+        contents.forEach(content => {
+            const isTarget = content.id === `tab-${tabId}`;
+            content.style.display = isTarget ? 'block' : 'none';
+        });
+        try {
+            localStorage.setItem('screenClock_selectedTab', tabId);
+        } catch (e) {}
+    };
+
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            const tabId = tab.getAttribute('data-tab');
+            selectTab(tabId);
+        });
+    });
+
+    // Restore Tab
+    try {
+        const lastTab = localStorage.getItem('screenClock_selectedTab') || 'fonts';
+        selectTab(lastTab);
+    } catch (e) {
+        selectTab('fonts');
+    }
+
+    // ---- CLOSE BUTTON ----
+    if (closeBtn) {
+        closeBtn.addEventListener('click', toggleMenuPanel);
+    }
+}
 
 async function loadMenuPanel() {
     if (menuLoaded) return;
@@ -59,8 +195,7 @@ async function loadMenuPanel() {
         panel.style.display = 'none';
         menuLoaded = true;
 
-        // if you have menu-init logic, call it here:
-        // initMenuControls();
+        initMenuEvents();
     } catch (e) {
         console.error('Error loading menu.html', e);
     }
@@ -92,8 +227,8 @@ async function toggleMenuPanel() {
     if (!panel) return;
 
     loadMenuCSS();
-    const isOpen = panel.style.display !== "block";
-    panel.style.display = isOpen ? "block" : "none";
+    const isOpen = panel.style.display !== "flex";
+    panel.style.display = isOpen ? "flex" : "none";
     if (!isOpen) menuButton.style.display = "none";
     saveMenuOpenState(isOpen);
 }
@@ -109,12 +244,12 @@ window.openMenuPanel = async function() {
     if (!panel) return;
     saveMenuOpenState(true);
     loadMenuCSS();
-    panel.style.display = "block";
+    panel.style.display = "flex";
 };
 
 window.toggleConfigUI = async function() {
     const panel = document.getElementById('menuPanel');
-    const panelVisible = panel && panel.style.display === "block";
+    const panelVisible = panel && panel.style.display === "flex";
 
     if (panelVisible) {
         panel.style.display = "none";
@@ -126,7 +261,7 @@ window.toggleConfigUI = async function() {
         const p = document.getElementById('menuPanel');
         if (!p) return;
         loadMenuCSS();
-        p.style.display = "block";
+        p.style.display = "flex";
         saveMenuOpenState(true);
     }
 };
@@ -143,7 +278,7 @@ ensureConfigurationInitialized();
         const panel = document.getElementById('menuPanel');
         if (panel) {
             loadMenuCSS();
-            panel.style.display = "block";
+            panel.style.display = "flex";
         }
     }
 })();

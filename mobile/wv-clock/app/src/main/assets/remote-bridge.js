@@ -765,7 +765,7 @@
           if (typeof clk.milliWatts === "number" && clk.milliWatts >= 0) {
             var watt = document.createElement("span");
             var w = (clk.milliWatts / 1000).toFixed(1);
-            watt.style.cssText = "font-size: 10px; font-weight: bold; color: #aaaaff; background: rgba(0,0,0,0.35); border: 1px solid #aaaaff; border-radius: 3px; padding: 1px 4px; white-space: nowrap;";
+            watt.style.cssText = "font-size: 10px; font-weight: bold; color: #aaaaff; background: rgba(0,0,0,0.35); border: 1px solid #aaaaff; border-radius: 3px; padding: 0 4px; height: 20px; line-height: 20px; box-sizing: border-box; white-space: nowrap; display: inline-flex; align-items: center;";
             watt.textContent = w + "W";
             actionContainer.appendChild(watt);
           }
@@ -775,30 +775,33 @@
             var bat = document.createElement("span");
             var pct = clk.battery;
             var batColor = pct <= 15 ? "#ff3333" : pct <= 40 ? "#ffaa00" : "#00cc55";
-            bat.style.cssText = "font-size: 10px; font-weight: bold; color: " + batColor + "; background: rgba(0,0,0,0.35); border: 1px solid " + batColor + "; border-radius: 3px; padding: 1px 4px; white-space: nowrap;";
+            bat.style.cssText = "font-size: 10px; font-weight: bold; color: " + batColor + "; background: rgba(0,0,0,0.35); border: 1px solid " + batColor + "; border-radius: 3px; padding: 0 4px; height: 20px; line-height: 20px; box-sizing: border-box; white-space: nowrap; display: inline-flex; align-items: center;";
             bat.textContent = "⚡" + pct + "%";
             actionContainer.appendChild(bat);
           }
 
           if (!clk.isSelf) {
-            // Combined toggle button
-            var toggleBtn = document.createElement("button");
+            // Combined toggle span (not <button> to avoid UA stylesheet height overrides)
+            var toggleBtn = document.createElement("span");
             var isCurrentlyAsleep = !!clockSleepStates[clk.url];
+            var toggleDisabled = false;
 
+            var toggleBaseStyle = "font-size: 10px; font-weight: bold; border-radius: 4px; border-style: solid; border-width: 1px; cursor: pointer; text-transform: uppercase; width: 54px; height: 20px; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; user-select: none; transition: background 0.1s; vertical-align: middle;";
             if (isCurrentlyAsleep) {
-              toggleBtn.style.cssText = "font-size: 10px; font-weight: bold; border-radius: 4px; padding: 2px 0; border: 1px solid #00ff66; background: #1a3a21; color: #00ff66; cursor: pointer; text-transform: uppercase; transition: background 0.1s; width: 54px; box-sizing: border-box; text-align: center;";
+              toggleBtn.style.cssText = toggleBaseStyle + "border-color: #00ff66; background: #1a3a21; color: #00ff66;";
               toggleBtn.textContent = "Wake";
-              toggleBtn.addEventListener("mouseover", function () { toggleBtn.style.background = "#244d2e"; });
-              toggleBtn.addEventListener("mouseout", function () { toggleBtn.style.background = "#1a3a21"; });
+              toggleBtn.addEventListener("mouseover", function () { if (!toggleDisabled) toggleBtn.style.background = "#244d2e"; });
+              toggleBtn.addEventListener("mouseout",  function () { if (!toggleDisabled) toggleBtn.style.background = "#1a3a21"; });
             } else {
-              toggleBtn.style.cssText = "font-size: 10px; font-weight: bold; border-radius: 4px; padding: 2px 0; border: 1px solid #ff3333; background: #3a1a1a; color: #ff3333; cursor: pointer; text-transform: uppercase; transition: background 0.1s; width: 54px; box-sizing: border-box; text-align: center;";
+              toggleBtn.style.cssText = toggleBaseStyle + "border-color: #ff3333; background: #3a1a1a; color: #ff3333;";
               toggleBtn.textContent = "Sleep";
-              toggleBtn.addEventListener("mouseover", function () { toggleBtn.style.background = "#4d2424"; });
-              toggleBtn.addEventListener("mouseout", function () { toggleBtn.style.background = "#3a1a1a"; });
+              toggleBtn.addEventListener("mouseover", function () { if (!toggleDisabled) toggleBtn.style.background = "#4d2424"; });
+              toggleBtn.addEventListener("mouseout",  function () { if (!toggleDisabled) toggleBtn.style.background = "#3a1a1a"; });
             }
 
             toggleBtn.addEventListener("click", function () {
-              toggleBtn.disabled = true;
+              if (toggleDisabled) return;
+              toggleDisabled = true;
               toggleBtn.style.opacity = "0.5";
 
               var endpoint = isCurrentlyAsleep ? "api/wake" : "api/sleep";
@@ -810,14 +813,13 @@
                 headers: { "Content-Type": "application/json" }
               }).then(function (r) {
                 console.log(LOG, "POST " + clk.url + endpoint + " ->", r.status);
-                // Record optimistic state and update UI immediately
                 var newState = !isCurrentlyAsleep;
                 pendingClockToggles[clk.url] = newState;
                 clockSleepStates[clk.url] = newState;
                 updateNetworkClocksUi();
               }).catch(function (e) {
                 console.warn(LOG, "POST " + clk.url + endpoint + " failed", e);
-                toggleBtn.disabled = false;
+                toggleDisabled = false;
                 toggleBtn.style.opacity = "1";
               });
             });
@@ -825,11 +827,11 @@
             actionContainer.appendChild(toggleBtn);
           }
 
-          // Info badge — circled ⓘ shows device details + 7-day activity chart
-          var infoBtn = document.createElement("button");
+          // Info badge — circled ⓘ shows device details + activity chart
+          var infoBtn = document.createElement("span");
           infoBtn.textContent = "\u24d8";
           infoBtn.title = "Device info";
-          infoBtn.style.cssText = "font-size:13px;background:none;border:none;color:#6699cc;cursor:pointer;padding:0 2px;line-height:1;opacity:0.75;";
+          infoBtn.style.cssText = "font-size:13px;color:#6699cc;cursor:pointer;padding:0 2px;line-height:20px;opacity:0.75;display:inline-flex;align-items:center;height:20px;box-sizing:border-box;vertical-align:middle;";
           infoBtn.addEventListener("mouseover", function() { this.style.opacity = "1"; });
           infoBtn.addEventListener("mouseout", function() { this.style.opacity = "0.75"; });
           infoBtn.addEventListener("click", function(e) { e.stopPropagation(); fetchAndShowInfo(clk, infoBtn); });
@@ -851,154 +853,299 @@
   // ---- Device info overlay ----
 
   var INFO_OVERLAY_ID = "__wvclock_info_overlay__";
+  var infoRefreshTimers = {};
 
-  function hideInfoOverlay() {
-    var el = document.getElementById(INFO_OVERLAY_ID);
-    if (el && el.parentNode) el.parentNode.removeChild(el);
-  }
-
-  function formatBuildTime(buildTime) {
-    if (!buildTime || buildTime === "unknown") return "unknown";
-    try {
-      var d = new Date(buildTime);
-      if (isNaN(d.getTime())) return buildTime;
-      var p = function(n) { return n < 10 ? "0" + n : "" + n; };
-      return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) +
-        " " + p(d.getHours()) + ":" + p(d.getMinutes());
-    } catch (e) { return buildTime; }
-  }
-
-  function formatUptime(ms) {
-    if (!ms || ms < 0) return "?";
-    var s = Math.floor(ms / 1000), m = Math.floor(s / 60);
-    s %= 60; var h = Math.floor(m / 60); m %= 60;
-    var d = Math.floor(h / 24); h %= 24;
-    if (d > 0) return d + "d " + h + "h " + m + "m";
-    if (h > 0) return h + "h " + m + "m";
-    return m + "m " + s + "s";
-  }
-
-  function renderInfoChart(container, chart) {
-    var appActive = chart.appActive || [];
-    var screenAwake = chart.screenAwake || [];
-    var n = appActive.length;
+  function drawChartOnCanvas(canvas, chart) {
+    if (!chart) return;
+    var appActive  = (chart.appActive  || []).slice();
+    var screenAwake = (chart.screenAwake || []).slice();
+    var n = Math.max(appActive.length, screenAwake.length);
     if (!n) return;
-
-    var legend = document.createElement("div");
-    legend.style.cssText = "display:flex;gap:12px;margin-bottom:4px;font-size:10px;";
-    var l1 = document.createElement("span"); l1.style.color = "#ffdd55"; l1.textContent = "\u25cf App active";
-    var l2 = document.createElement("span"); l2.style.color = "#55ddff"; l2.textContent = "\u25cf Screen awake";
-    legend.appendChild(l1); legend.appendChild(l2);
-    container.appendChild(legend);
-
-    var canvas = document.createElement("canvas");
-    canvas.width = 336; canvas.height = 72;
-    canvas.style.cssText = "width:100%;height:72px;display:block;border:1px solid #333;border-radius:3px;";
-    container.appendChild(canvas);
+    // Pad shorter array and replace any null/undefined/NaN with 0
+    while (appActive.length  < n) appActive.push(0);
+    while (screenAwake.length < n) screenAwake.push(0);
+    for (var ni = 0; ni < n; ni++) {
+      if (!(appActive[ni]  > 0)) appActive[ni]  = 0;
+      if (!(screenAwake[ni] > 0)) screenAwake[ni] = 0;
+    }
+    // Ensure at least 2 data points: prepend a synthetic zero 1 h before first bucket
+    var bucketZeroMs = chart.bucketZeroMs || 0;
+    if (n === 1) {
+      appActive.unshift(0); screenAwake.unshift(0);
+      bucketZeroMs -= (chart.bucketMs || 3600000);
+      n = 2;
+    }
+    // Current real state for the rightmost edge
+    var nowAppActive   = chart.nowAppActive   !== undefined ? !!chart.nowAppActive   : appActive[n-1]   > 0;
+    var nowScreenAwake = chart.nowScreenAwake !== undefined ? !!chart.nowScreenAwake : screenAwake[n-1] > 0;
 
     var ctx = canvas.getContext("2d");
     if (!ctx) return;
-    var W = 336, H = 72, pl = 2, pr = 2, pt = 4, pb = 16;
+    var W = canvas.width, H = canvas.height;
+    var pl = 2, pr = 2, pt = 2, pb = 14;
     var cw = W - pl - pr, ch = H - pt - pb;
+    var midY = pt + Math.floor(ch / 2);
+    ctx.clearRect(0, 0, W, H);
     ctx.fillStyle = "#111"; ctx.fillRect(0, 0, W, H);
 
+    var spanMs = n * (chart.bucketMs || 3600000);
+    var spanH = spanMs / 3600000;
+    var gridStepH, labelFmt;
+    if (spanH <= 6) {
+      gridStepH = 1;
+      labelFmt = function(ms) { var d = new Date(ms); var h = d.getHours(), m = d.getMinutes(), p = function(x) { return x < 10 ? "0"+x : ""+x; }; return p(h)+":"+p(m); };
+    } else if (spanH <= 24) {
+      gridStepH = 3;
+      labelFmt = function(ms) { var d = new Date(ms); var h = d.getHours(); return (h < 10 ? "0" + h : h) + ":00"; };
+    } else if (spanH <= 48) {
+      gridStepH = 6;
+      labelFmt = function(ms) {
+        var d = new Date(ms), h = d.getHours(), p = function(x) { return x < 10 ? "0" + x : "" + x; };
+        return p(d.getMonth()+1)+"/"+p(d.getDate())+" "+p(h)+"h";
+      };
+    } else {
+      gridStepH = 24;
+      labelFmt = function(ms) { return new Date(ms).toLocaleDateString(undefined, { weekday: "short" }); };
+    }
+
+    // Vertical gridlines
     ctx.strokeStyle = "#2a2a2a"; ctx.lineWidth = 0.5;
-    for (var dg = 0; dg <= 7; dg++) {
-      var gx = pl + (dg * 24 / n) * cw;
+    for (var gh = 0; gh * gridStepH < spanH + gridStepH; gh++) {
+      var gMs = bucketZeroMs + gh * gridStepH * 3600000;
+      var gx = pl + ((gMs - bucketZeroMs) / spanMs) * cw;
+      if (gx > pl + cw + 1) break;
       ctx.beginPath(); ctx.moveTo(gx, pt); ctx.lineTo(gx, pt + ch); ctx.stroke();
     }
 
-    function drawLine(data, color) {
+    // Centre divider between the two channels
+    ctx.strokeStyle = "#2a2a2a"; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(pl, midY); ctx.lineTo(pl + cw, midY); ctx.stroke();
+
+    // Logic-analyzer step-wave. Buckets 0..n-1; position n = "now" using nowState.
+    // Each bucket value > 0.5 = HIGH, else LOW.
+    function drawLogicChannel(data, nowState, color, chanTop, chanH) {
+      var hiY = chanTop + 2;
+      var loY = chanTop + chanH - 2;
       ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = 1.5;
-      for (var i = 0; i < data.length; i++) {
-        var x = pl + (n > 1 ? i / (n - 1) : 0) * cw;
-        var y = pt + (1 - Math.min(1, Math.max(0, data[i]))) * ch;
-        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      for (var i = 0; i <= n; i++) {
+        var isHigh = i < n ? (data[i] > 0) : nowState;
+        var x = pl + (i / n) * cw;
+        var y = isHigh ? hiY : loY;
+        if (i === 0) {
+          ctx.moveTo(x, y);
+        } else {
+          var prevHigh = (i - 1) < n ? (data[i-1] > 0) : nowState;
+          if (isHigh !== prevHigh) {
+            ctx.lineTo(x, prevHigh ? hiY : loY);
+            ctx.lineTo(x, y);
+          } else {
+            ctx.lineTo(x, y);
+          }
+        }
       }
       ctx.stroke();
     }
 
-    drawLine(appActive, "#ffdd55");
-    drawLine(screenAwake, "#55ddff");
+    var halfH = Math.floor(ch / 2) - 1;
+    drawLogicChannel(screenAwake, nowScreenAwake, "#55ddff", pt,       halfH);
+    drawLogicChannel(appActive,   nowAppActive,   "#ffdd55", midY + 1, halfH);
 
-    ctx.fillStyle = "#555"; ctx.font = "8px sans-serif"; ctx.textAlign = "center";
-    for (var dl = 0; dl < 7; dl++) {
-      var lx = pl + ((dl * 24 + 12) / n) * cw;
-      var labelMs = (chart.bucketZeroMs || 0) + dl * 24 * 3600000;
-      try {
-        ctx.fillText(new Date(labelMs).toLocaleDateString(undefined, { weekday: "short" }), lx, H - 3);
-      } catch (e) {}
+    // X-axis labels — always exactly 4, evenly spaced
+    ctx.fillStyle = "#888"; ctx.font = "8px sans-serif";
+    for (var li = 0; li < 4; li++) {
+      var lMs = bucketZeroMs + (li / 3) * spanMs;
+      var lx = pl + (li / 3) * cw;
+      ctx.textAlign = li === 0 ? "left" : li === 3 ? "right" : "center";
+      try { ctx.fillText(labelFmt(lMs), lx, H - 2); } catch (e) {}
     }
   }
 
-  function renderInfoOverlay(clk, info) {
-    hideInfoOverlay();
-    var backdrop = document.createElement("div");
-    backdrop.id = INFO_OVERLAY_ID;
-    backdrop.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,0.72);" +
-      "display:flex;align-items:center;justify-content:center;z-index:2147483646;cursor:pointer;";
-    var box = document.createElement("div");
-    box.style.cssText = "background:#1a1a1a;border:1px solid #444;border-radius:8px;" +
-      "padding:14px 16px;width:360px;max-width:92vw;cursor:default;" +
-      "font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;color:#eee;" +
-      "box-shadow:0 8px 32px rgba(0,0,0,0.6);";
-    box.addEventListener("click", function(e) { e.stopPropagation(); });
+  function renderInfoChart(container, chart, chartId) {
+    if (!chart || !((chart.appActive || []).length)) return;
+    var legend = document.createElement("div");
+    legend.style.cssText = "display:flex;gap:12px;margin-bottom:2px;font-size:10px;";
+    var l1 = document.createElement("span"); l1.style.color = "#55ddff"; l1.textContent = "\u25cf Scr awake";
+    var l2 = document.createElement("span"); l2.style.color = "#ffdd55"; l2.textContent = "\u25cf App active";
+    legend.appendChild(l1); legend.appendChild(l2);
+    container.appendChild(legend);
+    var canvas = document.createElement("canvas");
+    canvas.id = chartId;
+    canvas.width = 336; canvas.height = 72;
+    canvas.style.cssText = "width:100%;height:72px;display:block;border:1px solid #333;border-radius:3px;";
+    container.appendChild(canvas);
+    drawChartOnCanvas(canvas, chart);
+  }
 
-    var title = document.createElement("div");
-    title.style.cssText = "font-size:13px;font-weight:bold;color:#ccc;margin-bottom:10px;";
+  function renderInfoOverlay(clk, info) {
+    var devKey = clk.url.replace(/[^a-zA-Z0-9]/g, "_");
+    var panelId = INFO_OVERLAY_ID + "_" + devKey;
+    var chartId = panelId + "_chart";
+    hideInfoOverlay(devKey);
+
+    var openCount = document.querySelectorAll('[id^="' + INFO_OVERLAY_ID + '_"]').length;
+    var topPx   = 80  + openCount * 28;
+    var rightPx = 16  + openCount * 16;
+
+    var panel = document.createElement("div");
+    panel.id = panelId;
+    panel.style.cssText = "position:fixed;top:" + topPx + "px;right:" + rightPx + "px;z-index:" + (2147483640 + openCount) + ";" +
+      "background:#1a1a1a;border:1px solid #444;border-radius:8px;width:360px;max-width:92vw;" +
+      "font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;color:#eee;" +
+      "box-shadow:0 8px 32px rgba(0,0,0,0.7);user-select:none;";
+
+    // ---- Drag-handle title bar ----
+    var header = document.createElement("div");
+    header.style.cssText = "display:flex;align-items:center;justify-content:space-between;" +
+      "padding:9px 12px 8px;cursor:grab;border-bottom:1px solid #2a2a2a;";
+
+    var title = document.createElement("span");
+    title.style.cssText = "font-size:13px;font-weight:bold;color:#ccc;";
     title.textContent = clk.name;
-    box.appendChild(title);
+    header.appendChild(title);
+
+    var xBtn = document.createElement("span");
+    xBtn.textContent = "\u00d7";
+    xBtn.style.cssText = "color:#666;font-size:18px;line-height:1;cursor:pointer;padding:0 2px;";
+    xBtn.addEventListener("mouseover", function() { xBtn.style.color = "#bbb"; });
+    xBtn.addEventListener("mouseout",  function() { xBtn.style.color = "#666"; });
+    xBtn.addEventListener("click", function() { hideInfoOverlay(devKey); });
+    header.appendChild(xBtn);
+    panel.appendChild(header);
+
+    // ---- Drag logic (mouse) ----
+    var dragOffX = 0, dragOffY = 0, dragging = false;
+    header.addEventListener("mousedown", function(e) {
+      if (e.button !== 0) return;
+      dragging = true;
+      var r = panel.getBoundingClientRect();
+      dragOffX = e.clientX - r.left;
+      dragOffY = e.clientY - r.top;
+      header.style.cursor = "grabbing";
+      e.preventDefault();
+    });
+    var onMouseMove = function(e) {
+      if (!dragging) return;
+      panel.style.right = "auto";
+      panel.style.left = Math.max(0, Math.min(e.clientX - dragOffX, window.innerWidth  - panel.offsetWidth))  + "px";
+      panel.style.top  = Math.max(0, Math.min(e.clientY - dragOffY, window.innerHeight - panel.offsetHeight)) + "px";
+    };
+    var onMouseUp = function() { if (dragging) { dragging = false; header.style.cursor = "grab"; } };
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup",   onMouseUp);
+
+    // ---- Drag logic (touch) ----
+    header.addEventListener("touchstart", function(e) {
+      var t = e.touches[0];
+      dragging = true;
+      var r = panel.getBoundingClientRect();
+      dragOffX = t.clientX - r.left;
+      dragOffY = t.clientY - r.top;
+      e.preventDefault();
+    }, { passive: false });
+    var onTouchMove = function(e) {
+      if (!dragging) return;
+      var t = e.touches[0];
+      panel.style.right = "auto";
+      panel.style.left = Math.max(0, Math.min(t.clientX - dragOffX, window.innerWidth  - panel.offsetWidth))  + "px";
+      panel.style.top  = Math.max(0, Math.min(t.clientY - dragOffY, window.innerHeight - panel.offsetHeight)) + "px";
+      e.preventDefault();
+    };
+    var onTouchEnd = function() { dragging = false; };
+    document.addEventListener("touchmove", onTouchMove, { passive: false });
+    document.addEventListener("touchend",  onTouchEnd);
+
+    // ---- Content area ----
+    var body = document.createElement("div");
+    body.style.cssText = "padding:12px 14px 14px;";
 
     if (info) {
-      var osLine = info.androidVersion
-        ? ("Android " + info.androidVersion)
-        : (info.platform || "desktop");
-      var fields = [
-        ["Brand / Model", (info.brand || "?") + "  /  " + (info.model || "?")],
-        ["OS", osLine],
-        ["Build", formatBuildTime(info.buildTime)],
-        ["Git commit", info.gitCommit || "?"],
-        ["Uptime", formatUptime(info.uptimeMs)]
-      ];
-      var grid = document.createElement("div");
-      grid.style.cssText = "display:grid;grid-template-columns:auto 1fr;gap:3px 10px;margin-bottom:12px;line-height:1.5;";
-      fields.forEach(function(f) {
-        var lbl = document.createElement("span"); lbl.style.color = "#777"; lbl.textContent = f[0];
-        var val = document.createElement("span"); val.style.color = "#ddd"; val.textContent = f[1];
-        grid.appendChild(lbl); grid.appendChild(val);
-      });
-      box.appendChild(grid);
-      if (info.chart) renderInfoChart(box, info.chart);
+      if (info.attrs && info.attrs.length) {
+        var grid = document.createElement("div");
+        grid.style.cssText = "display:grid;grid-template-columns:auto 1fr;gap:3px 10px;margin-bottom:12px;line-height:1.5;";
+        info.attrs.forEach(function(a) {
+          var lbl = document.createElement("span"); lbl.style.color = "#777"; lbl.textContent = a.label;
+          var val = document.createElement("span"); val.style.color = "#ddd"; val.textContent = a.value;
+          grid.appendChild(lbl); grid.appendChild(val);
+        });
+        body.appendChild(grid);
+      }
+      if (info.chart) renderInfoChart(body, info.chart, chartId);
     } else {
       var err = document.createElement("div");
       err.style.cssText = "color:#666;padding:8px 0;";
       err.textContent = "Device info unavailable.";
-      box.appendChild(err);
+      body.appendChild(err);
     }
 
-    var closeBtn = document.createElement("button");
-    closeBtn.style.cssText = "margin-top:10px;width:100%;padding:4px 0;background:#2a2a2a;" +
-      "border:1px solid #444;border-radius:4px;color:#999;cursor:pointer;font-size:11px;";
-    closeBtn.textContent = "Close";
-    closeBtn.addEventListener("click", hideInfoOverlay);
-    box.appendChild(closeBtn);
-    backdrop.appendChild(box);
-    backdrop.addEventListener("click", hideInfoOverlay);
-    var onKey = function(e) { if (e.key === "Escape") { hideInfoOverlay(); document.removeEventListener("keydown", onKey, true); } };
+    panel.appendChild(body);
+    document.body.appendChild(panel);
+
+    panel._cleanupDrag = function() {
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup",   onMouseUp);
+      document.removeEventListener("touchmove", onTouchMove);
+      document.removeEventListener("touchend",  onTouchEnd);
+    };
+
+    var onKey = function(e) {
+      if (e.key === "Escape") { hideInfoOverlay(devKey); document.removeEventListener("keydown", onKey, true); }
+    };
     document.addEventListener("keydown", onKey, true);
-    document.body.appendChild(backdrop);
+
+    // Refresh chart every 60 s while panel is open
+    if (clk && clk.url) {
+      var base = clk.url;
+      if (base.charAt(base.length - 1) !== "/") base += "/";
+      infoRefreshTimers[devKey] = setInterval(function() {
+        if (!document.getElementById(panelId)) { clearInterval(infoRefreshTimers[devKey]); delete infoRefreshTimers[devKey]; return; }
+        fetch(base + "api/info", { cache: "no-store" })
+          .then(function(r) { return r.json(); })
+          .then(function(freshInfo) {
+            var canvas = document.getElementById(chartId);
+            if (canvas) drawChartOnCanvas(canvas, freshInfo.chart);
+          })
+          .catch(function() {});
+      }, 60000);
+    }
+  }
+
+  function hideInfoOverlay(devKey) {
+    var panelId = devKey ? INFO_OVERLAY_ID + "_" + devKey : null;
+    var els = panelId
+      ? [document.getElementById(panelId)]
+      : Array.prototype.slice.call(document.querySelectorAll('[id^="' + INFO_OVERLAY_ID + '_"]'));
+    els.forEach(function(el) {
+      if (!el) return;
+      if (el._cleanupDrag) el._cleanupDrag();
+      if (el.parentNode) el.parentNode.removeChild(el);
+    });
+    if (devKey) {
+      if (infoRefreshTimers[devKey]) { clearInterval(infoRefreshTimers[devKey]); delete infoRefreshTimers[devKey]; }
+    } else {
+      Object.keys(infoRefreshTimers).forEach(function(k) { clearInterval(infoRefreshTimers[k]); delete infoRefreshTimers[k]; });
+    }
   }
 
   function fetchAndShowInfo(clk, btnEl) {
+    var devKey = clk.url.replace(/[^a-zA-Z0-9]/g, "_");
+    var panelId = INFO_OVERLAY_ID + "_" + devKey;
+    // Toggle: if already open, close it
+    if (document.getElementById(panelId)) { hideInfoOverlay(devKey); return; }
     var base = clk.url;
     if (base.charAt(base.length - 1) !== "/") base += "/";
     var prevText = btnEl.textContent;
     btnEl.textContent = "\u23f3";
-    btnEl.disabled = true;
+    btnEl.style.pointerEvents = "none";
     fetch(base + "api/info", { cache: "no-store" })
       .then(function(r) { return r.json(); })
-      .then(function(info) { btnEl.textContent = prevText; btnEl.disabled = false; renderInfoOverlay(clk, info); })
-      .catch(function() { btnEl.textContent = prevText; btnEl.disabled = false; renderInfoOverlay(clk, null); });
+      .then(function(info) {
+        btnEl.textContent = prevText; btnEl.style.pointerEvents = "";
+        renderInfoOverlay(clk, info);
+      })
+      .catch(function() {
+        btnEl.textContent = prevText; btnEl.style.pointerEvents = "";
+        renderInfoOverlay(clk, null);
+      });
   }
 
   function startClocksScanning() {

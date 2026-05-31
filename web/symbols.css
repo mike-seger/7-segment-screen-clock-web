@@ -1,0 +1,23 @@
+@font-face {
+  font-family: 'Material Icons Round-Regular';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('symbols.woff2') format('woff2');
+}
+
+.symbol {
+  font-family: 'Material Icons Round-Regular';
+  font-size: 22px;
+  line-height: 1;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: 'liga';
+  font-variation-settings: 'FILL' 0, 'GRAD' 0, 'opsz' 24, 'wght' 400;
+  vertical-align: middle;
+  user-select: none;
+}

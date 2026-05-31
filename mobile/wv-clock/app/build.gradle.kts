@@ -86,12 +86,36 @@ val writeBuildInfo by tasks.registering {
 tasks.named("preBuild").configure { dependsOn(syncWebAssets, writeBuildInfo) }
 
 // --- Convenience deploy task: install on attached device and launch.
+fun resolveAdbSerials(): List<String> {
+    val explicit = findProperty("device")?.toString()
+    val output = ProcessBuilder("adb", "devices")
+        .redirectErrorStream(true)
+        .start().inputStream.bufferedReader().readLines()
+    val allDevices = output.drop(1)
+        .map { it.trim() }
+        .filter { it.isNotEmpty() && it.endsWith("\tdevice") }
+        .map { it.substringBefore("\t") }
+    if (allDevices.isEmpty()) error("No connected adb devices found.")
+    return when (explicit) {
+        null  -> listOf(allDevices.first())
+        "-"   -> allDevices
+        else  -> listOf(explicit)
+    }
+}
+
 tasks.register<Exec>("deployToDevice") {
     group = "deploy"
-    description = "Install the debug APK on an attached Android device and launch the app"
-    dependsOn("installDebug")
-    commandLine(
-        "adb", "shell", "am", "start", "-n",
-        "com.github.mikeseger.wvclock/.MainActivity"
-    )
+    description = "Build, install and launch the debug APK. -Pdevice=<serial> targets one device; -Pdevice=- targets all."
+    dependsOn("assembleDebug")
+    doFirst {
+        val serials = resolveAdbSerials()
+        val apk = layout.buildDirectory.file("outputs/apk/debug/app-debug.apk").get().asFile
+        serials.forEach { serial ->
+            val adb = listOf("adb", "-s", serial)
+            logger.lifecycle("Deploying to device: $serial")
+            project.exec { commandLine(adb + listOf("install", "-r", apk.absolutePath)) }
+            project.exec { commandLine(adb + listOf("shell", "am", "start", "-n", "com.github.mikeseger.wvclock/.MainActivity")) }
+        }
+    }
+    commandLine("true")
 }

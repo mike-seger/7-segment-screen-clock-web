@@ -1,96 +1,210 @@
-/* Menu button & panel */
-
+/* Menu panel positioning and base styles */
 #menuPanel {
     position: fixed;
     top: 48px;
     right: 10px;
-    width: 320px;
+    width: 380px;
+    max-width: 95vw;
+    height: 480px;
     max-height: calc(100vh - 60px);
-    overflow-y: auto;
-    background: rgba(17, 17, 17, 0.82);
+    overflow: hidden; /* layout scrolling is handled inside #menuContent */
+    background: rgba(17, 17, 17, 0.95);
     color: white;
     border: 1px solid #333;
-    border-radius: 6px;
-    padding: 8px 10px;
+    border-radius: 8px;
+    display: none; /* toggled to flex via javascript */
+    flex-direction: column;
     font-family: system-ui, sans-serif;
     font-size: 13px;
     z-index: 999;
-    display: none;
-    scrollbar-color: #6f6f6f #171717;
-    scrollbar-width: thin;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+    box-sizing: border-box;
+    user-select: none;
 }
 
-#menuPanel::-webkit-scrollbar {
-    width: 10px;
-}
-
-#menuPanel::-webkit-scrollbar-track {
-    background: #171717;
-    border-radius: 8px;
-}
-
-#menuPanel::-webkit-scrollbar-thumb {
-    background: #5f5f5f;
-    border-radius: 8px;
-    border: 2px solid #171717;
-}
-
-#menuPanel::-webkit-scrollbar-thumb:hover {
-    background: #7a7a7a;
-}
-
-#menuPanel h3 {
-    font-size: 13px;
-    margin: 8px 0 4px;
-    border-bottom: 1px solid #333;
-    padding-bottom: 2px;
-}
-
-#menuPanel label {
+/* Header bar for dragging */
+#menuHeader {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin: 3px 0;
-    gap: 4px;
+    padding: 10px 14px;
+    background: #252528;
+    border-bottom: 1px solid #333;
+    border-top-left-radius: 7px;
+    border-top-right-radius: 7px;
+    cursor: grab;
+    flex-shrink: 0;
 }
 
-#menuPanel input[type="range"] {
-    width: 150px;
+#menuHeader:active {
+    cursor: grabbing;
 }
 
-#menuPanel input[type="color"] {
+#menuTitle {
+    font-weight: bold;
+    color: #ccc;
+    font-size: 13px;
+}
+
+#menuCloseBtn {
+    font-size: 20px;
+    line-height: 1;
+    color: #888;
+    cursor: pointer;
+    transition: color 0.15s;
+}
+
+#menuCloseBtn:hover {
+    color: #fff;
+}
+
+#menuBody {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+}
+
+/* Left vertical tab bar */
+#menuSidebar {
+    width: 48px;
+    background: #121214;
+    border-right: 1px solid #2a2a2a;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-top: 10px;
+    gap: 14px;
+    flex-shrink: 0;
+}
+
+.menuTab {
+    width: 36px;
+    height: 36px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: #888;
+    transition: all 0.15s ease;
+}
+
+.menuTab:hover {
+    color: #ccc;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.menuTab.active {
+    color: #04fb62;
+    background: rgba(4, 251, 98, 0.1);
+}
+
+/* Right-side content area */
+#menuContent {
+    flex: 1;
+    overflow-y: auto;
+    padding: 14px;
+    scrollbar-color: #5f5f5f #171717;
+    scrollbar-width: thin;
+    user-select: text; /* allow text selection here */
+}
+
+#menuContent::-webkit-scrollbar {
+    width: 8px;
+}
+
+#menuContent::-webkit-scrollbar-track {
+    background: #171717;
+}
+
+#menuContent::-webkit-scrollbar-thumb {
+    background: #5f5f5f;
+    border-radius: 4px;
+    border: 1px solid #171717;
+}
+
+#menuContent::-webkit-scrollbar-thumb:hover {
+    background: #7a7a7a;
+}
+
+/* Subsection styling */
+.menu-subsection {
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+}
+
+.menu-subsection:not(:last-child) {
+    border-bottom: 1px dashed #333;
+}
+
+#menuContent h3 {
+    font-size: 13px;
+    margin: 0 0 8px 0;
+    color: #eee;
+    text-transform: uppercase;
+    font-size: 11px;
+    letter-spacing: 0.05em;
+    color: #aaa;
+}
+
+#menuContent label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: 5px 0;
+    gap: 6px;
+}
+
+#menuContent input[type="range"] {
+    width: 140px;
+    accent-color: #04fb62;
+}
+
+#menuContent input[type="color"] {
     width: 32px;
     height: 20px;
     padding: 0;
-    border: none;
+    border: 1px solid #333;
+    border-radius: 3px;
     background: #222;
+    cursor: pointer;
 }
 
-#menuPanel select,
-#menuPanel input[type="text"] {
+#menuContent select,
+#menuContent input[type="text"] {
     width: 100%;
     background: #000;
     color: white;
     border: 1px solid #333;
-    padding: 3px 4px;
+    border-radius: 4px;
+    padding: 4px 6px;
     margin-top: 2px;
     margin-bottom: 4px;
     font-size: 12px;
+    box-sizing: border-box;
 }
 
-#menuPanel button {
+#menuContent select:focus,
+#menuContent input[type="text"]:focus {
+    border-color: #04fb62;
+    outline: none;
+}
+
+#menuContent button {
     background: #222;
     color: white;
     border: 1px solid #444;
-    padding: 3px 6px;
+    border-radius: 4px;
+    padding: 5px 8px;
     font-size: 12px;
     cursor: pointer;
-    margin-right: 4px;
-    margin-top: 2px;
+    transition: background 0.1s, border-color 0.1s;
 }
 
-#menuPanel button:hover {
+#menuContent button:hover {
     background: #333;
+    border-color: #555;
+    color: #04fb62;
 }
 
 .valueBadge {
@@ -98,12 +212,7 @@
     text-align: right;
     font-variant-numeric: tabular-nums;
     font-size: 11px;
-    color: #9f9;
+    color: #04fb62;
 }
 
-.section {
-    margin-bottom: 6px;
-    padding-bottom: 4px;
-    border-bottom: 1px dashed #333;
-}
 

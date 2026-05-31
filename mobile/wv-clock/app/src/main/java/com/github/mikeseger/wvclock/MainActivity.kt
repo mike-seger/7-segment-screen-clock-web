@@ -113,6 +113,12 @@ class MainActivity : Activity() {
 
         applyImmersive()
 
+        // Request READ_PHONE_STATE so Build.getSerial() is available for the info overlay
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q &&
+            checkSelfPermission(android.Manifest.permission.READ_PHONE_STATE) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(android.Manifest.permission.READ_PHONE_STATE), 1)
+        }
+
         // Helpful one-time hint with the LAN URL for remote control.
         val ip = getWifiIpv4()
         if (ip != null) {
@@ -138,10 +144,12 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         registerReceiver(screenOnReceiver, IntentFilter(Intent.ACTION_SCREEN_ON))
+        server?.notifyAppResumed()
     }
 
     override fun onPause() {
         super.onPause()
+        server?.notifyAppPaused()
         try { unregisterReceiver(screenOnReceiver) } catch (_: Exception) {}
     }
 

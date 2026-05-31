@@ -89,8 +89,9 @@ class ClockServer(
         set(value) {
             if (field != value) {
                 field = value
-                activityEvents.add(ActivityEvent(System.currentTimeMillis(), !value))
+                activityEvents.add(ActivityEvent(System.currentTimeMillis(), !value, ActivityType.SCREEN))
                 trimActivityEvents()
+                saveActivityEventsAsync()
                 broadcastClocksUpdate()
             }
         }
@@ -100,6 +101,7 @@ class ClockServer(
 
     private val serverStartMs = System.currentTimeMillis()
     private val activityEvents = java.util.concurrent.CopyOnWriteArrayList<ActivityEvent>()
+    private val activityFile = java.io.File(context.filesDir, "activity_events.json")
 
     private var lastNtpSyncTime = 0L
     private var lastP2pSyncTime = 0L
@@ -108,7 +110,9 @@ class ClockServer(
     }
 
     init {
-        activityEvents.add(ActivityEvent(serverStartMs, true))
+        loadActivityEvents()
+        activityEvents.add(ActivityEvent(serverStartMs, true, ActivityType.APP))
+        activityEvents.add(ActivityEvent(serverStartMs, true, ActivityType.SCREEN))
         heartbeat.scheduleAtFixedRate({
             val bytes = ": ping\n\n".toByteArray()
             for (c in sseClients) c.offer(bytes)
@@ -691,63 +695,155 @@ class ClockServer(
         else -> "application/octet-stream"
     }
 
-    private data class ActivityEvent(val timestampMs: Long, val isAwake: Boolean)
+    private enum class ActivityType { APP, SCREEN }
+    private data class ActivityEvent(val timestampMs: Long, val isActive: Boolean, val type: ActivityType)
+
+    fun notifyAppResumed() {
+        activityEvents.add(ActivityEvent(System.currentTimeMillis(), true, ActivityType.APP))
+        trimActivityEvents()
+        saveActivityEventsAsync()
+    }
+
+    fun notifyAppPaused() {
+        activityEvents.add(ActivityEvent(System.currentTimeMillis(), false, ActivityType.APP))
+        trimActivityEvents()
+        saveActivityEventsAsync()
+    }
+
+    private fun loadActivityEvents() {
+        try {
+            if (!activityFile.exists()) return
+            val arr = JSONArray(activityFile.readText())
+            val cutoff = System.currentTimeMillis() - 7L * 24 * 3600 * 1000
+            for (i in 0 until arr.length()) {
+                val obj = arr.getJSONObject(i)
+                val ts = obj.getLong("ts")
+                if (ts < cutoff - 3_600_000L) continue // skip events older than 7d+1h
+                val type = try { ActivityType.valueOf(obj.getString("type")) } catch (e: Exception) { ActivityType.SCREEN }
+                activityEvents.add(ActivityEvent(ts, obj.getBoolean("active"), type))
+            }
+            Log.i(TAG, "Loaded ${activityEvents.size} activity events from disk")
+        } catch (e: Exception) { Log.w(TAG, "Could not load activity events", e) }
+    }
+
+    private fun saveActivityEvents() {
+        try {
+            val arr = JSONArray()
+            activityEvents.toList().forEach { ev ->
+                arr.put(JSONObject().put("ts", ev.timestampMs).put("active", ev.isActive).put("type", ev.type.name))
+            }
+            activityFile.writeText(arr.toString())
+        } catch (e: Exception) { Log.w(TAG, "Could not save activity events", e) }
+    }
+
+    private fun saveActivityEventsAsync() { heartbeat.execute { saveActivityEvents() } }
 
     private fun trimActivityEvents() {
         val cutoff = System.currentTimeMillis() - 7L * 24 * 3600 * 1000
         val snapshot = activityEvents.toList()
-        val firstKeepIdx = snapshot.indexOfLast { it.timestampMs <= cutoff }
-        if (firstKeepIdx > 0) activityEvents.subList(0, firstKeepIdx).clear()
+        // Keep one anchor event per type before the cutoff for continuity
+        val appAnchor = snapshot.indexOfLast { it.type == ActivityType.APP && it.timestampMs <= cutoff }
+        val screenAnchor = snapshot.indexOfLast { it.type == ActivityType.SCREEN && it.timestampMs <= cutoff }
+        val keepFrom = maxOf(0, minOf(
+            if (appAnchor > 0) appAnchor else Int.MAX_VALUE,
+            if (screenAnchor > 0) screenAnchor else Int.MAX_VALUE
+        ))
+        if (keepFrom > 0 && keepFrom != Int.MAX_VALUE) activityEvents.subList(0, keepFrom).clear()
     }
 
-    private fun computeAwakeFraction(bucketStart: Long, bucketEnd: Long): Double {
-        val events = activityEvents.toList()
+    private fun computeActiveFraction(bucketStart: Long, bucketEnd: Long, type: ActivityType): Double {
+        val events = activityEvents.filter { it.type == type }
         if (events.isEmpty()) return 0.0
         var stateAtStart = false
-        for (ev in events) { if (ev.timestampMs <= bucketStart) stateAtStart = ev.isAwake else break }
-        var segStart = bucketStart; var currentState = stateAtStart; var awakeDuration = 0L
+        for (ev in events) { if (ev.timestampMs <= bucketStart) stateAtStart = ev.isActive else break }
+        var segStart = bucketStart; var currentState = stateAtStart; var activeDuration = 0L
         for (ev in events) {
             if (ev.timestampMs <= bucketStart) continue
             if (ev.timestampMs >= bucketEnd) break
-            if (currentState) awakeDuration += ev.timestampMs - segStart
-            segStart = ev.timestampMs; currentState = ev.isAwake
+            if (currentState) activeDuration += ev.timestampMs - segStart
+            segStart = ev.timestampMs; currentState = ev.isActive
         }
-        if (currentState) awakeDuration += bucketEnd - segStart
-        return awakeDuration.toDouble() / (bucketEnd - bucketStart)
+        if (currentState) activeDuration += bucketEnd - segStart
+        return activeDuration.toDouble() / (bucketEnd - bucketStart)
     }
 
     private fun handleGetInfo(): Response {
         val now = System.currentTimeMillis()
-        val bucketMs = 3_600_000L
-        val bucketCount = 7 * 24
-        val bucketZero = now - (bucketCount - 1) * bucketMs
+        val maxBuckets = 168
+        val earliestEvent = activityEvents.minOfOrNull { it.timestampMs } ?: now
+        // Choose bucket size based on data span so short events remain visible
+        val dataSpanMs = now - earliestEvent
+        val bucketMs = when {
+            dataSpanMs <= 1L * 3600 * 1000  ->  1L * 60 * 1000    // 1 min buckets for ≤1 h
+            dataSpanMs <= 6L * 3600 * 1000  ->  5L * 60 * 1000    // 5 min buckets for ≤6 h
+            dataSpanMs <= 24L * 3600 * 1000 -> 15L * 60 * 1000    // 15 min buckets for ≤24 h
+            else                             ->  3_600_000L         // 1 h buckets for longer
+        }
+        val earliestBucket = (earliestEvent / bucketMs) * bucketMs
+        val oldestAllowed = now - (maxBuckets - 1) * bucketMs
+        val bucketZero = maxOf(earliestBucket, oldestAllowed)
+        val bucketCount = maxOf(1, ((now - bucketZero) / bucketMs + 1).toInt().coerceAtMost(maxBuckets))
         val appActive = (0 until bucketCount).map { i ->
-            val bs = bucketZero + i * bucketMs; val be = bs + bucketMs
-            if (serverStartMs < be) (be - maxOf(serverStartMs, bs)).toDouble() / bucketMs else 0.0
+            val bs = bucketZero + i * bucketMs
+            computeActiveFraction(bs, bs + bucketMs, ActivityType.APP)
         }
         val screenAwake = (0 until bucketCount).map { i ->
             val bs = bucketZero + i * bucketMs
-            computeAwakeFraction(bs, bs + bucketMs)
+            computeActiveFraction(bs, bs + bucketMs, ActivityType.SCREEN)
         }
+        // Trim leading all-zero buckets, keep one zero before first active bucket
+        // threshold: at least 2 minutes of activity in the bucket
+        val minActive = 2.0 * 60 * 1000 / bucketMs
+        val firstActive = (0 until bucketCount).firstOrNull { appActive[it] > minActive || screenAwake[it] > minActive } ?: 0
+        val trimFrom = maxOf(0, firstActive - 1)
+        val trimmedAppActive = if (trimFrom > 0) appActive.drop(trimFrom) else appActive
+        val trimmedScreenAwake = if (trimFrom > 0) screenAwake.drop(trimFrom) else screenAwake
+        val trimmedBucketZero = bucketZero + trimFrom * bucketMs
         val buildInfo = try {
             val bytes = context.assets.open("build_info.json").readBytes()
             JSONObject(String(bytes, Charsets.UTF_8))
         } catch (e: Exception) { JSONObject() }
+        val buildTimeRaw = buildInfo.optString("buildTime", "unknown")
+        val buildTimeDisplay = try {
+            val parser = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.US)
+                .also { it.timeZone = java.util.TimeZone.getTimeZone("UTC") }
+            val fmt = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.US)
+            val parsed = parser.parse(buildTimeRaw)
+            if (parsed != null) fmt.format(parsed) else buildTimeRaw
+        } catch (e: Exception) { buildTimeRaw }
+        val uptimeMs = android.os.SystemClock.elapsedRealtime()
+        fun fmtUptime(ms: Long): String {
+            val totalS = ms / 1000; val m = totalS / 60 % 60; val h = totalS / 3600 % 24; val d = totalS / 86400
+            return if (d > 0) "${d}d ${h}h ${m}m" else if (h > 0) "${h}h ${m}m" else "${m}m ${totalS % 60}s"
+        }
+        val deviceId = android.provider.Settings.Secure.getString(
+            context.contentResolver, android.provider.Settings.Secure.ANDROID_ID)
+        val serial = if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.Q) {
+            try { android.os.Build.getSerial() } catch (e: Exception) { "-" }
+        } else { "-" }
+        val attrs = JSONArray().apply {
+            fun row(label: String, value: String) = put(JSONObject().put("label", label).put("value", value))
+            row("Brand / Model", "${android.os.Build.BRAND}  /  ${android.os.Build.MODEL}")
+            row("OS", "Android ${android.os.Build.VERSION.RELEASE}")
+            row("Serial", serial)
+            row("Android ID", deviceId ?: "unknown")
+            row("Build", buildTimeDisplay)
+            row("Git commit", buildInfo.optString("gitCommit", "unknown"))
+            row("Uptime", fmtUptime(uptimeMs))
+        }
         val json = JSONObject().apply {
-            put("brand", android.os.Build.BRAND)
-            put("model", android.os.Build.MODEL)
-            put("androidVersion", android.os.Build.VERSION.RELEASE)
-            put("platform", "android")
-            put("buildTime", buildInfo.optString("buildTime", "unknown"))
-            put("gitCommit", buildInfo.optString("gitCommit", "unknown"))
-            put("uptimeMs", android.os.SystemClock.elapsedRealtime())
+            put("attrs", attrs)
             put("serverStartMs", serverStartMs)
             put("nowMs", now)
+            val nowAppActive = activityEvents.filter { it.type == ActivityType.APP }.maxByOrNull { it.timestampMs }?.isActive ?: true
+            val nowScreenAwake = !isScreenAsleep
             put("chart", JSONObject().apply {
                 put("bucketMs", bucketMs)
-                put("bucketZeroMs", bucketZero)
-                put("appActive", JSONArray(appActive))
-                put("screenAwake", JSONArray(screenAwake))
+                put("bucketZeroMs", trimmedBucketZero)
+                put("appActive", JSONArray(trimmedAppActive))
+                put("screenAwake", JSONArray(trimmedScreenAwake))
+                put("nowAppActive", nowAppActive)
+                put("nowScreenAwake", nowScreenAwake)
             })
         }
         return newFixedLengthResponse(Response.Status.OK, "application/json", json.toString()).apply {

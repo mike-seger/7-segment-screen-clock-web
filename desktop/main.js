@@ -44,6 +44,22 @@ function computeDesktopAwakeFraction(bucketStart, bucketEnd) {
   return awakeDuration / (bucketEnd - bucketStart);
 }
 
+function fmtBuildTime(iso) {
+  try {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return iso;
+    const p = n => n < 10 ? '0' + n : '' + n;
+    return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  } catch (_) { return iso; }
+}
+
+function fmtUptime(ms) {
+  const totalS = Math.floor(ms / 1000), m = Math.floor(totalS / 60) % 60, h = Math.floor(totalS / 3600) % 24, d = Math.floor(totalS / 86400);
+  if (d > 0) return `${d}d ${h}h ${m}m`;
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m ${totalS % 60}s`;
+}
+
 let mainWindow;
 const EXPRESS_PORT = 8080;
 const UDP_PORT = 8766;
@@ -203,25 +219,33 @@ expressApp.get('/api/info', (req, res) => {
   const bucketMs = 3_600_000;
   const bucketCount = 7 * 24;
   const bucketZero = now - (bucketCount - 1) * bucketMs;
-  const appActive = [];
-  const screenAwake = [];
+  const appActiveRaw = [];
+  const screenAwakeRaw = [];
   for (let i = 0; i < bucketCount; i++) {
     const bs = bucketZero + i * bucketMs;
     const be = bs + bucketMs;
-    appActive.push(SERVER_START_MS < be ? (be - Math.max(SERVER_START_MS, bs)) / bucketMs : 0);
-    screenAwake.push(computeDesktopAwakeFraction(bs, be));
+    appActiveRaw.push(SERVER_START_MS < be ? (be - Math.max(SERVER_START_MS, bs)) / bucketMs : 0);
+    screenAwakeRaw.push(computeDesktopAwakeFraction(bs, be));
   }
+  // Trim leading all-zero buckets, keep one zero before first active bucket
+  const minActive = 1 / 60; // at least 1 minute in an hour to count as non-zero
+  const firstActive = appActiveRaw.findIndex((v, i) => v > minActive || screenAwakeRaw[i] > minActive);
+  const trimFrom = Math.max(0, (firstActive === -1 ? 0 : firstActive) - 1);
+  const appActive = appActiveRaw.slice(trimFrom);
+  const screenAwake = screenAwakeRaw.slice(trimFrom);
+  const trimmedBucketZero = bucketZero + trimFrom * bucketMs;
   res.json({
-    brand: os.type(),
-    model: os.hostname(),
-    androidVersion: null,
-    platform: process.platform,
-    buildTime: BUILD_TIME,
-    gitCommit: GIT_COMMIT,
-    uptimeMs: Math.round(process.uptime() * 1000),
+    attrs: [
+      { label: 'Brand / Model', value: `${os.type()}  /  ${os.hostname()}` },
+      { label: 'OS', value: `${process.platform} ${os.release()}` },
+      { label: 'Build', value: fmtBuildTime(BUILD_TIME) },
+      { label: 'Git commit', value: GIT_COMMIT },
+      { label: 'Uptime', value: fmtUptime(Math.round(process.uptime() * 1000)) }
+    ],
     serverStartMs: SERVER_START_MS,
     nowMs: now,
-    chart: { bucketMs, bucketZeroMs: bucketZero, appActive, screenAwake }
+    chart: { bucketMs, bucketZeroMs: trimmedBucketZero, appActive, screenAwake,
+      nowAppActive: true, nowScreenAwake: activityLog[activityLog.length - 1]?.isAwake ?? true }
   });
 });
 
