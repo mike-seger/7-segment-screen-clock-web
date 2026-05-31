@@ -48,10 +48,16 @@ function initMenuEvents() {
     if (!panel) return;
 
     // ---- DRAG AND DROP POSITION PERSISTENCE ----
-    const header = document.getElementById('menuHeader');
     const closeBtn = document.getElementById('menuCloseBtn');
     let dragging = false;
     let dragOffX = 0, dragOffY = 0;
+
+    function isInteractiveTarget(target) {
+        if (!target || !(target instanceof Element)) return false;
+        return !!target.closest(
+            '#menuCloseBtn, .menuTab, button, input, select, textarea, label, a, [role="button"], [contenteditable="true"]'
+        );
+    }
 
     // Restore Position
     try {
@@ -69,14 +75,15 @@ function initMenuEvents() {
     }
 
     // Drag (Mouse)
-    header.addEventListener('mousedown', (e) => {
+    panel.addEventListener('mousedown', (e) => {
         if (e.target === closeBtn || e.target.closest('#menuCloseBtn')) return; // Don't drag if clicking close button
+        if (isInteractiveTarget(e.target)) return;
         if (e.button !== 0) return; // Left click only
         dragging = true;
         const rect = panel.getBoundingClientRect();
         dragOffX = e.clientX - rect.left;
         dragOffY = e.clientY - rect.top;
-        header.style.cursor = 'grabbing';
+        panel.style.cursor = 'grabbing';
         e.preventDefault();
     });
 
@@ -95,7 +102,7 @@ function initMenuEvents() {
     const onMouseUp = () => {
         if (dragging) {
             dragging = false;
-            header.style.cursor = 'grab';
+            panel.style.cursor = '';
         }
     };
 
@@ -103,8 +110,9 @@ function initMenuEvents() {
     document.addEventListener('mouseup', onMouseUp);
 
     // Drag (Touch)
-    header.addEventListener('touchstart', (e) => {
+    panel.addEventListener('touchstart', (e) => {
         if (e.target === closeBtn || e.target.closest('#menuCloseBtn')) return;
+        if (isInteractiveTarget(e.target)) return;
         const t = e.touches[0];
         dragging = true;
         const rect = panel.getBoundingClientRect();
@@ -201,6 +209,30 @@ async function loadMenuPanel() {
     }
 }
 
+function constrainMenuPosition() {
+    const panel = document.getElementById('menuPanel');
+    if (!panel || panel.style.display !== "flex") return;
+
+    const width = panel.offsetWidth || 380;
+    const height = panel.offsetHeight || 550;
+
+    const leftVal = parseFloat(panel.style.left);
+    const topVal = parseFloat(panel.style.top);
+
+    if (Number.isFinite(leftVal) && Number.isFinite(topVal)) {
+        const left = Math.max(0, Math.min(leftVal, window.innerWidth - width)) + 'px';
+        const top = Math.max(0, Math.min(topVal, window.innerHeight - height)) + 'px';
+        panel.style.left = left;
+        panel.style.top = top;
+        panel.style.right = 'auto';
+        try {
+            localStorage.setItem('screenClock_menuPosition', JSON.stringify({ top, left }));
+        } catch (e) {}
+    }
+}
+
+window.addEventListener('resize', constrainMenuPosition);
+
 let initializationPromise = null;
 
 async function ensureConfigurationInitialized() {
@@ -227,6 +259,9 @@ async function toggleMenuPanel() {
     loadMenuCSS();
     const isOpen = panel.style.display !== "flex";
     panel.style.display = isOpen ? "flex" : "none";
+    if (isOpen) {
+        requestAnimationFrame(constrainMenuPosition);
+    }
     saveMenuOpenState(isOpen);
 }
 
@@ -241,6 +276,7 @@ window.openMenuPanel = async function() {
     saveMenuOpenState(true);
     loadMenuCSS();
     panel.style.display = "flex";
+    requestAnimationFrame(constrainMenuPosition);
 };
 
 window.toggleConfigUI = async function() {
@@ -256,6 +292,7 @@ window.toggleConfigUI = async function() {
         if (!p) return;
         loadMenuCSS();
         p.style.display = "flex";
+        requestAnimationFrame(constrainMenuPosition);
         saveMenuOpenState(true);
     }
 };
@@ -272,6 +309,7 @@ ensureConfigurationInitialized();
         if (panel) {
             loadMenuCSS();
             panel.style.display = "flex";
+            requestAnimationFrame(constrainMenuPosition);
         }
     }
 })();

@@ -470,18 +470,33 @@ function getClockRowInkBounds(dateLine, timeLine) {
   const clockInner = document.getElementById("clockInner");
   if (!clockInner) return null;
 
-  // Temporarily neutralize rotation & scale transforms to get reliable unrotated sizing
+  // Temporarily neutralize rotation & scale transforms to get reliable unrotated sizing.
+  // Neutralise transition properties so setting .transform = "none" is immediate/synchronous.
   const savedClockInnerTransform = clockInner.style.transform;
+  const savedClockInnerTransition = clockInner.style.transition;
   const savedTimeLineTransform = timeLine.style.transform;
+  const savedTimeLineTransition = timeLine.style.transition;
+
+  clockInner.style.transition = "none";
+  if (timeLine) timeLine.style.transition = "none";
 
   clockInner.style.transform = "none";
   if (timeLine) timeLine.style.transform = "none";
+
+  // Force a synchronous reflow so layout calculations reflect zero transform immediately
+  void clockInner.offsetHeight;
 
   const dateBounds = measureRowInkBounds(dateLine);
   const timeBounds = measureRowInkBounds(timeLine);
 
   clockInner.style.transform = savedClockInnerTransform;
   if (timeLine) timeLine.style.transform = savedTimeLineTransform;
+
+  // Force synchronous reflow to restore layout state before reenabling transitions
+  void clockInner.offsetHeight;
+
+  clockInner.style.transition = savedClockInnerTransition;
+  if (timeLine) timeLine.style.transition = savedTimeLineTransition;
 
   if (!dateBounds && !timeBounds) return null;
 
