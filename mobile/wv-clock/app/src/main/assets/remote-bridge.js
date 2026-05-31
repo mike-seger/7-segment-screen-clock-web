@@ -761,6 +761,15 @@
           var actionContainer = document.createElement("div");
           actionContainer.style.cssText = "display: flex; gap: 4px; justify-content: flex-end; align-items: center;";
 
+          // Watt badge (shown when device reports current draw)
+          if (typeof clk.milliWatts === "number" && clk.milliWatts >= 0) {
+            var watt = document.createElement("span");
+            var w = (clk.milliWatts / 1000).toFixed(1);
+            watt.style.cssText = "font-size: 10px; font-weight: bold; color: #aaaaff; background: rgba(0,0,0,0.35); border: 1px solid #aaaaff; border-radius: 3px; padding: 1px 4px; white-space: nowrap;";
+            watt.textContent = w + "W";
+            actionContainer.appendChild(watt);
+          }
+
           // Battery badge (shown for all entries that report battery)
           if (typeof clk.battery === "number" && clk.battery >= 0) {
             var bat = document.createElement("span");
@@ -816,6 +825,16 @@
             actionContainer.appendChild(toggleBtn);
           }
 
+          // Info badge — circled ⓘ shows device details + 7-day activity chart
+          var infoBtn = document.createElement("button");
+          infoBtn.textContent = "\u24d8";
+          infoBtn.title = "Device info";
+          infoBtn.style.cssText = "font-size:13px;background:none;border:none;color:#6699cc;cursor:pointer;padding:0 2px;line-height:1;opacity:0.75;";
+          infoBtn.addEventListener("mouseover", function() { this.style.opacity = "1"; });
+          infoBtn.addEventListener("mouseout", function() { this.style.opacity = "0.75"; });
+          infoBtn.addEventListener("click", function(e) { e.stopPropagation(); fetchAndShowInfo(clk, infoBtn); });
+          actionContainer.appendChild(infoBtn);
+
           row.appendChild(checkbox);
           row.appendChild(radio);
           row.appendChild(span);
@@ -827,6 +846,159 @@
         // Hide if api is unavailable or fails (e.g. static dev server)
         section.style.display = "none";
       });
+  }
+
+  // ---- Device info overlay ----
+
+  var INFO_OVERLAY_ID = "__wvclock_info_overlay__";
+
+  function hideInfoOverlay() {
+    var el = document.getElementById(INFO_OVERLAY_ID);
+    if (el && el.parentNode) el.parentNode.removeChild(el);
+  }
+
+  function formatBuildTime(buildTime) {
+    if (!buildTime || buildTime === "unknown") return "unknown";
+    try {
+      var d = new Date(buildTime);
+      if (isNaN(d.getTime())) return buildTime;
+      var p = function(n) { return n < 10 ? "0" + n : "" + n; };
+      return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) +
+        " " + p(d.getHours()) + ":" + p(d.getMinutes());
+    } catch (e) { return buildTime; }
+  }
+
+  function formatUptime(ms) {
+    if (!ms || ms < 0) return "?";
+    var s = Math.floor(ms / 1000), m = Math.floor(s / 60);
+    s %= 60; var h = Math.floor(m / 60); m %= 60;
+    var d = Math.floor(h / 24); h %= 24;
+    if (d > 0) return d + "d " + h + "h " + m + "m";
+    if (h > 0) return h + "h " + m + "m";
+    return m + "m " + s + "s";
+  }
+
+  function renderInfoChart(container, chart) {
+    var appActive = chart.appActive || [];
+    var screenAwake = chart.screenAwake || [];
+    var n = appActive.length;
+    if (!n) return;
+
+    var legend = document.createElement("div");
+    legend.style.cssText = "display:flex;gap:12px;margin-bottom:4px;font-size:10px;";
+    var l1 = document.createElement("span"); l1.style.color = "#ffdd55"; l1.textContent = "\u25cf App active";
+    var l2 = document.createElement("span"); l2.style.color = "#55ddff"; l2.textContent = "\u25cf Screen awake";
+    legend.appendChild(l1); legend.appendChild(l2);
+    container.appendChild(legend);
+
+    var canvas = document.createElement("canvas");
+    canvas.width = 336; canvas.height = 72;
+    canvas.style.cssText = "width:100%;height:72px;display:block;border:1px solid #333;border-radius:3px;";
+    container.appendChild(canvas);
+
+    var ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    var W = 336, H = 72, pl = 2, pr = 2, pt = 4, pb = 16;
+    var cw = W - pl - pr, ch = H - pt - pb;
+    ctx.fillStyle = "#111"; ctx.fillRect(0, 0, W, H);
+
+    ctx.strokeStyle = "#2a2a2a"; ctx.lineWidth = 0.5;
+    for (var dg = 0; dg <= 7; dg++) {
+      var gx = pl + (dg * 24 / n) * cw;
+      ctx.beginPath(); ctx.moveTo(gx, pt); ctx.lineTo(gx, pt + ch); ctx.stroke();
+    }
+
+    function drawLine(data, color) {
+      ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = 1.5;
+      for (var i = 0; i < data.length; i++) {
+        var x = pl + (n > 1 ? i / (n - 1) : 0) * cw;
+        var y = pt + (1 - Math.min(1, Math.max(0, data[i]))) * ch;
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+
+    drawLine(appActive, "#ffdd55");
+    drawLine(screenAwake, "#55ddff");
+
+    ctx.fillStyle = "#555"; ctx.font = "8px sans-serif"; ctx.textAlign = "center";
+    for (var dl = 0; dl < 7; dl++) {
+      var lx = pl + ((dl * 24 + 12) / n) * cw;
+      var labelMs = (chart.bucketZeroMs || 0) + dl * 24 * 3600000;
+      try {
+        ctx.fillText(new Date(labelMs).toLocaleDateString(undefined, { weekday: "short" }), lx, H - 3);
+      } catch (e) {}
+    }
+  }
+
+  function renderInfoOverlay(clk, info) {
+    hideInfoOverlay();
+    var backdrop = document.createElement("div");
+    backdrop.id = INFO_OVERLAY_ID;
+    backdrop.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,0.72);" +
+      "display:flex;align-items:center;justify-content:center;z-index:2147483646;cursor:pointer;";
+    var box = document.createElement("div");
+    box.style.cssText = "background:#1a1a1a;border:1px solid #444;border-radius:8px;" +
+      "padding:14px 16px;width:360px;max-width:92vw;cursor:default;" +
+      "font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;color:#eee;" +
+      "box-shadow:0 8px 32px rgba(0,0,0,0.6);";
+    box.addEventListener("click", function(e) { e.stopPropagation(); });
+
+    var title = document.createElement("div");
+    title.style.cssText = "font-size:13px;font-weight:bold;color:#ccc;margin-bottom:10px;";
+    title.textContent = clk.name;
+    box.appendChild(title);
+
+    if (info) {
+      var osLine = info.androidVersion
+        ? ("Android " + info.androidVersion)
+        : (info.platform || "desktop");
+      var fields = [
+        ["Brand / Model", (info.brand || "?") + "  /  " + (info.model || "?")],
+        ["OS", osLine],
+        ["Build", formatBuildTime(info.buildTime)],
+        ["Git commit", info.gitCommit || "?"],
+        ["Uptime", formatUptime(info.uptimeMs)]
+      ];
+      var grid = document.createElement("div");
+      grid.style.cssText = "display:grid;grid-template-columns:auto 1fr;gap:3px 10px;margin-bottom:12px;line-height:1.5;";
+      fields.forEach(function(f) {
+        var lbl = document.createElement("span"); lbl.style.color = "#777"; lbl.textContent = f[0];
+        var val = document.createElement("span"); val.style.color = "#ddd"; val.textContent = f[1];
+        grid.appendChild(lbl); grid.appendChild(val);
+      });
+      box.appendChild(grid);
+      if (info.chart) renderInfoChart(box, info.chart);
+    } else {
+      var err = document.createElement("div");
+      err.style.cssText = "color:#666;padding:8px 0;";
+      err.textContent = "Device info unavailable.";
+      box.appendChild(err);
+    }
+
+    var closeBtn = document.createElement("button");
+    closeBtn.style.cssText = "margin-top:10px;width:100%;padding:4px 0;background:#2a2a2a;" +
+      "border:1px solid #444;border-radius:4px;color:#999;cursor:pointer;font-size:11px;";
+    closeBtn.textContent = "Close";
+    closeBtn.addEventListener("click", hideInfoOverlay);
+    box.appendChild(closeBtn);
+    backdrop.appendChild(box);
+    backdrop.addEventListener("click", hideInfoOverlay);
+    var onKey = function(e) { if (e.key === "Escape") { hideInfoOverlay(); document.removeEventListener("keydown", onKey, true); } };
+    document.addEventListener("keydown", onKey, true);
+    document.body.appendChild(backdrop);
+  }
+
+  function fetchAndShowInfo(clk, btnEl) {
+    var base = clk.url;
+    if (base.charAt(base.length - 1) !== "/") base += "/";
+    var prevText = btnEl.textContent;
+    btnEl.textContent = "\u23f3";
+    btnEl.disabled = true;
+    fetch(base + "api/info", { cache: "no-store" })
+      .then(function(r) { return r.json(); })
+      .then(function(info) { btnEl.textContent = prevText; btnEl.disabled = false; renderInfoOverlay(clk, info); })
+      .catch(function() { btnEl.textContent = prevText; btnEl.disabled = false; renderInfoOverlay(clk, null); });
   }
 
   function startClocksScanning() {

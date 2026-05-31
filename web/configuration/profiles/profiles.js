@@ -22,7 +22,7 @@ window.BUILTIN_PROFILES = [
       "secFontFactor": 0.56,
       "secColonDistance": 0.08,
       "secOffset": 0,
-      "sizeBudget": 1,
+      "sizeBudget": 0.97,
       "padHours": false,
       "recenterLeadingOne": true,
       "ntpServer": "",
@@ -52,7 +52,7 @@ window.BUILTIN_PROFILES = [
       "secFontFactor": 0.59,
       "secColonDistance": 0.08,
       "secOffset": 0,
-      "sizeBudget": 0.94,
+      "sizeBudget": 0.92,
       "ntpServer": "",
       "sleepTimeout": 0
     }
@@ -81,7 +81,7 @@ window.BUILTIN_PROFILES = [
       "secFontFactor": 0.59,
       "secColonDistance": 0.08,
       "secOffset": 0,
-      "sizeBudget": 0.94,
+      "sizeBudget": 0.92,
       "ntpServer": "",
       "sleepTimeout": 0,
       "dualFont": true
@@ -110,7 +110,7 @@ window.BUILTIN_PROFILES = [
       "secFontFactor": 0.59,
       "secColonDistance": 0.06,
       "secOffset": -0.2,
-      "sizeBudget": 0.94,
+      "sizeBudget": 0.92,
       "ntpServer": "",
       "sleepTimeout": 0,
       "dualFont": false
@@ -139,7 +139,7 @@ window.BUILTIN_PROFILES = [
       "secFontFactor": 0.59,
       "secColonDistance": 0.08,
       "secOffset": 0,
-      "sizeBudget": 0.94,
+      "sizeBudget": 0.92,
       "ntpServer": "",
       "sleepTimeout": 0,
       "padHours": false,

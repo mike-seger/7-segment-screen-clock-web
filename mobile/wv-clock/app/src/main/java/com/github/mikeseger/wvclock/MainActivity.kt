@@ -2,6 +2,7 @@ package com.github.mikeseger.wvclock
 
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -23,6 +24,8 @@ class MainActivity : Activity() {
     private var server: ClockServer? = null
     private val port = 8765
     private var multicastLock: android.net.wifi.WifiManager.MulticastLock? = null
+
+    private var sleepOverlayView: View? = null
 
     private var sleepTimeoutMinutes = 0
     private var isAsleep = false
@@ -124,6 +127,24 @@ class MainActivity : Activity() {
         }
     }
 
+    private val screenOnReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == Intent.ACTION_SCREEN_ON && isAsleep) {
+                wakeScreen()
+            }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        registerReceiver(screenOnReceiver, IntentFilter(Intent.ACTION_SCREEN_ON))
+    }
+
+    override fun onPause() {
+        super.onPause()
+        try { unregisterReceiver(screenOnReceiver) } catch (_: Exception) {}
+    }
+
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
         if (hasFocus) applyImmersive()
@@ -152,6 +173,19 @@ class MainActivity : Activity() {
                     val level = intent?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
                     val scale = intent?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
                     if (level >= 0 && scale > 0) (level * 100 / scale) else -1
+                },
+                batteryMilliWattsProvider = {
+                    try {
+                        val bm = getSystemService(Context.BATTERY_SERVICE) as? BatteryManager
+                        val uA = bm?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW) ?: Int.MIN_VALUE
+                        val intent = registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+                        val uV = intent?.getIntExtra(BatteryManager.EXTRA_VOLTAGE, -1) ?: -1
+                        // uA is signed (negative = discharging); uV in millivolts
+                        if (uA != Int.MIN_VALUE && uV > 0) {
+                            // milliwatts = |mA| * V  = |uA/1000| * uV/1000
+                            Math.abs(uA.toLong() * uV / 1_000_000L).toInt()
+                        } else -1
+                    } catch (e: Exception) { -1 }
                 }
             )
             s.onOffsetChangedListener = { offset ->
@@ -216,35 +250,21 @@ class MainActivity : Activity() {
         runOnUiThread {
             try {
                 Log.i(TAG, "Attempting to wake screen programmatically")
+
+                // Remove native black overlay
+                sleepOverlayView?.let {
+                    (it.parent as? android.view.ViewGroup)?.removeView(it)
+                }
+                sleepOverlayView = null
+
                 val lp = window.attributes
                 lp.screenBrightness = android.view.WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
                 window.attributes = lp
-
-                // Ensure keep screen on flag is set
-                window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
                 isAsleep = false
                 server?.isScreenAsleep = false
                 resetSleepTimer()
 
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
-                    setShowWhenLocked(true)
-                    setTurnScreenOn(true)
-                } else {
-                    @Suppress("DEPRECATION")
-                    window.addFlags(
-                        android.view.WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
-                        android.view.WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
-                    )
-                }
-
-                val pm = applicationContext.getSystemService(Context.POWER_SERVICE) as? android.os.PowerManager
-                val wl = pm?.newWakeLock(
-                    @Suppress("DEPRECATION")
-                    (android.os.PowerManager.SCREEN_BRIGHT_WAKE_LOCK or android.os.PowerManager.ACQUIRE_CAUSES_WAKEUP),
-                    "WvClock:ScreenWake"
-                )
-                wl?.acquire(3000)
                 applyImmersive()
 
                 webView.post {
@@ -260,13 +280,33 @@ class MainActivity : Activity() {
         runOnUiThread {
             try {
                 Log.i(TAG, "Attempting to put screen to sleep programmatically")
-                val lp = window.attributes
-                lp.screenBrightness = 0.01f // ultra-dim / off
-                window.attributes = lp
 
                 isAsleep = true
                 server?.isScreenAsleep = true
                 handler.removeCallbacks(sleepRunnable)
+
+                // Set backlight to zero while keeping FLAG_KEEP_SCREEN_ON.
+                // This cuts the LCD backlight on Samsung hardware without letting
+                // the OS sleep the display, so touch events and remote wake both
+                // work immediately without any special permissions.
+                val lp = window.attributes
+                lp.screenBrightness = 0.0f
+                window.attributes = lp
+
+                // Add native black overlay for instant visual blackout
+                if (sleepOverlayView == null) {
+                    val overlay = View(this)
+                    overlay.setBackgroundColor(0xFF000000.toInt())
+                    overlay.isClickable = true
+                    addContentView(
+                        overlay,
+                        android.view.ViewGroup.LayoutParams(
+                            android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                            android.view.ViewGroup.LayoutParams.MATCH_PARENT
+                        )
+                    )
+                    sleepOverlayView = overlay
+                }
 
                 webView.post {
                     webView.evaluateJavascript("document.body.style.opacity = '0'; document.body.style.background = '#000000';", null)

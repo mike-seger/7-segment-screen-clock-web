@@ -1,4 +1,7 @@
 import org.gradle.api.tasks.Copy
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.TimeZone
 
 plugins {
     id("com.android.application")
@@ -62,7 +65,25 @@ val syncWebAssets by tasks.registering(Copy::class) {
     into(webAssetsDir)
 }
 
-tasks.named("preBuild").configure { dependsOn(syncWebAssets) }
+val writeBuildInfo by tasks.registering {
+    outputs.upToDateWhen { false }
+    doLast {
+        val gitCommit = try {
+            ProcessBuilder("git", "rev-parse", "--short", "HEAD")
+                .directory(rootProject.projectDir)
+                .redirectErrorStream(true)
+                .start().inputStream.bufferedReader().readLine()?.trim() ?: "unknown"
+        } catch (e: Exception) { "unknown" }
+        val buildTime = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'")
+                .apply { timeZone = TimeZone.getTimeZone("UTC") }
+                .format(Date())
+        val outFile = layout.projectDirectory.file("src/main/assets/build_info.json").asFile
+        outFile.parentFile.mkdirs()
+        outFile.writeText("""{"buildTime":"$buildTime","gitCommit":"$gitCommit"}""")
+    }
+}
+
+tasks.named("preBuild").configure { dependsOn(syncWebAssets, writeBuildInfo) }
 
 // --- Convenience deploy task: install on attached device and launch.
 tasks.register<Exec>("deployToDevice") {

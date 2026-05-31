@@ -6,6 +6,43 @@ const dgram = require('dgram');
 const ip = require('ip');
 const http = require('http');
 const fs = require('fs');
+const os = require('os');
+const { execSync } = require('child_process');
+
+const SERVER_START_MS = Date.now();
+const GIT_COMMIT = (() => {
+  try { return execSync('git rev-parse --short HEAD', { cwd: path.join(__dirname, '..'), timeout: 2000 }).toString().trim(); }
+  catch (_) { return 'unknown'; }
+})();
+const BUILD_TIME = (() => {
+  try { return execSync('git log -1 --format=%cI HEAD', { cwd: path.join(__dirname, '..'), timeout: 2000 }).toString().trim(); }
+  catch (_) { return 'unknown'; }
+})();
+const activityLog = [{ timestampMs: SERVER_START_MS, isAwake: true }];
+
+function trimActivityLog() {
+  const cutoff = Date.now() - 7 * 24 * 3600 * 1000;
+  const firstKeep = activityLog.findIndex(e => e.timestampMs > cutoff);
+  if (firstKeep > 1) activityLog.splice(0, firstKeep - 1);
+}
+
+function computeDesktopAwakeFraction(bucketStart, bucketEnd) {
+  if (!activityLog.length) return 0;
+  let stateAtStart = false;
+  for (const ev of activityLog) {
+    if (ev.timestampMs <= bucketStart) stateAtStart = ev.isAwake; else break;
+  }
+  let segStart = bucketStart, currentState = stateAtStart, awakeDuration = 0;
+  for (const ev of activityLog) {
+    if (ev.timestampMs <= bucketStart) continue;
+    if (ev.timestampMs >= bucketEnd) break;
+    if (currentState) awakeDuration += ev.timestampMs - segStart;
+    segStart = ev.timestampMs;
+    currentState = ev.isAwake;
+  }
+  if (currentState) awakeDuration += bucketEnd - segStart;
+  return awakeDuration / (bucketEnd - bucketStart);
+}
 
 let mainWindow;
 const EXPRESS_PORT = 8080;
@@ -99,6 +136,7 @@ expressApp.get('/api/clocks', (req, res) => {
         url: discoveredClocks[url].url,
         isSelf: false,
         battery: typeof discoveredClocks[url].battery === 'number' ? discoveredClocks[url].battery : -1,
+        milliWatts: typeof discoveredClocks[url].milliWatts === 'number' ? discoveredClocks[url].milliWatts : -1,
         isAsleep: !!discoveredClocks[url].isAsleep
       });
     } else {
@@ -110,6 +148,8 @@ expressApp.get('/api/clocks', (req, res) => {
 });
 
 expressApp.post('/api/wake', (req, res) => {
+  activityLog.push({ timestampMs: Date.now(), isAwake: true });
+  trimActivityLog();
   if (process.platform === 'darwin') {
     const { exec } = require('child_process');
     exec('caffeinate -u -t 2', (err) => {
@@ -121,6 +161,8 @@ expressApp.post('/api/wake', (req, res) => {
 });
 
 expressApp.post('/api/sleep', (req, res) => {
+  activityLog.push({ timestampMs: Date.now(), isAwake: false });
+  trimActivityLog();
   if (process.platform === 'darwin') {
     const { exec } = require('child_process');
     exec('pmset displaysleepnow', (err) => {
@@ -129,6 +171,58 @@ expressApp.post('/api/sleep', (req, res) => {
   }
   broadcastClocksUpdate();
   res.json({ ok: true });
+});
+
+/**
+ * GET /api/info
+ *
+ * Returns device information and a 7-day activity history for one clock node.
+ *
+ * Response JSON schema:
+ * {
+ *   brand:          string         — device brand (e.g. "samsung") or OS type for desktop
+ *   model:          string         — device model (e.g. "SM-X200") or hostname for desktop
+ *   androidVersion: string | null  — Android OS version (e.g. "14"), null on desktop
+ *   platform:       string         — OS platform string (e.g. "darwin", "android")
+ *   buildTime:      string         — ISO-8601 git commit timestamp of the running build
+ *   gitCommit:      string         — short git commit hash of the running build
+ *   uptimeMs:       number         — milliseconds since the process / device booted
+ *   serverStartMs:  number         — Unix ms when the HTTP server started in this session
+ *   nowMs:          number         — server-side Unix ms at response time
+ *   chart: {
+ *     bucketMs:     number         — duration of each bucket in ms (3 600 000 = 1 h)
+ *     bucketZeroMs: number         — Unix ms of the first (oldest) bucket start
+ *     appActive:    number[]       — 168 values [0,1]: fraction of each hour the app was running
+ *     screenAwake:  number[]       — 168 values [0,1]: fraction of each hour the screen was on
+ *   }
+ * }
+ */
+expressApp.get('/api/info', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const now = Date.now();
+  const bucketMs = 3_600_000;
+  const bucketCount = 7 * 24;
+  const bucketZero = now - (bucketCount - 1) * bucketMs;
+  const appActive = [];
+  const screenAwake = [];
+  for (let i = 0; i < bucketCount; i++) {
+    const bs = bucketZero + i * bucketMs;
+    const be = bs + bucketMs;
+    appActive.push(SERVER_START_MS < be ? (be - Math.max(SERVER_START_MS, bs)) / bucketMs : 0);
+    screenAwake.push(computeDesktopAwakeFraction(bs, be));
+  }
+  res.json({
+    brand: os.type(),
+    model: os.hostname(),
+    androidVersion: null,
+    platform: process.platform,
+    buildTime: BUILD_TIME,
+    gitCommit: GIT_COMMIT,
+    uptimeMs: Math.round(process.uptime() * 1000),
+    serverStartMs: SERVER_START_MS,
+    nowMs: now,
+    chart: { bucketMs, bucketZeroMs: bucketZero, appActive, screenAwake }
+  });
 });
 
 expressApp.get('/api/events', (req, res) => {
@@ -209,6 +303,7 @@ udpSocket.on('message', (msg, rinfo) => {
       if (obj && obj.id && obj.id !== SERVER_ID) {
         const prev = discoveredClocks[obj.id];
         const battery = typeof obj.battery === 'number' ? obj.battery : -1;
+        const milliWatts = typeof obj.milliWatts === 'number' ? obj.milliWatts : -1;
         const isAsleep = !!obj.isAsleep;
         const changed = !prev
           || prev.isAsleep !== isAsleep
@@ -218,6 +313,7 @@ udpSocket.on('message', (msg, rinfo) => {
           url: obj.url,
           lastSeen: Date.now(),
           battery,
+          milliWatts,
           isAsleep
         };
         if (changed) broadcastClocksUpdate();

@@ -27,7 +27,8 @@ class ClockServer(
     private val context: Context,
     private val port: Int,
     private val lanUrlProvider: () -> String?,
-    private val batteryLevelProvider: () -> Int = { -1 }
+    private val batteryLevelProvider: () -> Int = { -1 },
+    private val batteryMilliWattsProvider: () -> Int = { -1 }
 ) : NanoHTTPD(port) {
 
     // Last-known persisted state (mirrors localStorage keys that begin with screenClock_).
@@ -58,6 +59,7 @@ class ClockServer(
         val url: String,
         val lastSeen: Long,
         val battery: Int = -1,
+        val milliWatts: Int = -1,
         val isAsleep: Boolean = false
     )
 
@@ -87,12 +89,17 @@ class ClockServer(
         set(value) {
             if (field != value) {
                 field = value
+                activityEvents.add(ActivityEvent(System.currentTimeMillis(), !value))
+                trimActivityEvents()
                 broadcastClocksUpdate()
             }
         }
 
     private var p2pSocket: DatagramSocket? = null
     private var p2pThread: Thread? = null
+
+    private val serverStartMs = System.currentTimeMillis()
+    private val activityEvents = java.util.concurrent.CopyOnWriteArrayList<ActivityEvent>()
 
     private var lastNtpSyncTime = 0L
     private var lastP2pSyncTime = 0L
@@ -101,6 +108,7 @@ class ClockServer(
     }
 
     init {
+        activityEvents.add(ActivityEvent(serverStartMs, true))
         heartbeat.scheduleAtFixedRate({
             val bytes = ": ping\n\n".toByteArray()
             for (c in sseClients) c.offer(bytes)
@@ -137,6 +145,7 @@ class ClockServer(
                                 val name = obj.getString("name")
                                 val url = obj.getString("url")
                                 val battery = if (obj.has("battery")) obj.getInt("battery") else -1
+                                val milliWatts = if (obj.has("milliWatts")) obj.getInt("milliWatts") else -1
                                 val isAsleep = if (obj.has("isAsleep")) obj.getBoolean("isAsleep") else false
                                 val prev = discoveredClocks[id]
                                 val changed = prev == null
@@ -148,6 +157,7 @@ class ClockServer(
                                     url = url,
                                     lastSeen = System.currentTimeMillis(),
                                     battery = battery,
+                                    milliWatts = milliWatts,
                                     isAsleep = isAsleep
                                 )
                                 if (changed) broadcastClocksUpdate()
@@ -169,6 +179,7 @@ class ClockServer(
                             put("name", android.os.Build.MODEL)
                             put("url", url)
                             put("battery", batteryLevelProvider())
+                            put("milliWatts", batteryMilliWattsProvider())
                             put("isAsleep", isScreenAsleep)
                         }
                         val msg = "WvClockDiscovery:$payload"
@@ -386,6 +397,7 @@ class ClockServer(
         val response = try {
             when {
                 uri == "/api/clocks" && session.method == Method.GET -> handleGetClocks()
+                uri == "/api/info" && session.method == Method.GET -> handleGetInfo()
                 uri == "/api/time" && session.method == Method.GET -> handleGetTime()
                 uri == "/api/state" && session.method == Method.GET -> handleGetState()
                 uri == "/api/state" && session.method == Method.POST -> handlePostState(session)
@@ -428,6 +440,7 @@ class ClockServer(
                 put("url", clk.url)
                 put("isSelf", false)
                 put("battery", clk.battery)
+                put("milliWatts", clk.milliWatts)
                 put("isAsleep", clk.isAsleep)
             }
             array.put(obj)
@@ -439,6 +452,7 @@ class ClockServer(
             put("url", selfUrl)
             put("isSelf", true)
             put("battery", batteryLevelProvider())
+            put("milliWatts", batteryMilliWattsProvider())
             put("isAsleep", isScreenAsleep)
         }
         array.put(selfObj)
@@ -675,6 +689,70 @@ class ClockServer(
         path.endsWith(".otf") -> "font/otf"
         path.endsWith(".eot") -> "application/vnd.ms-fontobject"
         else -> "application/octet-stream"
+    }
+
+    private data class ActivityEvent(val timestampMs: Long, val isAwake: Boolean)
+
+    private fun trimActivityEvents() {
+        val cutoff = System.currentTimeMillis() - 7L * 24 * 3600 * 1000
+        val snapshot = activityEvents.toList()
+        val firstKeepIdx = snapshot.indexOfLast { it.timestampMs <= cutoff }
+        if (firstKeepIdx > 0) activityEvents.subList(0, firstKeepIdx).clear()
+    }
+
+    private fun computeAwakeFraction(bucketStart: Long, bucketEnd: Long): Double {
+        val events = activityEvents.toList()
+        if (events.isEmpty()) return 0.0
+        var stateAtStart = false
+        for (ev in events) { if (ev.timestampMs <= bucketStart) stateAtStart = ev.isAwake else break }
+        var segStart = bucketStart; var currentState = stateAtStart; var awakeDuration = 0L
+        for (ev in events) {
+            if (ev.timestampMs <= bucketStart) continue
+            if (ev.timestampMs >= bucketEnd) break
+            if (currentState) awakeDuration += ev.timestampMs - segStart
+            segStart = ev.timestampMs; currentState = ev.isAwake
+        }
+        if (currentState) awakeDuration += bucketEnd - segStart
+        return awakeDuration.toDouble() / (bucketEnd - bucketStart)
+    }
+
+    private fun handleGetInfo(): Response {
+        val now = System.currentTimeMillis()
+        val bucketMs = 3_600_000L
+        val bucketCount = 7 * 24
+        val bucketZero = now - (bucketCount - 1) * bucketMs
+        val appActive = (0 until bucketCount).map { i ->
+            val bs = bucketZero + i * bucketMs; val be = bs + bucketMs
+            if (serverStartMs < be) (be - maxOf(serverStartMs, bs)).toDouble() / bucketMs else 0.0
+        }
+        val screenAwake = (0 until bucketCount).map { i ->
+            val bs = bucketZero + i * bucketMs
+            computeAwakeFraction(bs, bs + bucketMs)
+        }
+        val buildInfo = try {
+            val bytes = context.assets.open("build_info.json").readBytes()
+            JSONObject(String(bytes, Charsets.UTF_8))
+        } catch (e: Exception) { JSONObject() }
+        val json = JSONObject().apply {
+            put("brand", android.os.Build.BRAND)
+            put("model", android.os.Build.MODEL)
+            put("androidVersion", android.os.Build.VERSION.RELEASE)
+            put("platform", "android")
+            put("buildTime", buildInfo.optString("buildTime", "unknown"))
+            put("gitCommit", buildInfo.optString("gitCommit", "unknown"))
+            put("uptimeMs", android.os.SystemClock.elapsedRealtime())
+            put("serverStartMs", serverStartMs)
+            put("nowMs", now)
+            put("chart", JSONObject().apply {
+                put("bucketMs", bucketMs)
+                put("bucketZeroMs", bucketZero)
+                put("appActive", JSONArray(appActive))
+                put("screenAwake", JSONArray(screenAwake))
+            })
+        }
+        return newFixedLengthResponse(Response.Status.OK, "application/json", json.toString()).apply {
+            addHeader("Cache-Control", "no-store")
+        }
     }
 
     companion object {
