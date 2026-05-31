@@ -5,7 +5,7 @@
     right: 10px;
     width: 380px;
     max-width: 95vw;
-    height: 480px;
+    height: 550px;
     max-height: calc(100vh - 60px);
     overflow: hidden; /* layout scrolling is handled inside #menuContent */
     background: rgba(17, 17, 17, 0.95);
@@ -66,35 +66,46 @@
 
 /* Left vertical tab bar */
 #menuSidebar {
-    width: 48px;
+    width: 58px;
     background: #121214;
     border-right: 1px solid #2a2a2a;
     display: flex;
     flex-direction: column;
-    align-items: center;
-    padding-top: 10px;
-    gap: 14px;
+    align-items: stretch;
+    padding-top: 0;
+    gap: 0;
     flex-shrink: 0;
 }
 
 .menuTab {
-    width: 36px;
-    height: 36px;
-    border-radius: 6px;
+    width: 100%;
+    height: 58px;
+    border-radius: 0;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
     color: #888;
+    background: transparent;
     transition: all 0.15s ease;
 }
 
+#menuSidebar .symbol {
+    font-size: 26px;
+}
+
 .menuTab:hover {
-    color: #ccc;
-    background: rgba(255, 255, 255, 0.05);
+    color: #04fb62;
+    background: rgba(4, 251, 98, 0.1);
 }
 
 .menuTab.active {
+    color: #04fb62;
+    background: transparent;
+}
+
+.menuTab:focus-visible {
+    outline: none;
     color: #04fb62;
     background: rgba(4, 251, 98, 0.1);
 }

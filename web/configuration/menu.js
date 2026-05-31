@@ -219,8 +219,6 @@ async function ensureConfigurationInitialized() {
 }
 
 async function toggleMenuPanel() {
-    if (!menuButton || menuButton.style.display === "none") return;
-
     await ensureConfigurationInitialized();
 
     const panel = document.getElementById('menuPanel');
@@ -229,7 +227,6 @@ async function toggleMenuPanel() {
     loadMenuCSS();
     const isOpen = panel.style.display !== "flex";
     panel.style.display = isOpen ? "flex" : "none";
-    if (!isOpen) menuButton.style.display = "none";
     saveMenuOpenState(isOpen);
 }
 
@@ -238,7 +235,6 @@ if (menuButton) {
 }
 
 window.openMenuPanel = async function() {
-    if (menuButton) menuButton.style.display = "block";
     await ensureConfigurationInitialized();
     const panel = document.getElementById('menuPanel');
     if (!panel) return;
@@ -253,10 +249,8 @@ window.toggleConfigUI = async function() {
 
     if (panelVisible) {
         panel.style.display = "none";
-        if (menuButton) menuButton.style.display = "none";
         saveMenuOpenState(false);
     } else {
-        if (menuButton) menuButton.style.display = "block";
         await ensureConfigurationInitialized();
         const p = document.getElementById('menuPanel');
         if (!p) return;
@@ -273,7 +267,6 @@ ensureConfigurationInitialized();
 (async function restoreMenuState() {
     const wasOpen = loadMenuOpenState();
     if (wasOpen) {
-        if (menuButton) menuButton.style.display = "block";
         await ensureConfigurationInitialized();
         const panel = document.getElementById('menuPanel');
         if (panel) {
