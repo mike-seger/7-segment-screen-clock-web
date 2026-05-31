@@ -944,12 +944,28 @@ function applyClockTransform(animated = false) {
   const colonSecEl = document.getElementById("colon-sec");
   if (!clock || !clockInner) return;
 
+  // Save previous transforms for animation starting state
+  const prevTransform = clockInner.style.transform;
+  const prevTimeLineTransform = timeLine ? timeLine.style.transform : "";
+
+  // Temporarily disable transition during bounds computation to make them synchronous
+  const savedClockInnerTransition = clockInner.style.transition;
+  const savedTimeLineTransition = timeLine ? timeLine.style.transition : "";
+  clockInner.style.transition = "none";
+  if (timeLine) timeLine.style.transition = "none";
+
   // Always compute fit and spacing in untransformed layout space.
   clockInner.style.transform = "none";
   clockInner.style.paddingTop = "0px";
   clockInner.style.paddingBottom = "0px";
   clockInner.style.rowGap = "0px";
-  if (timeLine) timeLine.style.marginTop = "0px";
+  if (timeLine) {
+    timeLine.style.marginTop = "0px";
+    timeLine.style.transform = "translateX(0)";
+  }
+
+  // Force synchronous layout clean slate
+  void clockInner.offsetHeight;
 
   const vw = window.innerWidth;
   const vh = window.innerHeight;
@@ -989,11 +1005,7 @@ function applyClockTransform(animated = false) {
   }
 
   if (timeLine) {
-    timeLine.style.marginTop = "0px";
     timeLine.style.fontSize = `${renderedTimeFontSize / numericCorrection}px`;
-    // Neutralise CSS hour-leading-one rule and any previous frame's correction;
-    // will be recomputed after scale is applied below.
-    timeLine.style.transform = "translateX(0)";
   }
 
   if (hourEl) hourEl.style.fontSize = `${renderedTimeFontSize / numericCorrection}px`;
@@ -1036,6 +1048,9 @@ function applyClockTransform(animated = false) {
     timeLine.style.marginTop = `${marginTopPx}px`;
   }
 
+  // Force synchronous reflow to register updated layout space heights
+  void clockInner.offsetHeight;
+
   // Heights and widths in CSS layout space (offsetWidth/Height are unaffected
   // by CSS transforms on the element itself).
   const dateH = dateLine ? dateLine.offsetHeight : 0;
@@ -1065,9 +1080,12 @@ function applyClockTransform(animated = false) {
     scale *= SCALE_SAFETY;
   }
 
-  // Calculate unrotated centering parameters using layout-space positions.
-  // clockInner.style.transform is "none" at this point, so offsetLeft/Top on
-  // children give clean CSS-px positions relative to the viewport origin.
+  // Calculate coordinates in exact untransformed viewport space now that the final spacing is set.
+  if (dateLine && timeLine) {
+    _di = measureRowInkBounds(dateLine);
+    _ti = measureRowInkBounds(timeLine);
+  }
+
   let hLocalOffset = 0;
   let hOffsetVp = 0;
   let vOffsetVp = 0;
@@ -1083,14 +1101,20 @@ function applyClockTransform(animated = false) {
 
   const theta = rotation * Math.PI / 180;
   if (_di && _ti) {
-    // Center on the ink midpoint rather than the element-box midpoint.  _di/_ti
-    // were measured at marginTop=0; the ink midpoint is invariant to the
-    // marginTopPx shift applied below because flex recentering of clockInner
-    // absorbs it exactly, so (_di.top + _ti.bottom)/2 is correct for any gap.
+    // Universal horizontal and vertical physical positioning of the clock to the true screen center:
+    // Computes the center of the total ink bounding box across all lines:
+    const inkCenterX = (Math.min(_di.left, _ti.left) + Math.max(_di.right, _ti.right)) / 2;
     const inkCenterY = (_di.top + _ti.bottom) / 2;
-    const vOffset = (vh / 2) - inkCenterY;
-    hOffsetVp = -vOffset * scale * Math.sin(theta);
-    vOffsetVp = vOffset * scale * Math.cos(theta);
+
+    const dx = inkCenterX - (vw / 2);
+    const dy = inkCenterY - (vh / 2);
+
+    const cos = Math.cos(theta);
+    const sin = Math.sin(theta);
+
+    // Apply the exact offset transformation in standard viewport space:
+    hOffsetVp = -(dx * cos - dy * sin) * scale;
+    vOffsetVp = -(dx * sin + dy * cos) * scale;
   } else {
     const blockTop = dateLine ? dateLine.offsetTop : (timeLine ? timeLine.offsetTop : 0);
     const blockBottom = timeLine ? (timeLine.offsetTop + timeLine.offsetHeight) : (dateLine ? dateLine.offsetTop + dateLine.offsetHeight : 0);
@@ -1113,25 +1137,31 @@ function applyClockTransform(animated = false) {
     Cy: vh / 2
   };
 
-  // Suppress transition timing if not animated to avoid visual jumping or lag on routine tick updates.
   const shouldAnimate = animated === true;
-  if (!shouldAnimate) {
-    clockInner.style.transition = "none";
-    if (timeLine) timeLine.style.transition = "none";
+  if (shouldAnimate) {
+    // Restore starts of transforms so that we can transition smoothly from old style position to new style position
+    clockInner.style.transform = prevTransform;
+    if (timeLine) timeLine.style.transform = prevTimeLineTransform;
+
+    void clockInner.offsetHeight; // force rendering engine to record starting state
+
+    // Restore transition styles to allow CSS to interpolate
+    clockInner.style.transition = savedClockInnerTransition;
+    if (timeLine) timeLine.style.transition = savedTimeLineTransition;
   }
 
-  // Apply high precision unrotated horizontal translation local to timeLine
+  // Apply final high precision locally translated translateX horizontal adjustment to timeline
   if (timeLine) {
     timeLine.style.transform = `translateX(${hLocalOffset}px)`;
   }
 
-  // Apply unified physical scale, rotation & viewport coordinates offset transform
+  // Apply final physical scale, rotation & viewport centering transforms to clockInner parent
   clockInner.style.transform = `translateX(${hOffsetVp}px) translateY(${vOffsetVp}px) rotate(${rotation}deg) scale(${scale})`;
 
   if (!shouldAnimate) {
     void clockInner.offsetWidth; // force style recalculation
-    clockInner.style.transition = "";
-    if (timeLine) timeLine.style.transition = "";
+    clockInner.style.transition = savedClockInnerTransition;
+    if (timeLine) timeLine.style.transition = savedTimeLineTransition;
   }
 
   scheduleRowCoordinateDisplayUpdate();
