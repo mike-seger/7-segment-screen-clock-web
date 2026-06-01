@@ -23,6 +23,9 @@
             <div class="menuTab" data-tab="system" title="System & Network">
                 <span class="symbol">settings_applications</span>
             </div>
+            <div class="menuTab" data-tab="bug-report" title="Bug Report">
+                <span class="symbol">bug_report</span>
+            </div>
         </div>
 
         <!-- Main content area -->
@@ -163,16 +166,6 @@
                         </span>
                     </label>
                 </div>
-
-                <div class="menu-subsection">
-                    <h3>Debug</h3>
-                    <label style="margin: 4px 0;">
-                        <span style="display: flex; align-items: center; gap: 6px;">
-                            <input type="checkbox" id="showDebug">
-                            Show debug overlay
-                        </span>
-                    </label>
-                </div>
             </div>
 
             <!-- 4. CLOCK COLORS -->
@@ -231,6 +224,18 @@
                     <div id="networkClocksList" style="display: flex; flex-direction: column; gap: 6px;">
                         <div style="font-size: 12px; color: #888; font-style: italic;">Scanning network...</div>
                     </div>
+                </div>
+            </div>
+
+            <!-- 6. BUG REPORT -->
+            <div class="menu-tab-content" id="tab-bug-report" style="display: none;">
+                <div class="menu-subsection">
+                    <label style="margin: 4px 0;">
+                        <span style="display: flex; align-items: center; gap: 6px;">
+                            <input type="checkbox" id="showDebug">
+                            Show debug overlay
+                        </span>
+                    </label>
                 </div>
             </div>
         </div>
