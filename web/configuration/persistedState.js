@@ -49,8 +49,9 @@ let state = { ...DEFAULT_STATE };
 
 const STORAGE_KEY_CURRENT  = "screenClock_state";
 const STORAGE_KEY_PROFILES = "screenClock_profiles";   // JSON array of names
-const STORAGE_KEY_DEBUG    = "screenClock_debug";
-const PROFILE_PREFIX       = "screenClock_profile_";
+const STORAGE_KEY_DEBUG     = "screenClock_debug";
+const STORAGE_KEY_CONTAINER = "screenClock_container";
+const PROFILE_PREFIX        = "screenClock_profile_";
 
 
 const MIN_WEIGHT = 0;
@@ -143,6 +144,29 @@ function isBuiltinProfile(name) {
         && window.BUILTIN_PROFILES.some(p => p.name === String(name || "").trim());
 }
 
+const DEFAULT_CONTAINER = { enabled: false, scale: 4 };
+
+function loadContainer() {
+    try {
+        const raw = localStorage.getItem(STORAGE_KEY_CONTAINER);
+        if (raw) {
+            const parsed = JSON.parse(raw);
+            const sc = Number(parsed.scale);
+            return {
+                enabled: !!parsed.enabled,
+                scale:   Number.isFinite(sc) && sc >= 1 ? sc : DEFAULT_CONTAINER.scale,
+            };
+        }
+    } catch {}
+    return { ...DEFAULT_CONTAINER };
+}
+
+function saveContainer(val) {
+    try {
+        localStorage.setItem(STORAGE_KEY_CONTAINER, JSON.stringify(val));
+    } catch {}
+}
+
 function loadCurrentState() {
     try {
         const raw = localStorage.getItem(STORAGE_KEY_CURRENT);
@@ -154,12 +178,14 @@ function loadCurrentState() {
         console.warn("Failed to load stored state", e);
     }
     state.showDebug = loadShowDebug();
+    state.container = loadContainer();
 }
 
 function saveCurrentState() {
     try {
         const toSave = { ...state };
         delete toSave.showDebug;
+        delete toSave.container;
         localStorage.setItem(STORAGE_KEY_CURRENT, JSON.stringify(toSave));
     } catch (e) {
         console.warn("Failed to save state", e);
@@ -205,6 +231,7 @@ function saveProfile(name) {
     const key = PROFILE_PREFIX + name;
     const toSave = { ...state };
     delete toSave.showDebug;
+    delete toSave.container;
     localStorage.setItem(key, JSON.stringify(toSave));
     let names = loadProfileNames();
     if (!names.includes(name)) {
@@ -222,6 +249,7 @@ function loadProfile(name) {
     if (builtin) {
         state = normalizeSizingState({ ...DEFAULT_STATE, ...builtin.data });
         state.showDebug = loadShowDebug();
+        state.container = loadContainer();
         applyLoadedStateUI();
         saveCurrentState();
         return;
@@ -233,6 +261,7 @@ function loadProfile(name) {
         const parsed = JSON.parse(raw);
         state = normalizeSizingState({ ...DEFAULT_STATE, ...parsed });
         state.showDebug = loadShowDebug();
+        state.container = loadContainer();
         applyLoadedStateUI();
         saveCurrentState();
     } catch (e) {

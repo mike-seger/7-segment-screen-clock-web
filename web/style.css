@@ -35,12 +35,39 @@ html, body {
 }
 
 /* This is still the element you hide/show after fonts load */
+#clockContainer {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+}
+
+/* Simulated display overlay: a fullscreen canvas whose internal bitmap is
+   virtualVW × virtualVH. CSS stretches it across the viewport with
+   image-rendering: pixelated so each virtual pixel becomes a sharp block. */
+#virtualClockCanvas {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    pointer-events: none;
+    background: #000;
+    z-index: 900;
+    display: none;
+}
+
+#virtualClockCanvas.active {
+    display: block;
+}
+
 #clock {
     position: fixed;
     top: 0;
     left: 0;
-    width: 100vw;
-    height: 100vh;
+    width: 100%;
+    height: 100%;
 
     display: none;
     align-items: center;     /* vertical center */

@@ -124,7 +124,11 @@ function initConfiguration() {
         secOffset:         document.getElementById("secOffset"),
         secOffsetValue:    document.getElementById("secOffsetValue"),
 
-        showDebug:         document.getElementById("showDebug"),
+        showDebug:              document.getElementById("showDebug"),
+        containerEnabled:       document.getElementById("containerEnabled"),
+        containerScale:         document.getElementById("containerScale"),
+        containerControls:      document.getElementById("containerControls"),
+        containerSizeHint:      document.getElementById("containerSizeHint"),
         sizeBudget:        document.getElementById("sizeBudget"),
         sizeBudgetValue:   document.getElementById("sizeBudgetValue"),
         ntpServer:         document.getElementById("ntpServerInput"),
@@ -326,6 +330,19 @@ function initConfiguration() {
         state.alphaOffset = alphaTransform.offsetPx;
     }
 
+    function updateContainerSizeHint() {
+        if (!els.containerSizeHint || !els.containerEnabled) return;
+        const c = state.container || {};
+        if (!c.enabled) { els.containerSizeHint.textContent = ""; return; }
+        const sc = c.scale || 4;
+        const winW = window.innerWidth;
+        const winH = window.innerHeight;
+        const vw = Math.round(winW / sc);
+        const vh = Math.round(winH / sc);
+        els.containerSizeHint.textContent = `Virtual: ${vw}×${vh} px  (${winW}×${winH} real, ${sc}px/virtual px)`;
+    }
+    window.updateContainerSizeHint = updateContainerSizeHint;
+
     function initFormFromState() {
         state.multiFont = state.multiFont !== false;
         state.numericOffset = normalizeOffsetFactor(state.numericOffset);
@@ -359,6 +376,14 @@ function initConfiguration() {
             els.inheritColonColor.checked = state.inheritColonColor === true;
         }
         if (els.showDebug) els.showDebug.checked = state.showDebug === true;
+        // Container mode
+        if (els.containerEnabled) {
+            const c = state.container || {};
+            els.containerEnabled.checked = !!c.enabled;
+            if (els.containerScale)    els.containerScale.value    = c.scale != null ? c.scale : 4;
+            if (els.containerControls) els.containerControls.style.display = c.enabled ? "" : "none";
+            updateContainerSizeHint();
+        }
         if (els.sizeBudget) els.sizeBudget.value = state.sizeBudget;
         if (els.ntpServer) els.ntpServer.value = state.ntpServer || "";
         if (els.sleepTimeoutSelect) els.sleepTimeoutSelect.value = state.sleepTimeout || 0;
@@ -639,8 +664,38 @@ function initConfiguration() {
                 state.showDebug = els.showDebug.checked;
                 if (typeof saveShowDebug === "function") saveShowDebug(state.showDebug);
                 if (typeof scheduleRowCoordinateDisplayUpdate === "function") scheduleRowCoordinateDisplayUpdate();
+                // Sync debug outline on container
+                if (typeof applyContainerMode === "function") applyContainerMode();
             });
         }
+
+        function readContainerFromForm() {
+            if (!els.containerEnabled) return;
+            const sc = parseFloat(els.containerScale ? els.containerScale.value : 4);
+            state.container = {
+                enabled: els.containerEnabled.checked,
+                scale:   Number.isFinite(sc) && sc >= 1 ? sc : 4,
+            };
+            if (typeof saveContainer === "function") saveContainer(state.container);
+        }
+
+        if (els.containerEnabled) {
+            els.containerEnabled.addEventListener("change", () => {
+                readContainerFromForm();
+                if (els.containerControls) els.containerControls.style.display = state.container.enabled ? "" : "none";
+                updateContainerSizeHint();
+                if (typeof applyContainerMode === "function") applyContainerMode();
+            });
+        }
+
+        [els.containerScale].forEach(el => {
+            if (!el) return;
+            el.addEventListener("input", () => {
+                readContainerFromForm();
+                updateContainerSizeHint();
+                if (typeof applyContainerMode === "function") applyContainerMode();
+            });
+        });
 
         const updateProfileButtons = () => {
             const selected = (els.profileSelect.value || "").trim();
@@ -680,6 +735,7 @@ function initConfiguration() {
             const safeName = name.replace(/[^a-zA-Z0-9_-]/g, "_");
             const data = { ...state };
             delete data.showDebug;
+            delete data.container;
             if (els.sizeBudget) data.sizeBudget = Math.min(1, Math.max(0.5, Number(els.sizeBudget.value) || 0.95));
             const entry = { name, data };
             const js = `${JSON.stringify(entry, null, 2)}\n`;

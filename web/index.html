@@ -11,9 +11,22 @@
 </head>
 
 <body>
+<script>
+// Patch getContext so all 2d contexts (including html2canvas internals) get
+// willReadFrequently=true, suppressing the repeated DevTools perf warning.
+(function() {
+  const _orig = HTMLCanvasElement.prototype.getContext;
+  HTMLCanvasElement.prototype.getContext = function(type, attrs) {
+    if (type === "2d") attrs = Object.assign({ willReadFrequently: true }, attrs);
+    return _orig.call(this, type, attrs);
+  };
+})();
+</script>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <div id="menuPlaceholder"></div>
 
+<canvas id="virtualClockCanvas"></canvas>
+<div id="clockContainer">
 <div id="clock">
     <div id="clockInner">
         <div id="dateLine">
@@ -32,6 +45,7 @@
         </div>
     </div>
 </div>
+</div><!-- /#clockContainer -->
 
     <div id="rowCoordinateDisplay" aria-live="polite"></div>
 
@@ -59,6 +73,77 @@ function normalizeSizingWeight(value, fallback) {
   const n = Number(value);
   if (!Number.isFinite(n)) return fallback;
   return Math.min(0.99, Math.max(0, n));
+}
+
+// Returns the real clock viewport size. The simulated-display feature works
+// purely by capturing the rendered clock and downsampling, so layout always
+// targets the real window dimensions.
+function getClockViewportSize() {
+  return { vw: window.innerWidth, vh: window.innerHeight };
+}
+
+// Toggles the simulated-display canvas overlay. The clock continues to render
+// normally at real viewport size; the canvas just covers it with a downsampled
+// + pixelated screenshot.
+function applyContainerMode() {
+  const canvas = document.getElementById("virtualClockCanvas");
+  if (!canvas) return;
+  const c = (typeof state !== "undefined" && state.container) ? state.container : null;
+  const enabled = !!(c && c.enabled);
+  if (enabled) {
+    const sc = Math.max(1, c.scale || 4);
+    const vw = Math.max(1, Math.round(window.innerWidth  / sc));
+    const vh = Math.max(1, Math.round(window.innerHeight / sc));
+    canvas.width  = vw;
+    canvas.height = vh;
+    canvas.classList.add("active");
+    drawClockToCanvas();
+  } else {
+    canvas.classList.remove("active");
+  }
+}
+
+// Screenshot the (normally-rendered) #clock element with html2canvas, then
+// drawImage it stretched into the small virtualVW × virtualVH canvas. CSS
+// then stretches that small bitmap back to fullscreen with pixelated
+// rendering, producing the simulated low-res display look.
+let _drawScheduled = false;
+function drawClockToCanvas() {
+  const c = (typeof state !== "undefined" && state.container) ? state.container : null;
+  const canvas = document.getElementById("virtualClockCanvas");
+  const clock = document.getElementById("clock");
+  if (!canvas || !clock) return;
+  if (!c || !c.enabled) return;
+  if (typeof html2canvas !== "function") return;
+  if (_drawScheduled) return;
+  _drawScheduled = true;
+  requestAnimationFrame(() => {
+    _drawScheduled = false;
+    const sc = Math.max(1, c.scale || 4);
+    const vw = Math.max(1, Math.round(window.innerWidth  / sc));
+    const vh = Math.max(1, Math.round(window.innerHeight / sc));
+    if (canvas.width !== vw || canvas.height !== vh) {
+      canvas.width = vw;
+      canvas.height = vh;
+    }
+    const winW = window.innerWidth;
+    const winH = window.innerHeight;
+    html2canvas(clock, {
+      scale: 1,
+      backgroundColor: "#000",
+      logging: false,
+      useCORS: true
+    }).then(src => {
+      if (!src || !src.width || !src.height) return;
+      const ctx = canvas.getContext("2d");
+      ctx.imageSmoothingEnabled = false;
+      ctx.fillStyle = "#000";
+      ctx.fillRect(0, 0, vw, vh);
+      ctx.drawImage(src, 0, 0, src.width, src.height, 0, 0, vw, vh);
+    }).catch(err => {
+      console.warn("html2canvas failed:", err);
+    });
+  });
 }
 
 function computeSizingWeights(weightGap, fr) {
@@ -507,8 +592,8 @@ function getClockRowInkBounds(dateLine, timeLine) {
     hLocalOffset: 0,
     hOffsetVp: 0,
     vOffsetVp: 0,
-    Cx: window.innerWidth / 2,
-    Cy: window.innerHeight / 2
+    Cx: getClockViewportSize().vw / 2,
+    Cy: getClockViewportSize().vh / 2
   };
 
   const transformedDateBounds = transformBounds(
@@ -621,7 +706,8 @@ async function updateRowCoordinateDisplay() {
   const timeFontPx = hourEl ? Math.round(parseFloat(getComputedStyle(hourEl).fontSize)) : null;
   const timeFontFamily = hourEl ? getComputedStyle(hourEl).fontFamily.split(',')[0].trim().replace(/['"]/g, '') : "n/a";
   const simPart = cycleTimer !== null ? ` | sim ${(cycleStep - 1) % 40}` : "";
-  display.textContent = `date ${formatVisualBounds(dateBounds)} | time ${formatVisualBounds(timeBounds)} | gap ${Number.isFinite(gapHeight) ? Math.round(gapHeight) : "n/a"} px | vwh ${window.innerWidth},${window.innerHeight} | time font ${timeFontFamily} ${timeFontPx !== null ? timeFontPx + " px" : "n/a"}${simPart}`;}
+  const { vw: _dvw, vh: _dvh } = getClockViewportSize();
+  display.textContent = `date ${formatVisualBounds(dateBounds)} | time ${formatVisualBounds(timeBounds)} | gap ${Number.isFinite(gapHeight) ? Math.round(gapHeight) : "n/a"} px | vwh ${_dvw},${_dvh} | time font ${timeFontFamily} ${timeFontPx !== null ? timeFontPx + " px" : "n/a"}${simPart}`;}
 
 function scheduleRowCoordinateDisplayUpdate() {
   if (rowCoordinateUpdatePending) return;
@@ -843,6 +929,7 @@ function updateClock() {
       timeLine.classList.toggle("hour-leading-one", hourLeadingOne);
     }
 
+    if (typeof drawClockToCanvas === "function") drawClockToCanvas();
     scheduleRowCoordinateDisplayUpdate();
 
 }
@@ -967,8 +1054,7 @@ function applyClockTransform(animated = false) {
   // Force synchronous layout clean slate
   void clockInner.offsetHeight;
 
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
+  const { vw, vh } = getClockViewportSize();
   const currentState = typeof state !== "undefined" ? state : {};
   const sizeBudget = Number.isFinite(currentState.sizeBudget) && currentState.sizeBudget > 0 ? currentState.sizeBudget : SIZE_BUDGET;
   const baseSizing = computeSizingWeights(
@@ -1164,6 +1250,7 @@ function applyClockTransform(animated = false) {
     if (timeLine) timeLine.style.transition = savedTimeLineTransition;
   }
 
+  if (typeof drawClockToCanvas === "function") drawClockToCanvas();
   scheduleRowCoordinateDisplayUpdate();
 }
 
@@ -1227,16 +1314,15 @@ function tick() {
 }
 requestAnimationFrame(tick);
 applyClockTransform();
-document.getElementById("year").addEventListener("click", toggleFullscreen);
 (function() {
-  const el = document.getElementById("weekday");
+  const weekdayEl = document.getElementById("weekday");
+  const secEl = document.getElementById("sec");
+  const yearEl = document.getElementById("year");
   
-  function isTapOnWeekday(clientX, clientY) {
-    const rect = el.getBoundingClientRect();
+  function isTapInRect(clientX, clientY, element, padX = 20, padY = 20) {
+    if (!element) return false;
+    const rect = element.getBoundingClientRect();
     if (!rect || rect.width === 0 || rect.height === 0) return false;
-    // Pad the bounding rect of `#weekday` to make tapping extremely forgiving and robust
-    const padX = 40;
-    const padY = 40;
     return (
       clientX >= rect.left - padX &&
       clientX <= rect.right + padX &&
@@ -1246,10 +1332,22 @@ document.getElementById("year").addEventListener("click", toggleFullscreen);
   }
 
   function handleInteraction(clientX, clientY, e) {
-    if (isTapOnWeekday(clientX, clientY)) {
+    if (isTapInRect(clientX, clientY, weekdayEl, 40, 40)) {
       e.stopPropagation();
       e.preventDefault();
       rotateClock();
+      return true;
+    }
+    if (isTapInRect(clientX, clientY, secEl, 40, 40)) {
+      e.stopPropagation();
+      e.preventDefault();
+      activateConfigurationMode();
+      return true;
+    }
+    if (isTapInRect(clientX, clientY, yearEl, 40, 40)) {
+      e.stopPropagation();
+      e.preventDefault();
+      toggleFullscreen();
       return true;
     }
     return false;
@@ -1274,8 +1372,11 @@ document.getElementById("year").addEventListener("click", toggleFullscreen);
     }
   }, { capture: true, passive: false });
 })();
-document.getElementById("sec").addEventListener("click", activateConfigurationMode);
-window.addEventListener("resize", applyClockTransform);
+window.addEventListener("resize", () => {
+  if (typeof applyClockTransform === "function") applyClockTransform();
+  applyContainerMode();
+  if (typeof window.updateContainerSizeHint === "function") window.updateContainerSizeHint();
+});
 window.addEventListener("orientationchange", applyClockTransform);
 document.addEventListener("contextmenu", e => { e.preventDefault(); });
 window.addEventListener("keydown", handleKeyDown);
@@ -1340,10 +1441,10 @@ if (document.fonts && typeof document.fonts.addEventListener === "function") {
   if (clock) {
     clock.style.visibility = "hidden";
     clock.style.display = "flex";
-    applyClockTransform();
+    applyContainerMode(); // sets up container CSS and calls applyClockTransform()
 
     await new Promise(resolve => setTimeout(resolve, 350));
-    applyClockTransform();
+    applyContainerMode();
 
     clock.style.visibility = "visible";
   }

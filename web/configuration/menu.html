@@ -236,6 +236,22 @@
                             Show debug overlay
                         </span>
                     </label>
+
+                    <!-- Simulated display container -->
+                    <h3 style="margin-top: 10px;">Simulated Display</h3>
+                    <label style="margin: 4px 0 8px;">
+                        <span style="display: flex; align-items: center; gap: 6px;">
+                            <input type="checkbox" id="containerEnabled">
+                            Simulate small display
+                        </span>
+                    </label>
+                    <div id="containerControls" style="display: none; margin-left: 4px;">
+                        <label style="margin: 4px 0; display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                            <span>Pixel size (real px per virtual px)</span>
+                            <input type="number" id="containerScale" min="1" max="32" step="1" style="width: 80px; text-align: right;">
+                        </label>
+                        <div style="font-size: 11px; color: #888; margin-top: 4px;" id="containerSizeHint"></div>
+                    </div>
                 </div>
             </div>
         </div>
