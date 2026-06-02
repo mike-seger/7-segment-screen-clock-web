@@ -1447,6 +1447,8 @@ if (document.fonts && typeof document.fonts.addEventListener === "function") {
     applyContainerMode();
 
     clock.style.visibility = "visible";
+    applyClockTransform();
+    scheduleRowCoordinateDisplayUpdate();
   }
   scheduleRowCoordinateDisplayUpdate();
 })();
