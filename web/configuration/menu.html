@@ -17,6 +17,9 @@
             <div class="menuTab" data-tab="sizing" title="Clock Sizing">
                 <span class="symbol">manage_history</span>
             </div>
+            <div class="menuTab" data-tab="parts" title="Clock Parts">
+                <span class="symbol">table_eye</span>
+            </div>
             <div class="menuTab" data-tab="colors" title="Clock Colors">
                 <span class="symbol">palette</span>
             </div>
@@ -168,7 +171,31 @@
                 </div>
             </div>
 
-            <!-- 4. CLOCK COLORS -->
+            <!-- 4. CLOCK PARTS -->
+            <div class="menu-tab-content" id="tab-parts" style="display: none;">
+                <div class="menu-subsection">
+                    <h3>Date Row</h3>
+                    <label style="margin: 4px 0;"><span style="display:flex;align-items:center;gap:6px;"><input type="checkbox" id="visWeekday"> Weekday</span></label>
+                    <label style="margin: 4px 0;"><span style="display:flex;align-items:center;gap:6px;"><input type="checkbox" id="visDay"> Day in month</span></label>
+                    <label style="margin: 4px 0;"><span style="display:flex;align-items:center;gap:6px;"><input type="checkbox" id="visMonth"> Month name</span></label>
+                    <label style="margin: 4px 0;"><span style="display:flex;align-items:center;gap:6px;"><input type="checkbox" id="visYear"> Year</span></label>
+                </div>
+                <div class="menu-subsection">
+                    <h3>Time Row</h3>
+                    <label style="margin: 4px 0;"><span style="display:flex;align-items:center;gap:6px;"><input type="checkbox" id="visHour"> Hours (HH:)</span></label>
+                    <label style="margin: 4px 0;"><span style="display:flex;align-items:center;gap:6px;"><input type="checkbox" id="visMinute"> Minutes</span></label>
+                    <label style="margin: 4px 0;"><span style="display:flex;align-items:center;gap:6px;"><input type="checkbox" id="visSeconds"> Seconds (:SS)</span></label>
+                    <label style="margin: 4px 0;"><span style="display:flex;align-items:center;gap:6px;"><input type="checkbox" id="visMillis"> Fractional seconds</span></label>
+                    <div style="margin: 6px 0 2px 22px;">
+                        <label style="display:flex;align-items:center;gap:8px;">Decimal places
+                            <input type="range" id="millisDecimals" min="1" max="3" step="1" style="flex:1">
+                            <span class="badge" id="millisDecimalsValue">3</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 5. CLOCK COLORS -->
             <div class="menu-tab-content" id="tab-colors" style="display: none;">
                 <div class="menu-subsection">
                     <h3>Clock Colors</h3>

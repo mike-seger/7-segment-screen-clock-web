@@ -28,7 +28,12 @@ const DEFAULT_STATE = {
     recenterLeadingOne: false,
     glowEnabled: false,
     glowAmount: 5,
-    glowIntensity: 3
+    glowIntensity: 3,
+    visibility: {
+        weekday: true, day: true, month: true, year: true,
+        hour: true, minute: true, seconds: true, millis: false
+    },
+    millisDecimals: 3
 };
 
 function getDefaultBuiltinProfile() {
@@ -128,6 +133,21 @@ function normalizeSizingState(inputState) {
     next.glowAmount = Number.isFinite(_glowAmt) && _glowAmt >= 1 && _glowAmt <= 20 ? _glowAmt : DEFAULT_STATE.glowAmount;
     const _glowInt = Number(source.glowIntensity);
     next.glowIntensity = Number.isFinite(_glowInt) && _glowInt >= 1 && _glowInt <= 20 ? _glowInt : DEFAULT_STATE.glowIntensity;
+
+    const _vis = (source.visibility && typeof source.visibility === 'object') ? source.visibility : {};
+    next.visibility = {
+        weekday:  _vis.weekday  !== false,
+        day:      _vis.day      !== false,
+        month:    _vis.month    !== false,
+        year:     _vis.year     !== false,
+        hour:     _vis.hour     !== false,
+        minute:   _vis.minute   !== false,
+        seconds:  _vis.seconds  !== false,
+        millis:   _vis.millis   === true,
+    };
+
+    const _msDec = Number(source.millisDecimals);
+    next.millisDecimals = Number.isFinite(_msDec) && _msDec >= 1 && _msDec <= 3 ? Math.round(_msDec) : 3;
 
     return next;
 }

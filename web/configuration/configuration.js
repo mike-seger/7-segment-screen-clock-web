@@ -108,6 +108,15 @@ function initConfiguration() {
         weightGapValue:    document.getElementById("weightGapValue"),
         frValue:           document.getElementById("frValue"),
 
+        visWeekday:  document.getElementById("visWeekday"),
+        visDay:      document.getElementById("visDay"),
+        visMonth:    document.getElementById("visMonth"),
+        visYear:     document.getElementById("visYear"),
+        visHour:     document.getElementById("visHour"),
+        visMinute:   document.getElementById("visMinute"),
+        visSeconds:  document.getElementById("visSeconds"),
+        visMillis:   document.getElementById("visMillis"),
+
         dateColor:         document.getElementById("dateColor"),
 
         timeColor:         document.getElementById("timeColor"),
@@ -136,6 +145,8 @@ function initConfiguration() {
         glowIntensity:          document.getElementById("glowIntensity"),
         glowIntensityValue:     document.getElementById("glowIntensityValue"),
         glowControls:           document.getElementById("glowControls"),
+        millisDecimals:         document.getElementById("millisDecimals"),
+        millisDecimalsValue:    document.getElementById("millisDecimalsValue"),
         sizeBudget:        document.getElementById("sizeBudget"),
         sizeBudgetValue:   document.getElementById("sizeBudgetValue"),
         ntpServer:         document.getElementById("ntpServerInput"),
@@ -403,6 +414,17 @@ function initConfiguration() {
         if (els.glowIntensity) els.glowIntensity.value = state.glowIntensity != null ? state.glowIntensity : 3;
         if (els.glowIntensityValue) els.glowIntensityValue.textContent = state.glowIntensity != null ? state.glowIntensity : 3;
         if (els.glowControls) els.glowControls.style.display = state.glowEnabled ? "" : "none";
+        const _vis = state.visibility || {};
+        if (els.visWeekday)  els.visWeekday.checked  = _vis.weekday  !== false;
+        if (els.visDay)      els.visDay.checked      = _vis.day      !== false;
+        if (els.visMonth)    els.visMonth.checked    = _vis.month    !== false;
+        if (els.visYear)     els.visYear.checked     = _vis.year     !== false;
+        if (els.visHour)     els.visHour.checked     = _vis.hour     !== false;
+        if (els.visMinute)   els.visMinute.checked   = _vis.minute   !== false;
+        if (els.visSeconds)  els.visSeconds.checked  = _vis.seconds  !== false;
+        if (els.visMillis)   els.visMillis.checked   = _vis.millis   === true;
+        if (els.millisDecimals) els.millisDecimals.value = state.millisDecimals != null ? state.millisDecimals : 3;
+        if (els.millisDecimalsValue) els.millisDecimalsValue.textContent = state.millisDecimals != null ? state.millisDecimals : 3;
         if (els.sizeBudget) els.sizeBudget.value = state.sizeBudget;
         if (els.ntpServer) els.ntpServer.value = state.ntpServer || "";
         if (els.sleepTimeoutSelect) els.sleepTimeoutSelect.value = state.sleepTimeout || 0;
@@ -454,6 +476,18 @@ function initConfiguration() {
         if (els.glowAmount) state.glowAmount = Math.min(20, Math.max(1, Number(els.glowAmount.value) || 5));
         if (els.glowIntensity) state.glowIntensity = Math.min(20, Math.max(1, Number(els.glowIntensity.value) || 3));
 
+        state.visibility = {
+            weekday:  els.visWeekday  ? els.visWeekday.checked  : true,
+            day:      els.visDay      ? els.visDay.checked      : true,
+            month:    els.visMonth    ? els.visMonth.checked    : true,
+            year:     els.visYear     ? els.visYear.checked     : true,
+            hour:     els.visHour     ? els.visHour.checked     : true,
+            minute:   els.visMinute   ? els.visMinute.checked   : true,
+            seconds:  els.visSeconds  ? els.visSeconds.checked  : true,
+            millis:   els.visMillis   ? els.visMillis.checked   : false,
+        };
+        if (els.millisDecimals) state.millisDecimals = Math.min(3, Math.max(1, Number(els.millisDecimals.value) || 3));
+
         if (els.numericFontSelect.value) {
             state.numericFont = els.numericFontSelect.value;
         }
@@ -482,6 +516,7 @@ function initConfiguration() {
         const colonMinEl = document.getElementById("colon-min");
         const secEl = document.getElementById("sec");
         const colonSecEl = document.getElementById("colon-sec");
+        const colonMillisEl = document.getElementById("colon-millis");
 
         const numericCorrectionMeta = getFontCorrection(state.numericFont);
         const alphaCorrectionMeta = getFontCorrection(state.alphaFont);
@@ -593,6 +628,18 @@ function initConfiguration() {
             const secOffsetEm = ((state.secOffset || 0) + numericBaselineOffset) * (state.numericScale / 100);
             secEl.style.transform = `translateY(${secOffsetEm}em)`;
         }
+
+        // colon-millis uses seconds font/color/offset (it's a '.' separator, not a colon)
+        if (colonMillisEl) {
+            const secOffsetEm = ((state.secOffset || 0) + numericBaselineOffset) * (state.numericScale / 100);
+            colonMillisEl.style.fontFamily = `"${state.numericFont}", monospace`;
+            colonMillisEl.style.letterSpacing = `${numericLetterSpacing}em`;
+            colonMillisEl.style.transform = `translateY(${secOffsetEm}em)`;
+            colonMillisEl.style.color = state.secColor;
+            colonMillisEl.textContent = ".";
+        }
+        const millisEl = document.getElementById("millis");
+        if (millisEl) millisEl.style.color = state.secColor;
 
         [colonMinEl, colonSecEl].forEach(el => {
             if (!el) return;
@@ -749,6 +796,25 @@ function initConfiguration() {
         if (els.glowIntensity) {
             els.glowIntensity.addEventListener("input", () => {
                 if (els.glowIntensityValue) els.glowIntensityValue.textContent = els.glowIntensity.value;
+                readFormIntoState();
+                applyState();
+                saveCurrentState();
+            });
+        }
+
+        [els.visWeekday, els.visDay, els.visMonth, els.visYear,
+         els.visHour, els.visMinute, els.visSeconds, els.visMillis].filter(Boolean).forEach(el => {
+            el.addEventListener("change", () => {
+                readFormIntoState();
+                if (typeof window.applyClockPartsVisibility === "function") window.applyClockPartsVisibility();
+                applyState();
+                saveCurrentState();
+            });
+        });
+
+        if (els.millisDecimals) {
+            els.millisDecimals.addEventListener("input", () => {
+                if (els.millisDecimalsValue) els.millisDecimalsValue.textContent = els.millisDecimals.value;
                 readFormIntoState();
                 applyState();
                 saveCurrentState();

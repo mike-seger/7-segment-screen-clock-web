@@ -45,6 +45,8 @@
             <span id="minute" class="numeric-group"></span>
             <span id="colon-sec" class="colon-group">:</span>
             <span id="sec" class="numeric-group"></span>
+            <span id="colon-millis" class="colon-group" style="display:none">.</span>
+            <span id="millis" class="numeric-group" style="display:none"></span>
         </div>
     </div>
 </div>
@@ -841,11 +843,13 @@ function ensureTimeScaleProbe() {
   const probe = document.createElement("div");
   probe.id = "timeScaleProbe";
   probe.innerHTML = `
-    <span class="numeric-group">${wrapDigits("88")}</span>
-    <span class="colon-group probe-colon-min">${wrapDigits(":")}</span>
-    <span class="numeric-group">${wrapDigits("88")}</span>
+    <span class="numeric-group probe-hour">${wrapDigits("88")}</span>
+    <span class="colon-group probe-colon-min probe-colon-hour">${wrapDigits(":")}</span>
+    <span class="numeric-group probe-minute">${wrapDigits("88")}</span>
     <span class="colon-group probe-colon-sec probe-sec">${wrapDigits(":")}</span>
     <span class="numeric-group probe-sec">${wrapDigits("88")}</span>
+    <span class="colon-group probe-colon-millis probe-millis" style="display:none">${wrapDigits(".")}</span>
+    <span class="numeric-group probe-millis" style="display:none">${wrapDigits("888".slice(0, (typeof state !== "undefined" && state.millisDecimals) ? state.millisDecimals : 3))}</span>
   `;
 
   document.body.appendChild(probe);
@@ -925,6 +929,15 @@ function updateClock() {
     document.getElementById("minute").innerHTML    = wrapDigits(m);
     document.getElementById("colon-sec").innerHTML = wrapDigits(":");
     document.getElementById("sec").innerHTML       = wrapDigits(s);
+
+    const _millisEl = document.getElementById("millis");
+    if (_millisEl) {
+      const decimals = (typeof state !== "undefined" && state.millisDecimals) ? state.millisDecimals : 3;
+      const msRaw = String(now.getMilliseconds()).padStart(3, "0").slice(0, decimals);
+      document.getElementById("colon-millis").innerHTML = wrapDigits(".");
+      _millisEl.innerHTML = wrapDigits(simulationDigit ? simulationDigit.repeat(decimals) : msRaw);
+      _millisEl._lastMs = null;
+    }
 
     document.getElementById("weekday").innerHTML  = wrapDigits(simulationWeekday || days[now.getDay()], true);
     document.getElementById("day").innerHTML      = wrapDigits(d);
@@ -1026,6 +1039,51 @@ function saveRotationState() {
     console.warn("Failed to save rotation", e);
   }
 }
+function applyClockPartsVisibility() {
+  const vis = (typeof state !== "undefined" && state.visibility) ? state.visibility : {};
+  function setVis(id, visible) {
+    const el = document.getElementById(id);
+    if (el) el.style.display = visible ? "" : "none";
+  }
+  function setVisAll(selector, visible) {
+    document.querySelectorAll(selector).forEach(el => { el.style.display = visible ? "" : "none"; });
+  }
+  const showWeekday = vis.weekday !== false;
+  const showDay     = vis.day     !== false;
+  const showMonth   = vis.month   !== false;
+  const showYear    = vis.year    !== false;
+  const showHour    = vis.hour    !== false;
+  const showMinute  = vis.minute  !== false;
+  const showSeconds = vis.seconds !== false;
+  const showMillis  = vis.millis  === true;
+
+  setVis("weekday",      showWeekday);
+  setVis("day",          showDay);
+  setVis("month",        showMonth);
+  setVis("year",         showYear);
+  setVis("hour",         showHour);
+  setVis("colon-min",    showHour);     // HH: colon grouped with hour
+  setVis("minute",       showMinute);
+  setVis("colon-sec",    showSeconds);  // :SS colon grouped with seconds
+  setVis("sec",          showSeconds);
+  setVis("colon-millis", showMillis);
+  setVis("millis",       showMillis);
+
+  // Probe mirrors live element visibility for correct worst-case width measurement
+  setVisAll(".probe-hour",       showHour);
+  setVisAll(".probe-colon-hour", showHour);
+  setVisAll(".probe-minute",     showMinute);
+  setVisAll(".probe-sec",        showSeconds);
+  setVisAll(".probe-millis",     showMillis);
+
+  // Hide dateLine entirely when all date parts are off (eliminates gap)
+  const dateLine = document.getElementById("dateLine");
+  if (dateLine) {
+    dateLine.style.display = (!showWeekday && !showDay && !showMonth && !showYear) ? "none" : "";
+  }
+}
+window.applyClockPartsVisibility = applyClockPartsVisibility;
+
 function applyClockTransform(animated = false) {
   const clock = document.getElementById("clock");
   const clockInner = document.getElementById("clockInner");
@@ -1037,6 +1095,8 @@ function applyClockTransform(animated = false) {
   const secEl = document.getElementById("sec");
   const colonSecEl = document.getElementById("colon-sec");
   if (!clock || !clockInner) return;
+
+  applyClockPartsVisibility();
 
   // Save previous transforms for animation starting state
   const prevTransform = clockInner.style.transform;
@@ -1107,13 +1167,22 @@ function applyClockTransform(animated = false) {
   if (secEl) secEl.style.fontSize = `${renderedSecFontSize / numericCorrection}px`;
   if (colonSecEl) colonSecEl.style.fontSize = `${renderedSecFontSize / numericCorrection}px`;
 
+  const millisEl = document.getElementById("millis");
+  const colonMillisEl = document.getElementById("colon-millis");
+  if (millisEl) millisEl.style.fontSize = `${renderedSecFontSize / numericCorrection}px`;
+  if (colonMillisEl) colonMillisEl.style.fontSize = `${renderedSecFontSize / numericCorrection}px`;
+
   const probe = ensureTimeScaleProbe();
-  const probeMainChars = probe ? probe.querySelectorAll(".numeric-group:not(.probe-sec)") : [];
-  const probeSecChars = probe ? probe.querySelectorAll(".probe-sec") : [];
+  const probeMainChars = probe ? probe.querySelectorAll(".numeric-group:not(.probe-sec):not(.probe-millis)") : [];
+  const probeSecChars = probe ? probe.querySelectorAll(".probe-sec:not(.probe-millis)") : [];
+  const probeMillisChars = probe ? probe.querySelectorAll(".probe-millis.numeric-group") : [];
   probeMainChars.forEach(el => {
     el.style.fontSize = `${renderedTimeFontSize / numericCorrection}px`;
   });
   probeSecChars.forEach(el => {
+    el.style.fontSize = `${renderedSecFontSize / numericCorrection}px`;
+  });
+  probeMillisChars.forEach(el => {
     el.style.fontSize = `${renderedSecFontSize / numericCorrection}px`;
   });
 
@@ -1123,19 +1192,18 @@ function applyClockTransform(animated = false) {
   // from marginTop lets gapWeight=0 produce a true 0 px visual ink gap.
   // clockInner.style.transform is already "none" here, so getBoundingClientRect
   // inside measureRowInkBounds returns clean layout-space coordinates.
+  const dateLineVisible = dateLine && dateLine.offsetHeight > 0;
   let naturalInkGap = 0;
   let _di = null;
   let _ti = null;
-  if (dateLine && timeLine) {
+  if (dateLineVisible && timeLine) {
     _di = measureRowInkBounds(dateLine);
     _ti = measureRowInkBounds(timeLine);
     if (_di && _ti) naturalInkGap = Math.max(0, _ti.top - _di.bottom);
   }
 
-  // Gap: visual ink gap = gapWeight × vh.  marginTop is adjusted so that at
-  // gapWeight=0 the ink edges touch (marginTop goes slightly negative to cancel
-  // the natural font whitespace).
-  const targetGap = baseSizing.weightGap * vh;
+  // Gap: visual ink gap = gapWeight × vh.  When dateLine is hidden suppress the gap entirely.
+  const targetGap = dateLineVisible ? baseSizing.weightGap * vh : 0;
   const marginTopPx = targetGap - naturalInkGap;
   if (timeLine) {
     timeLine.style.marginTop = `${marginTopPx}px`;
@@ -1309,6 +1377,20 @@ async function toggleFullscreen() {
   else console.warn("Fullscreen API not supported on this device/browser");
 }
 
+function updateMillis() {
+  const vis = (typeof state !== "undefined" && state.visibility) ? state.visibility : {};
+  if (!vis.millis) return;
+  const millisEl = document.getElementById("millis");
+  if (!millisEl || millisEl.style.display === "none") return;
+  const decimals = (typeof state !== "undefined" && state.millisDecimals) ? state.millisDecimals : 3;
+  const nowMs = Date.now() + (window.__timeMasterOffsetMs || 0);
+  const msRaw = String(nowMs % 1000).padStart(3, "0").slice(0, decimals);
+  if (millisEl._lastMs !== msRaw) {
+    millisEl._lastMs = msRaw;
+    millisEl.innerHTML = wrapDigits(simulationDigit ? simulationDigit.repeat(decimals) : msRaw);
+  }
+}
+
 let lastRenderSecond = -1;
 function tick() {
   const nowMs = Date.now() + (window.__timeMasterOffsetMs || 0);
@@ -1317,6 +1399,7 @@ function tick() {
     lastRenderSecond = nowSec;
     updateClock();
   }
+  updateMillis();
   requestAnimationFrame(tick);
 }
 requestAnimationFrame(tick);
