@@ -23,7 +23,8 @@ function saveMenuOpenState(isOpen) {
 // ---------------- MENU TOGGLE ----------------
 
 const menuButton = document.getElementById("menuButton");
-let menuCssLoaded = false;
+// menu.css and symbols.css are preloaded in index.html <head>, so no dynamic injection needed.
+let menuCssLoaded = true;
 
 function loadMenuCSS() {
     if (menuCssLoaded) return;

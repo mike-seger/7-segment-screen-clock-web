@@ -8,6 +8,9 @@
       maximum-scale=0.67, minimum-scale=0.67, user-scalable=no" />
     <!-- <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"> -->
     <link rel="stylesheet" href="style.css">
+    <!-- Preload menu CSS eagerly so the panel is never shown unstyled -->
+    <link rel="stylesheet" href="configuration/menu.css">
+    <link rel="stylesheet" href="symbols.css">
 </head>
 
 <body>
@@ -109,6 +112,7 @@ function applyContainerMode() {
 // rendering, producing the simulated low-res display look.
 let _drawScheduled = false;
 function drawClockToCanvas() {
+  if (window._suppressCanvasDraw) return;
   const c = (typeof state !== "undefined" && state.container) ? state.container : null;
   const canvas = document.getElementById("virtualClockCanvas");
   const clock = document.getElementById("clock");
@@ -1441,13 +1445,17 @@ if (document.fonts && typeof document.fonts.addEventListener === "function") {
   if (clock) {
     clock.style.visibility = "hidden";
     clock.style.display = "flex";
-    applyContainerMode(); // sets up container CSS and calls applyClockTransform()
+    // Suppress canvas draws during the hidden phase so the pixelated overlay
+    // never flickers a wrong-font layout at the user.
+    window._suppressCanvasDraw = true;
+    applyClockTransform();
 
     await new Promise(resolve => setTimeout(resolve, 350));
-    applyContainerMode();
-
-    clock.style.visibility = "visible";
     applyClockTransform();
+
+    window._suppressCanvasDraw = false;
+    clock.style.visibility = "visible";
+    applyContainerMode(); // start canvas overlay now with correct layout
     scheduleRowCoordinateDisplayUpdate();
   }
   scheduleRowCoordinateDisplayUpdate();
