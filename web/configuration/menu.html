@@ -195,6 +195,26 @@
                         <input type="color" id="secColor">
                     </label>
                 </div>
+
+                <div class="menu-subsection">
+                    <h3>Glow</h3>
+                    <label style="margin: 6px 0;">
+                        <span style="display: flex; align-items: center; gap: 6px;">
+                            <input type="checkbox" id="glowEnabled">
+                            Enable glow
+                        </span>
+                    </label>
+                    <div id="glowControls" style="display: none; margin-left: 4px;">
+                        <label style="display: flex; align-items: center; justify-content: space-between;">
+                            Amount <span class="valueBadge" id="glowAmountValue"></span>
+                        </label>
+                        <input type="range" id="glowAmount" min="1" max="20" step="1" style="width: 100%;">
+                        <label style="display: flex; align-items: center; justify-content: space-between; margin-top: 6px;">
+                            Intensity <span class="valueBadge" id="glowIntensityValue"></span>
+                        </label>
+                        <input type="range" id="glowIntensity" min="1" max="20" step="1" style="width: 100%;">
+                    </div>
+                </div>
             </div>
 
             <!-- 5. SYSTEM & NETWORK -->
@@ -247,9 +267,10 @@
                     </label>
                     <div id="containerControls" style="display: none; margin-left: 4px;">
                         <label style="margin: 4px 0; display: flex; align-items: center; justify-content: space-between; gap: 8px;">
-                            <span>Pixel size (real px per virtual px)</span>
-                            <input type="number" id="containerScale" min="1" max="32" step="1" style="width: 80px; text-align: right;">
+                            <span>Pixel size</span>
+                            <span class="valueBadge" id="containerScaleValue"></span>
                         </label>
+                        <input type="range" id="containerScale" min="1" max="20" step="1" style="width: 100%; margin-bottom: 4px;">
                         <div style="font-size: 11px; color: #888; margin-top: 4px;" id="containerSizeHint"></div>
                     </div>
                 </div>

@@ -25,7 +25,10 @@ const DEFAULT_STATE = {
     ntpServer: "",
     sleepTimeout: 0,
     padHours: false,
-    recenterLeadingOne: false
+    recenterLeadingOne: false,
+    glowEnabled: false,
+    glowAmount: 5,
+    glowIntensity: 3
 };
 
 function getDefaultBuiltinProfile() {
@@ -119,6 +122,12 @@ function normalizeSizingState(inputState) {
     delete next.dateFontSize;
     delete next.timeFontSize;
     delete next.secFontSize;
+
+    next.glowEnabled = !!source.glowEnabled;
+    const _glowAmt = Number(source.glowAmount);
+    next.glowAmount = Number.isFinite(_glowAmt) && _glowAmt >= 1 && _glowAmt <= 20 ? _glowAmt : DEFAULT_STATE.glowAmount;
+    const _glowInt = Number(source.glowIntensity);
+    next.glowIntensity = Number.isFinite(_glowInt) && _glowInt >= 1 && _glowInt <= 20 ? _glowInt : DEFAULT_STATE.glowIntensity;
 
     return next;
 }

@@ -127,8 +127,15 @@ function initConfiguration() {
         showDebug:              document.getElementById("showDebug"),
         containerEnabled:       document.getElementById("containerEnabled"),
         containerScale:         document.getElementById("containerScale"),
+        containerScaleValue:    document.getElementById("containerScaleValue"),
         containerControls:      document.getElementById("containerControls"),
         containerSizeHint:      document.getElementById("containerSizeHint"),
+        glowEnabled:            document.getElementById("glowEnabled"),
+        glowAmount:             document.getElementById("glowAmount"),
+        glowAmountValue:        document.getElementById("glowAmountValue"),
+        glowIntensity:          document.getElementById("glowIntensity"),
+        glowIntensityValue:     document.getElementById("glowIntensityValue"),
+        glowControls:           document.getElementById("glowControls"),
         sizeBudget:        document.getElementById("sizeBudget"),
         sizeBudgetValue:   document.getElementById("sizeBudgetValue"),
         ntpServer:         document.getElementById("ntpServerInput"),
@@ -163,6 +170,11 @@ function initConfiguration() {
             els.secOffsetValue.textContent = (state.secOffset || 0).toFixed(2) + "x";
         }
         if (els.sizeBudgetValue) els.sizeBudgetValue.textContent = (state.sizeBudget * 100).toFixed(0) + "%";
+        if (els.glowAmountValue) els.glowAmountValue.textContent = state.glowAmount != null ? state.glowAmount : 5;
+        if (els.containerScaleValue) {
+            const sc = state.container && state.container.scale != null ? state.container.scale : 4;
+            els.containerScaleValue.textContent = sc + "px";
+        }
     }
 
     function syncMultiFontUi() {
@@ -381,9 +393,16 @@ function initConfiguration() {
             const c = state.container || {};
             els.containerEnabled.checked = !!c.enabled;
             if (els.containerScale)    els.containerScale.value    = c.scale != null ? c.scale : 4;
+            if (els.containerScaleValue) els.containerScaleValue.textContent = (c.scale != null ? c.scale : 4) + "px";
             if (els.containerControls) els.containerControls.style.display = c.enabled ? "" : "none";
             updateContainerSizeHint();
         }
+        if (els.glowEnabled) els.glowEnabled.checked = !!state.glowEnabled;
+        if (els.glowAmount) els.glowAmount.value = state.glowAmount != null ? state.glowAmount : 5;
+        if (els.glowAmountValue) els.glowAmountValue.textContent = state.glowAmount != null ? state.glowAmount : 5;
+        if (els.glowIntensity) els.glowIntensity.value = state.glowIntensity != null ? state.glowIntensity : 3;
+        if (els.glowIntensityValue) els.glowIntensityValue.textContent = state.glowIntensity != null ? state.glowIntensity : 3;
+        if (els.glowControls) els.glowControls.style.display = state.glowEnabled ? "" : "none";
         if (els.sizeBudget) els.sizeBudget.value = state.sizeBudget;
         if (els.ntpServer) els.ntpServer.value = state.ntpServer || "";
         if (els.sleepTimeoutSelect) els.sleepTimeoutSelect.value = state.sleepTimeout || 0;
@@ -431,6 +450,9 @@ function initConfiguration() {
         if (els.sleepTimeoutSelect) state.sleepTimeout = Number(els.sleepTimeoutSelect.value) || 0;
         if (els.padHours) state.padHours = els.padHours.checked;
         if (els.recenterLeadingOne) state.recenterLeadingOne = els.recenterLeadingOne.checked;
+        if (els.glowEnabled) state.glowEnabled = els.glowEnabled.checked;
+        if (els.glowAmount) state.glowAmount = Math.min(20, Math.max(1, Number(els.glowAmount.value) || 5));
+        if (els.glowIntensity) state.glowIntensity = Math.min(20, Math.max(1, Number(els.glowIntensity.value) || 3));
 
         if (els.numericFontSelect.value) {
             state.numericFont = els.numericFontSelect.value;
@@ -609,6 +631,14 @@ function initConfiguration() {
             probeColonSecEl.style.paddingRight = `${additionalDistance}em`;
         }
 
+        // Apply glow effect: text-shadow proportional to font size (amount * 0.005em), stacked intensity times
+        const glowStyle = (state.glowEnabled && state.glowAmount > 0)
+            ? Array(Math.round((state.glowIntensity || 3) / 2)).fill(`0 0 ${(state.glowAmount * 0.005).toFixed(3)}em currentColor`).join(", ")
+            : "";
+        document.querySelectorAll(".numeric-group, .alpha-group, .colon-group").forEach(el => {
+            el.style.textShadow = glowStyle;
+        });
+
         if (typeof window.requestLayoutAfterFonts === "function" && (state.numericFont || state.alphaFont || state.colonFont)) {
             window.requestLayoutAfterFonts([state.numericFont, state.alphaFont, state.colonFont]);
         } else if (typeof window.applyClockTransform === "function") {
@@ -691,11 +721,39 @@ function initConfiguration() {
         [els.containerScale].forEach(el => {
             if (!el) return;
             el.addEventListener("input", () => {
+                if (els.containerScaleValue) els.containerScaleValue.textContent = el.value + "px";
                 readContainerFromForm();
                 updateContainerSizeHint();
                 if (typeof applyContainerMode === "function") applyContainerMode();
             });
         });
+
+        if (els.glowEnabled) {
+            els.glowEnabled.addEventListener("change", () => {
+                if (els.glowControls) els.glowControls.style.display = els.glowEnabled.checked ? "" : "none";
+                readFormIntoState();
+                applyState();
+                saveCurrentState();
+            });
+        }
+
+        if (els.glowAmount) {
+            els.glowAmount.addEventListener("input", () => {
+                if (els.glowAmountValue) els.glowAmountValue.textContent = els.glowAmount.value;
+                readFormIntoState();
+                applyState();
+                saveCurrentState();
+            });
+        }
+
+        if (els.glowIntensity) {
+            els.glowIntensity.addEventListener("input", () => {
+                if (els.glowIntensityValue) els.glowIntensityValue.textContent = els.glowIntensity.value;
+                readFormIntoState();
+                applyState();
+                saveCurrentState();
+            });
+        }
 
         const updateProfileButtons = () => {
             const selected = (els.profileSelect.value || "").trim();

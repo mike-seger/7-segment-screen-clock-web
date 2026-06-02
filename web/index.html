@@ -711,7 +711,10 @@ async function updateRowCoordinateDisplay() {
   const timeFontFamily = hourEl ? getComputedStyle(hourEl).fontFamily.split(',')[0].trim().replace(/['"]/g, '') : "n/a";
   const simPart = cycleTimer !== null ? ` | sim ${(cycleStep - 1) % 40}` : "";
   const { vw: _dvw, vh: _dvh } = getClockViewportSize();
-  display.textContent = `date ${formatVisualBounds(dateBounds)} | time ${formatVisualBounds(timeBounds)} | gap ${Number.isFinite(gapHeight) ? Math.round(gapHeight) : "n/a"} px | vwh ${_dvw},${_dvh} | time font ${timeFontFamily} ${timeFontPx !== null ? timeFontPx + " px" : "n/a"}${simPart}`;}
+  const glowPart = (state.glowEnabled && state.glowAmount > 0)
+    ? ` | glow ${(state.glowAmount * 0.005).toFixed(3)}em`
+    : "";
+  display.textContent = `date ${formatVisualBounds(dateBounds)} | time ${formatVisualBounds(timeBounds)} | gap ${Number.isFinite(gapHeight) ? Math.round(gapHeight) : "n/a"} px | vwh ${_dvw},${_dvh} | time font ${timeFontFamily} ${timeFontPx !== null ? timeFontPx + " px" : "n/a"}${simPart}${glowPart}`;}
 
 function scheduleRowCoordinateDisplayUpdate() {
   if (rowCoordinateUpdatePending) return;
@@ -968,7 +971,7 @@ function handleKeyDown(e) {
   const t = e.target;
   if (t && (t.tagName === "TEXTAREA" || (t.tagName === "INPUT" && t.type !== "checkbox" && t.type !== "range" && t.type !== "color"))) return;
   const key = e.key;
-  if (key === "x" || key === "X") {
+  if (key === "x" || key === "X" || key === "m" || key === "M") {
     activateConfigurationMode();
     return;
   }
