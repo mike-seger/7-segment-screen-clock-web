@@ -28,7 +28,15 @@
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <div id="menuPlaceholder"></div>
 
-<canvas id="virtualClockCanvas"></canvas>
+<div id="virtualClockPopup">
+  <div class="popup-header" id="virtualClockHeader">
+    <span class="popup-title">Simulated Display</span>
+    <button type="button" class="popup-close-btn" id="virtualClockCloseBtn" aria-label="Close simulated display">&times;</button>
+  </div>
+  <div class="popup-content">
+    <canvas id="virtualClockCanvas"></canvas>
+  </div>
+</div>
 <div id="clockContainer">
 <div id="clock">
     <div id="clockInner">
@@ -84,6 +92,13 @@ function normalizeSizingWeight(value, fallback) {
 // purely by capturing the rendered clock and downsampling, so layout always
 // targets the real window dimensions.
 function getClockViewportSize() {
+  const override = window._virtualViewportOverride;
+  if (override && Number.isFinite(override.vw) && Number.isFinite(override.vh)) {
+    return {
+      vw: Math.max(1, Math.round(override.vw)),
+      vh: Math.max(1, Math.round(override.vh))
+    };
+  }
   return { vw: window.innerWidth, vh: window.innerHeight };
 }
 
@@ -91,20 +106,23 @@ function getClockViewportSize() {
 // normally at real viewport size; the canvas just covers it with a downsampled
 // + pixelated screenshot.
 function applyContainerMode() {
+  const popup = document.getElementById("virtualClockPopup");
   const canvas = document.getElementById("virtualClockCanvas");
-  if (!canvas) return;
+  if (!popup || !canvas) return;
   const c = (typeof state !== "undefined" && state.container) ? state.container : null;
   const enabled = !!(c && c.enabled);
   if (enabled) {
     const sc = Math.max(1, c.scale || 4);
-    const vw = Math.max(1, Math.round(window.innerWidth  / sc));
-    const vh = Math.max(1, Math.round(window.innerHeight / sc));
+    const vw = Math.max(10, Math.round(c.width || 240));
+    const vh = Math.max(10, Math.round(c.height || 135));
     canvas.width  = vw;
     canvas.height = vh;
-    canvas.classList.add("active");
+    canvas.style.width = `${vw * sc}px`;
+    canvas.style.height = `${vh * sc}px`;
+    popup.classList.add("active");
     drawClockToCanvas();
   } else {
-    canvas.classList.remove("active");
+    popup.classList.remove("active");
   }
 }
 
@@ -113,32 +131,59 @@ function applyContainerMode() {
 // then stretches that small bitmap back to fullscreen with pixelated
 // rendering, producing the simulated low-res display look.
 let _drawScheduled = false;
+let _drawInFlight = false;
+let _drawQueued = false;
 function drawClockToCanvas() {
   if (window._suppressCanvasDraw) return;
   const c = (typeof state !== "undefined" && state.container) ? state.container : null;
+  const popup = document.getElementById("virtualClockPopup");
   const canvas = document.getElementById("virtualClockCanvas");
   const clock = document.getElementById("clock");
-  if (!canvas || !clock) return;
+  if (!popup || !canvas || !clock) return;
   if (!c || !c.enabled) return;
   if (typeof html2canvas !== "function") return;
+  if (_drawInFlight) {
+    _drawQueued = true;
+    return;
+  }
   if (_drawScheduled) return;
   _drawScheduled = true;
   requestAnimationFrame(() => {
     _drawScheduled = false;
+    if (window._suppressCanvasDraw) return;
+    if (!c || !c.enabled) return;
+
     const sc = Math.max(1, c.scale || 4);
-    const vw = Math.max(1, Math.round(window.innerWidth  / sc));
-    const vh = Math.max(1, Math.round(window.innerHeight / sc));
+    const vw = Math.max(10, Math.round(c.width || 240));
+    const vh = Math.max(10, Math.round(c.height || 135));
     if (canvas.width !== vw || canvas.height !== vh) {
       canvas.width = vw;
       canvas.height = vh;
     }
-    const winW = window.innerWidth;
-    const winH = window.innerHeight;
+    canvas.style.width = `${vw * sc}px`;
+    canvas.style.height = `${vh * sc}px`;
+
+    _drawInFlight = true;
+
+    // Guard against leaked html2canvas staging nodes from interrupted captures.
+    document.querySelectorAll(".html2canvas-container").forEach(node => node.remove());
+
     html2canvas(clock, {
       scale: 1,
       backgroundColor: "#000",
       logging: false,
-      useCORS: true
+      useCORS: true,
+      windowWidth: window.innerWidth,
+      windowHeight: window.innerHeight,
+      scrollX: 0,
+      scrollY: 0,
+      removeContainer: true,
+      onclone: (doc) => {
+        const menu = doc.getElementById("menuPanel");
+        if (menu && menu.parentNode) menu.parentNode.removeChild(menu);
+        const popupClone = doc.getElementById("virtualClockPopup");
+        if (popupClone && popupClone.parentNode) popupClone.parentNode.removeChild(popupClone);
+      }
     }).then(src => {
       if (!src || !src.width || !src.height) return;
       const ctx = canvas.getContext("2d");
@@ -148,6 +193,12 @@ function drawClockToCanvas() {
       ctx.drawImage(src, 0, 0, src.width, src.height, 0, 0, vw, vh);
     }).catch(err => {
       console.warn("html2canvas failed:", err);
+    }).finally(() => {
+      _drawInFlight = false;
+      if (_drawQueued) {
+        _drawQueued = false;
+        drawClockToCanvas();
+      }
     });
   });
 }
@@ -1579,6 +1630,80 @@ document.getElementById("rowCoordinateDisplay").addEventListener("click", functi
     } catch { showToast("copy failed"); }
   }
 });
+
+(function setupVirtualClockPopup() {
+  const popup = document.getElementById("virtualClockPopup");
+  const header = document.getElementById("virtualClockHeader");
+  const closeBtn = document.getElementById("virtualClockCloseBtn");
+  if (!popup || !header) return;
+
+  let dragging = false;
+  let dragOffX = 0;
+  let dragOffY = 0;
+
+  header.addEventListener("mousedown", (e) => {
+    if (e.target === closeBtn || (e.target && e.target.closest && e.target.closest("#virtualClockCloseBtn"))) return;
+    dragging = true;
+    const rect = popup.getBoundingClientRect();
+    dragOffX = e.clientX - rect.left;
+    dragOffY = e.clientY - rect.top;
+    header.style.cursor = "grabbing";
+    e.preventDefault();
+  });
+
+  document.addEventListener("mousemove", (e) => {
+    if (!dragging) return;
+    const left = Math.max(0, Math.min(e.clientX - dragOffX, window.innerWidth - popup.offsetWidth));
+    const top = Math.max(0, Math.min(e.clientY - dragOffY, window.innerHeight - popup.offsetHeight));
+    popup.style.left = `${left}px`;
+    popup.style.top = `${top}px`;
+    popup.style.right = "auto";
+  });
+
+  document.addEventListener("mouseup", () => {
+    if (dragging) {
+      dragging = false;
+      header.style.cursor = "grab";
+    }
+  });
+
+  header.addEventListener("touchstart", (e) => {
+    if (e.target === closeBtn || (e.target && e.target.closest && e.target.closest("#virtualClockCloseBtn"))) return;
+    if (!e.touches || e.touches.length === 0) return;
+    const t = e.touches[0];
+    const rect = popup.getBoundingClientRect();
+    dragging = true;
+    dragOffX = t.clientX - rect.left;
+    dragOffY = t.clientY - rect.top;
+    e.preventDefault();
+  }, { passive: false });
+
+  document.addEventListener("touchmove", (e) => {
+    if (!dragging) return;
+    if (!e.touches || e.touches.length === 0) return;
+    const t = e.touches[0];
+    const left = Math.max(0, Math.min(t.clientX - dragOffX, window.innerWidth - popup.offsetWidth));
+    const top = Math.max(0, Math.min(t.clientY - dragOffY, window.innerHeight - popup.offsetHeight));
+    popup.style.left = `${left}px`;
+    popup.style.top = `${top}px`;
+    popup.style.right = "auto";
+    e.preventDefault();
+  }, { passive: false });
+
+  document.addEventListener("touchend", () => {
+    dragging = false;
+  });
+
+  if (closeBtn) {
+    closeBtn.addEventListener("click", () => {
+      const cb = document.getElementById("containerEnabled");
+      if (cb) {
+        cb.checked = false;
+        cb.dispatchEvent(new Event("change"));
+      }
+    });
+  }
+})();
 
 </script>
 

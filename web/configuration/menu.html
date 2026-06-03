@@ -42,7 +42,7 @@
 
                 <div class="menu-subsection">
                     <h3>Fonts</h3>
-                    <label>Numeric font</label>
+                    <label for="numericFontSelect">Numeric font</label>
                     <select id="numericFontSelect"></select>
 
                     <label style="margin: 6px 0;">
@@ -52,16 +52,16 @@
                         </span>
                     </label>
 
-                    <label id="alphaFontLabel">Alpha font</label>
+                    <label id="alphaFontLabel" for="alphaFontSelect">Alpha font</label>
                     <select id="alphaFontSelect"></select>
 
-                    <label id="colonFontLabel">Colon font</label>
+                    <label id="colonFontLabel" for="colonFontSelect">Colon font</label>
                     <select id="colonFontSelect"></select>
                 </div>
 
                 <div class="menu-subsection">
                     <h3>Manage Presets</h3>
-                    <label>Preset Name</label>
+                    <label for="profileName">Preset Name</label>
                     <input type="text" id="profileName" placeholder="e.g. SCREEN big">
 
                     <div style="display: flex; gap: 6px; margin-top: 8px;">
@@ -77,37 +77,37 @@
                 <div class="menu-subsection">
                     <h3>Scale & Offset</h3>
 
-                    <label>
+                    <label for="numericScale">
                         Numeric scale
                         <span class="valueBadge" id="numericScaleValue"></span>
                     </label>
                     <input type="range" id="numericScale" min="50" max="200" step="1">
 
-                    <label style="margin-top: 8px;">
+                    <label for="numericOffset" style="margin-top: 8px;">
                         Numeric offset factor
                         <span class="valueBadge" id="numericOffsetValue"></span>
                     </label>
                     <input type="range" id="numericOffset" min="-1" max="1" step="0.01">
 
-                    <label id="alphaScaleLabel" style="margin-top: 8px;">
+                    <label id="alphaScaleLabel" for="alphaScale" style="margin-top: 8px;">
                         Alpha scale
                         <span class="valueBadge" id="alphaScaleValue"></span>
                     </label>
                     <input type="range" id="alphaScale" min="50" max="200" step="1">
 
-                    <label id="alphaOffsetLabel" style="margin-top: 8px;">
+                    <label id="alphaOffsetLabel" for="alphaOffset" style="margin-top: 8px;">
                         Alpha offset factor
                         <span class="valueBadge" id="alphaOffsetValue"></span>
                     </label>
                     <input type="range" id="alphaOffset" min="-1" max="1" step="0.01">
 
-                    <label id="colonScaleLabel" style="margin-top: 8px;">
+                    <label id="colonScaleLabel" for="colonScale" style="margin-top: 8px;">
                         Colon scale
                         <span class="valueBadge" id="colonScaleValue"></span>
                     </label>
                     <input type="range" id="colonScale" min="50" max="200" step="1">
 
-                    <label id="colonOffsetLabel" style="margin-top: 8px;">
+                    <label id="colonOffsetLabel" for="colonOffset" style="margin-top: 8px;">
                         Colon offset factor
                         <span class="valueBadge" id="colonOffsetValue"></span>
                     </label>
@@ -120,37 +120,37 @@
                 <div class="menu-subsection">
                     <h3>Clock Sizing</h3>
 
-                    <label>
+                    <label for="weightGap">
                         Gap weight
                         <span class="valueBadge" id="weightGapValue"></span>
                     </label>
                     <input type="range" id="weightGap" min="0" max="0.99" step="0.01">
 
-                    <label style="margin-top: 6px;">
+                    <label for="fr" style="margin-top: 6px;">
                         Size date/time
                         <span class="valueBadge" id="frValue"></span>
                     </label>
                     <input type="range" id="fr" min="0.01" max="0.99" step="0.01">
 
-                    <label style="margin-top: 6px;">
+                    <label for="secFontFactor" style="margin-top: 6px;">
                         Size hours / seconds
                         <span class="valueBadge" id="secFontFactorValue"></span>
                     </label>
                     <input type="range" id="secFontFactor" min="0.1" max="2" step="0.01">
 
-                    <label style="margin-top: 6px;">
+                    <label for="secColonDistance" style="margin-top: 6px;">
                         Seconds colon distance
                         <span class="valueBadge" id="secColonDistanceValue"></span>
                     </label>
                     <input type="range" id="secColonDistance" min="0" max="1" step="0.01">
 
-                    <label style="margin-top: 6px;">
+                    <label for="secOffset" style="margin-top: 6px;">
                         Seconds (:SS) offset
                         <span class="valueBadge" id="secOffsetValue"></span>
                     </label>
                     <input type="range" id="secOffset" min="-1" max="1" step="0.01">
 
-                    <label style="margin-top: 6px;">
+                    <label for="sizeBudget" style="margin-top: 6px;">
                         Maximum fill
                         <span class="valueBadge" id="sizeBudgetValue"></span>
                     </label>
@@ -232,11 +232,11 @@
                         </span>
                     </label>
                     <div id="glowControls" style="display: none; margin-left: 4px;">
-                        <label style="display: flex; align-items: center; justify-content: space-between;">
+                        <label for="glowAmount" style="display: flex; align-items: center; justify-content: space-between;">
                             Amount <span class="valueBadge" id="glowAmountValue"></span>
                         </label>
                         <input type="range" id="glowAmount" min="1" max="20" step="1" style="width: 100%;">
-                        <label style="display: flex; align-items: center; justify-content: space-between; margin-top: 6px;">
+                        <label for="glowIntensity" style="display: flex; align-items: center; justify-content: space-between; margin-top: 6px;">
                             Intensity <span class="valueBadge" id="glowIntensityValue"></span>
                         </label>
                         <input type="range" id="glowIntensity" min="1" max="20" step="1" style="width: 100%;">
@@ -248,7 +248,7 @@
             <div class="menu-tab-content" id="tab-system" style="display: none;">
                 <div class="menu-subsection">
                     <h3>Power & Sleep</h3>
-                    <label style="margin-bottom: 4px;">Auto-Sleep Timeout</label>
+                    <label for="sleepTimeoutSelect" style="margin-bottom: 4px;">Auto-Sleep Timeout</label>
                     <select id="sleepTimeoutSelect">
                         <option value="0">Never</option>
                         <option value="1">1 Minute</option>
@@ -261,7 +261,7 @@
 
                 <div class="menu-subsection" id="ntpSection">
                     <h3>Network Time Sync (NTP)</h3>
-                    <label style="margin-bottom: 4px;">NTP Server Host</label>
+                    <label for="ntpServerInput" style="margin-bottom: 4px;">NTP Server Host</label>
                     <input type="text" id="ntpServerInput" placeholder="pool.ntp.org">
                 </div>
 
@@ -293,7 +293,17 @@
                         </span>
                     </label>
                     <div id="containerControls" style="display: none; margin-left: 4px;">
-                        <label style="margin: 4px 0; display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                        <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+                            <div style="flex: 1; min-width: 0;">
+                                <label for="containerWidth" style="font-size: 11px; color: #ccc; margin-bottom: 2px; display: block;">Width (px)</label>
+                                <input type="number" id="containerWidth" min="10" max="3840" step="1" style="width: 100%; box-sizing: border-box;">
+                            </div>
+                            <div style="flex: 1; min-width: 0;">
+                                <label for="containerHeight" style="font-size: 11px; color: #ccc; margin-bottom: 2px; display: block;">Height (px)</label>
+                                <input type="number" id="containerHeight" min="10" max="2160" step="1" style="width: 100%; box-sizing: border-box;">
+                            </div>
+                        </div>
+                        <label for="containerScale" style="margin: 4px 0; display: flex; align-items: center; justify-content: space-between; gap: 8px;">
                             <span>Pixel size</span>
                             <span class="valueBadge" id="containerScaleValue"></span>
                         </label>

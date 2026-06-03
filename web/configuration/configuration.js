@@ -137,6 +137,8 @@ function initConfiguration() {
         containerEnabled:       document.getElementById("containerEnabled"),
         containerScale:         document.getElementById("containerScale"),
         containerScaleValue:    document.getElementById("containerScaleValue"),
+        containerWidth:         document.getElementById("containerWidth"),
+        containerHeight:        document.getElementById("containerHeight"),
         containerControls:      document.getElementById("containerControls"),
         containerSizeHint:      document.getElementById("containerSizeHint"),
         glowEnabled:            document.getElementById("glowEnabled"),
@@ -358,11 +360,11 @@ function initConfiguration() {
         const c = state.container || {};
         if (!c.enabled) { els.containerSizeHint.textContent = ""; return; }
         const sc = c.scale || 4;
-        const winW = window.innerWidth;
-        const winH = window.innerHeight;
-        const vw = Math.round(winW / sc);
-        const vh = Math.round(winH / sc);
-        els.containerSizeHint.textContent = `Virtual: ${vw}×${vh} px  (${winW}×${winH} real, ${sc}px/virtual px)`;
+        const vw = Number.isFinite(c.width) ? c.width : 240;
+        const vh = Number.isFinite(c.height) ? c.height : 135;
+        const realW = Math.round(vw * sc);
+        const realH = Math.round(vh * sc);
+        els.containerSizeHint.textContent = `Virtual: ${vw}×${vh} px  (${realW}×${realH} real, ${sc}px/virtual px)`;
     }
     window.updateContainerSizeHint = updateContainerSizeHint;
 
@@ -405,6 +407,8 @@ function initConfiguration() {
             els.containerEnabled.checked = !!c.enabled;
             if (els.containerScale)    els.containerScale.value    = c.scale != null ? c.scale : 4;
             if (els.containerScaleValue) els.containerScaleValue.textContent = (c.scale != null ? c.scale : 4) + "px";
+            if (els.containerWidth) els.containerWidth.value = c.width != null ? c.width : 240;
+            if (els.containerHeight) els.containerHeight.value = c.height != null ? c.height : 135;
             if (els.containerControls) els.containerControls.style.display = c.enabled ? "" : "none";
             updateContainerSizeHint();
         }
@@ -749,9 +753,13 @@ function initConfiguration() {
         function readContainerFromForm() {
             if (!els.containerEnabled) return;
             const sc = parseFloat(els.containerScale ? els.containerScale.value : 4);
+            const w = parseInt(els.containerWidth ? els.containerWidth.value : 240, 10);
+            const h = parseInt(els.containerHeight ? els.containerHeight.value : 135, 10);
             state.container = {
                 enabled: els.containerEnabled.checked,
                 scale:   Number.isFinite(sc) && sc >= 1 ? sc : 4,
+                width:   Number.isFinite(w) && w >= 10 ? Math.round(w) : 240,
+                height:  Number.isFinite(h) && h >= 10 ? Math.round(h) : 135,
             };
             if (typeof saveContainer === "function") saveContainer(state.container);
         }
@@ -765,10 +773,12 @@ function initConfiguration() {
             });
         }
 
-        [els.containerScale].forEach(el => {
+        [els.containerScale, els.containerWidth, els.containerHeight].forEach(el => {
             if (!el) return;
             el.addEventListener("input", () => {
-                if (els.containerScaleValue) els.containerScaleValue.textContent = el.value + "px";
+                if (el === els.containerScale && els.containerScaleValue) {
+                    els.containerScaleValue.textContent = el.value + "px";
+                }
                 readContainerFromForm();
                 updateContainerSizeHint();
                 if (typeof applyContainerMode === "function") applyContainerMode();

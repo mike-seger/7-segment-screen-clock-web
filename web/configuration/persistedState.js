@@ -173,7 +173,7 @@ function isBuiltinProfile(name) {
         && window.BUILTIN_PROFILES.some(p => p.name === String(name || "").trim());
 }
 
-const DEFAULT_CONTAINER = { enabled: false, scale: 4 };
+const DEFAULT_CONTAINER = { enabled: false, scale: 4, width: 240, height: 135 };
 
 function loadContainer() {
     try {
@@ -181,9 +181,13 @@ function loadContainer() {
         if (raw) {
             const parsed = JSON.parse(raw);
             const sc = Number(parsed.scale);
+            const w = Number(parsed.width);
+            const h = Number(parsed.height);
             return {
                 enabled: !!parsed.enabled,
                 scale:   Number.isFinite(sc) && sc >= 1 ? sc : DEFAULT_CONTAINER.scale,
+                width:   Number.isFinite(w) && w >= 10 ? Math.round(w) : DEFAULT_CONTAINER.width,
+                height:  Number.isFinite(h) && h >= 10 ? Math.round(h) : DEFAULT_CONTAINER.height,
             };
         }
     } catch {}

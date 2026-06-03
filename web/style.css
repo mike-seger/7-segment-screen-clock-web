@@ -42,24 +42,70 @@ html, body {
     height: 100vh;
 }
 
-/* Simulated display overlay: a fullscreen canvas whose internal bitmap is
-   virtualVW × virtualVH. CSS stretches it across the viewport with
-   image-rendering: pixelated so each virtual pixel becomes a sharp block. */
-#virtualClockCanvas {
+#virtualClockPopup {
     position: fixed;
-    inset: 0;
-    width: 100vw;
-    height: 100vh;
-    image-rendering: pixelated;
-    image-rendering: crisp-edges;
-    pointer-events: none;
-    background: #000;
-    z-index: 900;
+    top: 76px;
+    right: 10px;
+    left: auto;
     display: none;
+    flex-direction: column;
+    background: rgba(17, 17, 17, 0.95);
+    border: 1px solid #333;
+    border-radius: 8px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+    z-index: 920;
+    max-width: calc(100vw - 12px);
+    max-height: calc(100vh - 12px);
+    overflow: hidden;
+    user-select: none;
 }
 
-#virtualClockCanvas.active {
+#virtualClockPopup.active {
+    display: flex;
+}
+
+#virtualClockPopup .popup-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 6px 10px;
+    background: #252528;
+    border-bottom: 1px solid #333;
+    cursor: grab;
+    color: #eee;
+    font-size: 11px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+
+#virtualClockPopup .popup-close-btn {
+    appearance: none;
+    border: none;
+    background: transparent;
+    color: #bbb;
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0;
+}
+
+#virtualClockPopup .popup-close-btn:hover {
+    color: #fff;
+}
+
+#virtualClockPopup .popup-content {
+    background: #000;
+    max-width: calc(100vw - 12px);
+    max-height: calc(100vh - 52px);
+    overflow: auto;
+}
+
+#virtualClockCanvas {
     display: block;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    background: #000;
 }
 
 #clock {
