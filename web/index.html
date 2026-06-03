@@ -102,6 +102,174 @@ function getClockViewportSize() {
   return { vw: window.innerWidth, vh: window.innerHeight };
 }
 
+let _externalSimWindow = null;
+let _externalPopupBlocked = false;
+
+window.__onExternalSimPopupClosed = function() {
+  _externalSimWindow = null;
+  const cb = document.getElementById("containerEnabled");
+  if (cb && cb.checked) {
+    cb.checked = false;
+    cb.dispatchEvent(new Event("change"));
+  }
+};
+
+function prefersExternalSimulationPopup() {
+  try {
+    const ua = navigator.userAgent || "";
+    const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile/i.test(ua);
+    const hasFinePointer = window.matchMedia && window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+    return !isMobileUA && !!hasFinePointer;
+  } catch {
+    return false;
+  }
+}
+
+function getExternalPopupFeatures(vw, vh, sc) {
+  const rawW = Math.round(vw * sc) + 20;
+  const rawH = Math.round(vh * sc) + 70;
+  const maxW = Math.max(320, (window.screen && window.screen.availWidth ? window.screen.availWidth : 1280) - 40);
+  const maxH = Math.max(240, (window.screen && window.screen.availHeight ? window.screen.availHeight : 800) - 60);
+  const width = Math.max(320, Math.min(rawW, maxW));
+  const height = Math.max(240, Math.min(rawH, maxH));
+  return `popup=yes,resizable=yes,scrollbars=no,toolbar=no,menubar=no,location=no,status=no,width=${width},height=${height}`;
+}
+
+function initializeExternalPopupDocument(popupWin) {
+  if (!popupWin || popupWin.closed) return;
+  const doc = popupWin.document;
+  if (!doc) return;
+  if (doc.getElementById("virtualClockCanvasExternal")) return;
+
+  // Set title
+  doc.title = "Simulated Display";
+
+  // Configure head with viewport meta
+  let metaViewport = doc.querySelector('meta[name="viewport"]');
+  if (!metaViewport) {
+    metaViewport = doc.createElement("meta");
+    metaViewport.name = "viewport";
+    metaViewport.content = "width=device-width, initial-scale=1.0";
+    doc.head.appendChild(metaViewport);
+  }
+
+  // Configure head with charset meta if missing
+  let metaCharset = doc.querySelector("meta[charset]");
+  if (!metaCharset) {
+    metaCharset = doc.createElement("meta");
+    metaCharset.setAttribute("charset", "UTF-8");
+    doc.head.appendChild(metaCharset);
+  }
+
+  const style = doc.createElement("style");
+  style.textContent = [
+    "html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; color: #ddd; font-family: monospace; }",
+    "body { display: flex; flex-direction: column; }",
+    ".bar { height: 36px; flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; padding: 0 10px; background: #252528; border-bottom: 1px solid #333; box-sizing: border-box; }",
+    ".title { font-size: 11px; letter-spacing: 0.8px; text-transform: uppercase; }",
+    ".close { appearance: none; border: none; background: transparent; color: #bbb; font-size: 18px; line-height: 1; cursor: pointer; }",
+    ".close:hover { color: #fff; }",
+    ".wrap { flex: 1 1 auto; display: flex; align-items: flex-start; justify-content: flex-start; overflow: auto; background: #000; }",
+    "canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edges; background: #000; }"
+  ].join("\n");
+  doc.head.appendChild(style);
+
+  const bar = doc.createElement("div");
+  bar.className = "bar";
+
+  const title = doc.createElement("span");
+  title.className = "title";
+  title.textContent = "Simulated Display";
+
+  const closeBtn = doc.createElement("button");
+  closeBtn.className = "close";
+  closeBtn.id = "closeBtn";
+  closeBtn.type = "button";
+  closeBtn.setAttribute("aria-label", "Close");
+  closeBtn.textContent = "\u00D7";
+
+  bar.appendChild(title);
+  bar.appendChild(closeBtn);
+
+  const wrap = doc.createElement("div");
+  wrap.className = "wrap";
+
+  const canvas = doc.createElement("canvas");
+  canvas.id = "virtualClockCanvasExternal";
+  wrap.appendChild(canvas);
+
+  doc.body.appendChild(bar);
+  doc.body.appendChild(wrap);
+}
+
+function bindExternalPopupHandlers(popupWin) {
+  if (!popupWin || popupWin.closed) return;
+  if (popupWin.__screenClockHandlersBound) return;
+  popupWin.__screenClockHandlersBound = true;
+
+  const notifyClose = () => {
+    if (typeof window.__onExternalSimPopupClosed === "function") {
+      window.__onExternalSimPopupClosed();
+    }
+  };
+
+  try {
+    const closeBtn = popupWin.document.getElementById("closeBtn");
+    if (closeBtn) {
+      closeBtn.addEventListener("click", () => {
+        notifyClose();
+        popupWin.close();
+      });
+    }
+  } catch {}
+
+  try {
+    popupWin.addEventListener("beforeunload", notifyClose);
+  } catch {}
+}
+
+function ensureExternalSimulationPopup(vw, vh, sc) {
+  if (_externalPopupBlocked) return null;
+  try {
+    if (!_externalSimWindow || _externalSimWindow.closed) {
+      _externalSimWindow = window.open("", "screenClockSimulationPopup", getExternalPopupFeatures(vw, vh, sc));
+      if (!_externalSimWindow) {
+        _externalPopupBlocked = true;
+        return null;
+      }
+      initializeExternalPopupDocument(_externalSimWindow);
+      bindExternalPopupHandlers(_externalSimWindow);
+    }
+    initializeExternalPopupDocument(_externalSimWindow);
+    bindExternalPopupHandlers(_externalSimWindow);
+    const extCanvas = _externalSimWindow.document.getElementById("virtualClockCanvasExternal");
+    return extCanvas || null;
+  } catch {
+    return null;
+  }
+}
+
+function closeExternalSimulationPopup() {
+  if (_externalSimWindow && !_externalSimWindow.closed) {
+    try { _externalSimWindow.close(); } catch {}
+  }
+  _externalSimWindow = null;
+}
+
+function getActiveSimulationCanvas() {
+  if (prefersExternalSimulationPopup()) {
+    const st = (typeof state !== "undefined" && state) ? state : (window.state || null);
+    const container = st && st.container ? st.container : {};
+    const extCanvas = ensureExternalSimulationPopup(
+      Math.max(10, Math.round(container.width || 240)),
+      Math.max(10, Math.round(container.height || 135)),
+      Math.max(1, (container.scale || 4))
+    );
+    if (extCanvas) return extCanvas;
+  }
+  return document.getElementById("virtualClockCanvas");
+}
+
 // Toggles the simulated-display canvas overlay. The clock continues to render
 // normally at real viewport size; the canvas just covers it with a downsampled
 // + pixelated screenshot.
@@ -115,14 +283,29 @@ function applyContainerMode() {
     const sc = Math.max(1, c.scale || 4);
     const vw = Math.max(10, Math.round(c.width || 240));
     const vh = Math.max(10, Math.round(c.height || 135));
-    canvas.width  = vw;
-    canvas.height = vh;
-    canvas.style.width = `${vw * sc}px`;
-    canvas.style.height = `${vh * sc}px`;
-    popup.classList.add("active");
+
+    const desktopExternal = prefersExternalSimulationPopup();
+    const activeCanvas = desktopExternal ? ensureExternalSimulationPopup(vw, vh, sc) : null;
+
+    if (activeCanvas) {
+      popup.classList.remove("active");
+      activeCanvas.width = vw;
+      activeCanvas.height = vh;
+      activeCanvas.style.width = `${vw * sc}px`;
+      activeCanvas.style.height = `${vh * sc}px`;
+    } else {
+      canvas.width  = vw;
+      canvas.height = vh;
+      canvas.style.width = `${vw * sc}px`;
+      canvas.style.height = `${vh * sc}px`;
+      popup.classList.add("active");
+    }
+
     drawClockToCanvas();
   } else {
     popup.classList.remove("active");
+    closeExternalSimulationPopup();
+    _externalPopupBlocked = false;
   }
 }
 
@@ -136,10 +319,9 @@ let _drawQueued = false;
 function drawClockToCanvas() {
   if (window._suppressCanvasDraw) return;
   const c = (typeof state !== "undefined" && state.container) ? state.container : null;
-  const popup = document.getElementById("virtualClockPopup");
-  const canvas = document.getElementById("virtualClockCanvas");
+  const canvas = getActiveSimulationCanvas();
   const clock = document.getElementById("clock");
-  if (!popup || !canvas || !clock) return;
+  if (!canvas || !clock) return;
   if (!c || !c.enabled) return;
   if (typeof html2canvas !== "function") return;
   if (_drawInFlight) {
