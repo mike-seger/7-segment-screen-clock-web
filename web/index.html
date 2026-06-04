@@ -256,6 +256,38 @@ function openSimulationPopup(vw, vh, sc) {
   initializeExternalPopupDocument(_externalSimWindow);
   bindExternalPopupHandlers(_externalSimWindow);
 
+  // Browsers disagree about whether `width`/`height` in window.open features
+  // refer to inner content area or outer window box.  Measure the actual inner
+  // size after the popup is open and resize to compensate for chrome delta.
+  // We schedule this on rAF and then once more on a short timeout to handle
+  // browsers where outerHeight/innerHeight settle asynchronously.
+  const targetInnerW = Math.round(vw * sc);
+  const targetInnerH = Math.round(vh * sc);
+  const correctPopupInnerSize = () => {
+    if (!_externalSimWindow || _externalSimWindow.closed) return;
+    try {
+      const innerW = _externalSimWindow.innerWidth;
+      const innerH = _externalSimWindow.innerHeight;
+      if (innerW > 0 && innerH > 0) {
+        const dw = targetInnerW - innerW;
+        const dh = targetInnerH - innerH;
+        if (Math.abs(dw) >= 1 || Math.abs(dh) >= 1) {
+          _externalSimWindow.resizeBy(dw, dh);
+        }
+      }
+    } catch {}
+  };
+  try {
+    _externalSimWindow.requestAnimationFrame(() => {
+      correctPopupInnerSize();
+      // Second pass to converge on browsers that report stale sizes briefly.
+      setTimeout(correctPopupInnerSize, 50);
+    });
+  } catch {
+    setTimeout(correctPopupInnerSize, 0);
+    setTimeout(correctPopupInnerSize, 50);
+  }
+
   const canvas = _externalSimWindow.document.getElementById("virtualClockCanvasExternal");
   if (canvas) {
     canvas.width = vw;
@@ -367,9 +399,18 @@ function drawClockToCanvas() {
     const vh  = Math.max(10, Math.round(c.height || 135));
     const dpr = window.devicePixelRatio || 2;
 
-    if (canvas.width !== vw || canvas.height !== vh) {
-      canvas.width  = vw;
-      canvas.height = vh;
+    // Quality strategy:
+    //   sc === 1 → high-fidelity: canvas internal = vw*dpr × vh*dpr for crisp
+    //              text on retina (no upscale artefacts).
+    //   sc  > 1  → pixel-art / LED-panel: canvas internal = vw × vh, CSS
+    //              `image-rendering: pixelated` does the nearest-neighbour
+    //              chunky-pixel upscale to vw*sc × vh*sc.
+    const pixelated = (sc > 1);
+    const internalW = pixelated ? vw : Math.round(vw * dpr);
+    const internalH = pixelated ? vh : Math.round(vh * dpr);
+    if (canvas.width !== internalW || canvas.height !== internalH) {
+      canvas.width  = internalW;
+      canvas.height = internalH;
     }
     canvas.style.width  = `${vw * sc}px`;
     canvas.style.height = `${vh * sc}px`;
@@ -439,13 +480,17 @@ function drawClockToCanvas() {
     _drawInFlight = true;
     document.querySelectorAll('.html2canvas-container').forEach(n => n.remove());
 
-    console.log('[sim] start', { vw, vh, scale: vtp?.scale, rot: vtp?.rotation });
+    console.log('[sim] start', { vw, vh, sc, dpr,
+                                 internalW, internalH,
+                                 scale: vtp?.scale, rot: vtp?.rotation });
 
-    // Capture document.body with the iframe sized exactly vw×vh.  At that
-    // size, the CSS `100vw/100vh` rules make body / #clockContainer / #clock
-    // all vw×vh naturally, and flex centres #clockInner at (vw/2, vh/2).
-    // The virtual font sizes fit that space, so only scale+rotation is
-    // needed on clockInner — no translation.
+    // Capture document.body, telling html2canvas the viewport is vw×vh.  In
+    // onclone we ADDITIONALLY pin documentElement / body / #clockContainer /
+    // #clock to exactly vw×vh px (overriding the 100vw/100vh CSS rules) so
+    // flex reliably centres #clockInner at (vw/2, vh/2) regardless of how
+    // html2canvas sizes its clone iframe.  Virtual font sizes were computed
+    // for vw×vh, so only scale+rotation is applied to clockInner — no
+    // translation needed.
     html2canvas(document.body, {
       x: 0, y: 0, width: vw, height: vh,
       scale: dpr,
@@ -467,11 +512,58 @@ function drawClockToCanvas() {
           else el.removeAttribute('style');
         });
 
-        // clockInner: flex centres its box at (vw/2, vh/2); apply scale+rotate
-        // around that centre.  No translation — virtual font sizes fit vw×vh.
+        // Pin the wrapper chain to exactly vw×vh px.
+        if (doc.documentElement) {
+          doc.documentElement.style.margin = '0';
+          doc.documentElement.style.padding = '0';
+          doc.documentElement.style.width  = vw + 'px';
+          doc.documentElement.style.height = vh + 'px';
+          doc.documentElement.style.overflow = 'hidden';
+          doc.documentElement.style.background = '#000';
+        }
+        if (doc.body) {
+          doc.body.style.margin = '0';
+          doc.body.style.padding = '0';
+          doc.body.style.width  = vw + 'px';
+          doc.body.style.height = vh + 'px';
+          doc.body.style.overflow = 'hidden';
+          doc.body.style.background = '#000';
+        }
+        const cc = doc.getElementById('clockContainer');
+        if (cc) {
+          cc.style.position = 'fixed';
+          cc.style.top = '0';
+          cc.style.left = '0';
+          cc.style.width  = vw + 'px';
+          cc.style.height = vh + 'px';
+          cc.style.margin = '0';
+          cc.style.padding = '0';
+          cc.style.overflow = 'hidden';
+        }
+        const c2 = doc.getElementById('clock');
+        if (c2) {
+          c2.style.position = 'fixed';
+          c2.style.top = '0';
+          c2.style.left = '0';
+          c2.style.width  = vw + 'px';
+          c2.style.height = vh + 'px';
+          c2.style.display = 'flex';
+          c2.style.visibility = 'visible';
+          c2.style.margin = '0';
+          c2.style.padding = '0';
+          c2.style.transition = 'none';
+        }
+
+        // clockInner: flex centres its box at (vw/2, vh/2).  Apply the scale
+        // that `applyClockTransform` computed for vw×vh — it accounts for the
+        // worst-case digit string width (via getWorstCaseTimeWidth) so the
+        // clock doesn't resize as digits change.  A naive in-clone measure of
+        // current offsetWidth would give a too-large scale that overflows on
+        // worst-case digits.
         const ci = doc.getElementById('clockInner');
-        if (ci && vtp) {
-          ci.style.transform = `rotate(${vtp.rotation}deg) scale(${vtp.scale})`;
+        let fitScale = vtp ? vtp.scale : 1;
+        if (ci) {
+          ci.style.transform = `rotate(${vtp ? vtp.rotation : 0}deg) scale(${fitScale})`;
           ci.style.transformOrigin = 'center center';
           ci.style.transition = 'none';
         }
@@ -481,25 +573,60 @@ function drawClockToCanvas() {
           tl.style.transform = 'translateX(0)';
           tl.style.transition = 'none';
         }
-        // Make sure #clock is visible (real one may be hidden during animations).
-        const c2 = doc.getElementById('clock');
-        if (c2) {
-          c2.style.display = 'flex';
-          c2.style.visibility = 'visible';
-        }
+
         // Remove UI chrome.
         ['menuPlaceholder', 'rowCoordinateDisplay', 'virtualClockPopup']
           .forEach(id => { const el = doc.getElementById(id); if (el) el.remove(); });
+
+        // ── Diagnostic measurements inside the clone ──────────────────────
+        // Logs actual rendered sizes so we can see where the clock lands.
+        try {
+          const cloneWin = doc.defaultView || (doc.ownerDocument && doc.ownerDocument.defaultView);
+          const vpW = cloneWin ? cloneWin.innerWidth  : '?';
+          const vpH = cloneWin ? cloneWin.innerHeight : '?';
+          const measure = (id) => {
+            const el = doc.getElementById(id);
+            if (!el) return null;
+            const r = el.getBoundingClientRect();
+            return { L: Math.round(r.left), T: Math.round(r.top),
+                     W: Math.round(r.width), H: Math.round(r.height) };
+          };
+          console.log('[sim] clone viewport', vpW + '×' + vpH,
+                      '  expected', vw + '×' + vh);
+          console.log('[sim] clone body  ', measure('') /* skipped */);
+          console.log('[sim] clone html  ',
+            (() => { const r = doc.documentElement.getBoundingClientRect();
+                     return {L:Math.round(r.left), T:Math.round(r.top),
+                             W:Math.round(r.width), H:Math.round(r.height)}; })());
+          console.log('[sim] clone body  ',
+            (() => { const r = doc.body.getBoundingClientRect();
+                     return {L:Math.round(r.left), T:Math.round(r.top),
+                             W:Math.round(r.width), H:Math.round(r.height)}; })());
+          console.log('[sim] clone #clock      ', measure('clock'));
+          console.log('[sim] clone #clockInner ', measure('clockInner'),
+                      'transform=' + (ci ? ci.style.transform : '?'),
+                      'fitScale=' + fitScale.toFixed(4),
+                      'vtpScale=' + (vtp ? vtp.scale.toFixed(4) : '?'));
+          console.log('[sim] clone #dateLine   ', measure('dateLine'),
+                      'fontSize=' + (doc.getElementById('dateLine')?.style.fontSize || '?'));
+          console.log('[sim] clone #timeLine   ', measure('timeLine'),
+                      'fontSize=' + (doc.getElementById('timeLine')?.style.fontSize || '?'));
+        } catch (e) { console.warn('[sim] measure failed:', e); }
+        // ──────────────────────────────────────────────────────────────────
       }
     }).then(src => {
       console.log('[sim] html2canvas done', src ? `${src.width}×${src.height}` : 'null');
       if (!src || !src.width || !src.height) return;
       const ctx = canvas.getContext('2d');
       ctx.fillStyle = '#000';
-      ctx.fillRect(0, 0, vw, vh);
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = 'high';
-      ctx.drawImage(src, 0, 0, src.width, src.height, 0, 0, vw, vh);
+      ctx.fillRect(0, 0, internalW, internalH);
+      if (pixelated) {
+        ctx.imageSmoothingEnabled = false;
+      } else {
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+      }
+      ctx.drawImage(src, 0, 0, src.width, src.height, 0, 0, internalW, internalH);
     }).catch(err => {
       console.warn('[sim] html2canvas failed:', err);
     }).finally(() => {
