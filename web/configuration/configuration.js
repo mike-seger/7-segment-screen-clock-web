@@ -403,6 +403,12 @@ function initConfiguration() {
             els.inheritColonColor.checked = state.inheritColonColor === true;
         }
         if (els.showDebug) els.showDebug.checked = state.showDebug === true;
+        // Show simulation section only for clients that support real popout windows
+        const simSection = document.getElementById("simulatedDisplaySection");
+        if (simSection) {
+            const supportsPopup = typeof prefersExternalSimulationPopup === "function" && prefersExternalSimulationPopup();
+            simSection.style.display = supportsPopup ? "" : "none";
+        }
         // Container mode
         if (els.containerEnabled) {
             const c = state.container || {};
@@ -787,6 +793,7 @@ function initConfiguration() {
 
         [els.containerScale, els.containerWidth, els.containerHeight].forEach(el => {
             if (!el) return;
+            // Live badge/step updates while dragging — do NOT reopen the popup mid-drag.
             el.addEventListener("input", () => {
                 if (el === els.containerScale && els.containerScaleValue) {
                     els.containerScaleValue.textContent = el.value + "px";
@@ -803,6 +810,13 @@ function initConfiguration() {
                 }
                 readContainerFromForm();
                 updateContainerSizeHint();
+                // Popup reopen deferred to "change" (thumb released / key-up).
+            });
+            // Reopen popup with new dimensions after the thumb is released or a key is released.
+            el.addEventListener("change", () => {
+                readContainerFromForm();
+                updateContainerSizeHint();
+                if (typeof closeExternalSimulationPopup === "function") closeExternalSimulationPopup();
                 if (typeof applyContainerMode === "function") applyContainerMode();
             });
         });

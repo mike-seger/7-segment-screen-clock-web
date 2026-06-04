@@ -104,9 +104,36 @@ function getClockViewportSize() {
 
 let _externalSimWindow = null;
 let _externalPopupBlocked = false;
+let _simClosingProgrammatically = false;
+let _simClosingProgrammaticallyTimer = null;
+const SIM_POPUP_POS_KEY = "screenClock_simPopupPos";
+
+function loadSimPopupPosition() {
+  try {
+    const raw = localStorage.getItem(SIM_POPUP_POS_KEY);
+    if (raw) {
+      const p = JSON.parse(raw);
+      if (Number.isFinite(p.left) && Number.isFinite(p.top)) return p;
+    }
+  } catch {}
+  return null;
+}
+
+function saveSimPopupPosition() {
+  if (!_externalSimWindow || _externalSimWindow.closed) return;
+  try {
+    const left = _externalSimWindow.screenX;
+    const top = _externalSimWindow.screenY;
+    if (Number.isFinite(left) && Number.isFinite(top)) {
+      localStorage.setItem(SIM_POPUP_POS_KEY, JSON.stringify({ left, top }));
+    }
+  } catch {}
+}
 
 window.__onExternalSimPopupClosed = function() {
+  if (_simClosingProgrammatically) return;
   _externalSimWindow = null;
+  // User closed the popup via the OS window close button — uncheck the checkbox.
   const cb = document.getElementById("containerEnabled");
   if (cb && cb.checked) {
     cb.checked = false;
@@ -126,13 +153,18 @@ function prefersExternalSimulationPopup() {
 }
 
 function getExternalPopupFeatures(vw, vh, sc) {
-  const rawW = Math.round(vw * sc) + 20;
-  const rawH = Math.round(vh * sc) + 70;
+  // width/height in window.open features are the inner content area in Chrome/modern browsers.
+  // Pass the canvas dimensions directly so the body area matches vw×vh exactly.
+  const rawW = Math.round(vw * sc);
+  const rawH = Math.round(vh * sc);
   const maxW = Math.max(320, (window.screen && window.screen.availWidth ? window.screen.availWidth : 1280) - 40);
   const maxH = Math.max(240, (window.screen && window.screen.availHeight ? window.screen.availHeight : 800) - 60);
   const width = Math.max(320, Math.min(rawW, maxW));
   const height = Math.max(240, Math.min(rawH, maxH));
-  return `popup=yes,resizable=yes,scrollbars=no,toolbar=no,menubar=no,location=no,status=no,width=${width},height=${height}`;
+  let features = `popup=yes,resizable=no,scrollbars=no,toolbar=no,menubar=no,location=no,status=no,width=${width},height=${height}`;
+  const pos = loadSimPopupPosition();
+  if (pos) features += `,left=${pos.left},top=${pos.top}`;
+  return features;
 }
 
 function initializeExternalPopupDocument(popupWin) {
@@ -163,9 +195,9 @@ function initializeExternalPopupDocument(popupWin) {
 
   const style = doc.createElement("style");
   style.textContent = [
-    "html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; }",
+    "html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; }",
     "body { display: flex; flex-direction: column; }",
-    ".wrap { flex: 1 1 auto; display: flex; align-items: flex-start; justify-content: flex-start; overflow: auto; background: #000; }",
+    ".wrap { flex: 1 1 auto; display: flex; align-items: flex-start; justify-content: flex-start; overflow: hidden; background: #000; }",
     "canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edges; background: #000; }"
   ].join("\n");
   doc.head.appendChild(style);
@@ -196,91 +228,119 @@ function bindExternalPopupHandlers(popupWin) {
   } catch {}
 }
 
-function ensureExternalSimulationPopup(vw, vh, sc) {
-  if (_externalPopupBlocked) return null;
+// Open a fresh simulation popup, closing any existing one first.
+function openSimulationPopup(vw, vh, sc) {
+  // Save position of the existing popup before closing it.
+  if (_externalSimWindow && !_externalSimWindow.closed) {
+    saveSimPopupPosition();
+    clearTimeout(_simClosingProgrammaticallyTimer);
+    _simClosingProgrammatically = true;
+    try { _externalSimWindow.close(); } catch {}
+    _externalSimWindow = null;
+    _simClosingProgrammaticallyTimer = setTimeout(() => { _simClosingProgrammatically = false; }, 200);
+  } else {
+    _externalSimWindow = null;
+  }
+  _externalPopupBlocked = false;
+
+  // window.open with a fixed name: since the previous window was closed, the
+  // browser treats this as a new window and honours the size/position features.
+  const newWin = window.open("about:blank", "screenClockSimulationPopup", getExternalPopupFeatures(vw, vh, sc));
+  if (!newWin) {
+    _externalPopupBlocked = true;
+    clearTimeout(_simClosingProgrammaticallyTimer);
+    _simClosingProgrammatically = false;
+    return null;
+  }
+  _externalSimWindow = newWin;
+  initializeExternalPopupDocument(_externalSimWindow);
+  bindExternalPopupHandlers(_externalSimWindow);
+
+  const canvas = _externalSimWindow.document.getElementById("virtualClockCanvasExternal");
+  if (canvas) {
+    canvas.width = vw;
+    canvas.height = vh;
+    canvas.style.width = `${vw * sc}px`;
+    canvas.style.height = `${vh * sc}px`;
+  }
+  return canvas || null;
+}
+
+function closeExternalSimulationPopup() {
+  if (_externalSimWindow && !_externalSimWindow.closed) {
+    saveSimPopupPosition();
+    clearTimeout(_simClosingProgrammaticallyTimer);
+    _simClosingProgrammatically = true;
+    try { _externalSimWindow.close(); } catch {}
+    _simClosingProgrammaticallyTimer = setTimeout(() => { _simClosingProgrammatically = false; }, 200);
+  }
+  _externalSimWindow = null;
+  _externalPopupBlocked = false;
+}
+
+// Returns the canvas in the existing popup window (does NOT open a new one).
+function getActiveSimulationCanvas() {
+  if (!_externalSimWindow || _externalSimWindow.closed) return null;
   try {
-    if (!_externalSimWindow || _externalSimWindow.closed) {
-      _externalSimWindow = window.open("", "screenClockSimulationPopup", getExternalPopupFeatures(vw, vh, sc));
-      if (!_externalSimWindow) {
-        _externalPopupBlocked = true;
-        return null;
-      }
-      initializeExternalPopupDocument(_externalSimWindow);
-      bindExternalPopupHandlers(_externalSimWindow);
-    }
-    initializeExternalPopupDocument(_externalSimWindow);
-    bindExternalPopupHandlers(_externalSimWindow);
-    const extCanvas = _externalSimWindow.document.getElementById("virtualClockCanvasExternal");
-    return extCanvas || null;
+    return _externalSimWindow.document.getElementById("virtualClockCanvasExternal") || null;
   } catch {
     return null;
   }
 }
 
-function closeExternalSimulationPopup() {
-  if (_externalSimWindow && !_externalSimWindow.closed) {
-    try { _externalSimWindow.close(); } catch {}
-  }
-  _externalSimWindow = null;
-}
-
-function getActiveSimulationCanvas() {
-  if (prefersExternalSimulationPopup()) {
-    const st = (typeof state !== "undefined" && state) ? state : (window.state || null);
-    const container = st && st.container ? st.container : {};
-    const extCanvas = ensureExternalSimulationPopup(
-      Math.max(10, Math.round(container.width || 240)),
-      Math.max(10, Math.round(container.height || 135)),
-      Math.max(1, (container.scale || 4))
-    );
-    if (extCanvas) return extCanvas;
-  }
-  return document.getElementById("virtualClockCanvas");
-}
-
-// Toggles the simulated-display canvas overlay. The clock continues to render
-// normally at real viewport size; the canvas just covers it with a downsampled
-// + pixelated screenshot.
 function applyContainerMode() {
-  const popup = document.getElementById("virtualClockPopup");
-  const canvas = document.getElementById("virtualClockCanvas");
-  if (!popup || !canvas) return;
   const c = (typeof state !== "undefined" && state.container) ? state.container : null;
   const enabled = !!(c && c.enabled);
   if (enabled) {
+    if (!prefersExternalSimulationPopup()) return;
     const sc = Math.max(1, c.scale || 4);
     const vw = Math.max(10, Math.round(c.width || 240));
     const vh = Math.max(10, Math.round(c.height || 135));
 
-    const desktopExternal = prefersExternalSimulationPopup();
-    const activeCanvas = desktopExternal ? ensureExternalSimulationPopup(vw, vh, sc) : null;
-
-    if (activeCanvas) {
-      popup.classList.remove("active");
-      activeCanvas.width = vw;
-      activeCanvas.height = vh;
-      activeCanvas.style.width = `${vw * sc}px`;
-      activeCanvas.style.height = `${vh * sc}px`;
+    // Open popup if not already showing; otherwise just update canvas size.
+    if (!_externalSimWindow || _externalSimWindow.closed) {
+      const canvas = openSimulationPopup(vw, vh, sc);
+      if (!canvas) {
+        // Browser blocked the popup — reset UI.
+        if (c) c.enabled = false;
+        const cb = document.getElementById("containerEnabled");
+        if (cb && cb.checked) { cb.checked = false; cb.dispatchEvent(new Event("change")); }
+        return;
+      }
     } else {
-      canvas.width  = vw;
-      canvas.height = vh;
-      canvas.style.width = `${vw * sc}px`;
-      canvas.style.height = `${vh * sc}px`;
-      popup.classList.add("active");
+      try {
+        const canvas = _externalSimWindow.document.getElementById("virtualClockCanvasExternal");
+        if (canvas) {
+          canvas.width = vw;
+          canvas.height = vh;
+          canvas.style.width = `${vw * sc}px`;
+          canvas.style.height = `${vh * sc}px`;
+        }
+      } catch {}
     }
-
     drawClockToCanvas();
   } else {
-    popup.classList.remove("active");
     closeExternalSimulationPopup();
-    _externalPopupBlocked = false;
   }
 }
 
-// Screenshot the (normally-rendered) #clock element with html2canvas, then
-// drawImage it stretched into the small virtualVW × virtualVH canvas. CSS
-// then stretches that small bitmap back to fullscreen with pixelated
-// rendering, producing the simulated low-res display look.
+// Close simulation popup when the main page is reloaded or closed.
+window.addEventListener("beforeunload", () => {
+  if (_externalSimWindow && !_externalSimWindow.closed) {
+    saveSimPopupPosition();
+    try { _externalSimWindow.close(); } catch {}
+  }
+});
+
+// Renders the simulation canvas by temporarily re-laying out the clock for
+// vw×vh, snapshotting font sizes / margins synchronously, then restoring the
+// real layout before any browser paint (no visible flash).
+//
+// Key insight: html2canvas is told windowWidth=vw, windowHeight=vh.  In the
+// clone iframe, #clock is position:fixed 100%×100% = vw×vh, so flexbox
+// centers #clockInner at (vw/2, vh/2).  The virtual font sizes fill that
+// space exactly, and we only need scale+rotation — no viewport-relative
+// translation correction.
 let _drawScheduled = false;
 let _drawInFlight = false;
 let _drawQueued = false;
@@ -288,8 +348,7 @@ function drawClockToCanvas() {
   if (window._suppressCanvasDraw) return;
   const c = (typeof state !== "undefined" && state.container) ? state.container : null;
   const canvas = getActiveSimulationCanvas();
-  const clock = document.getElementById("clock");
-  if (!canvas || !clock) return;
+  if (!canvas) return;
   if (!c || !c.enabled) return;
   if (typeof html2canvas !== "function") return;
   if (_drawInFlight) {
@@ -303,53 +362,149 @@ function drawClockToCanvas() {
     if (window._suppressCanvasDraw) return;
     if (!c || !c.enabled) return;
 
-    const sc = Math.max(1, c.scale || 4);
-    const vw = Math.max(10, Math.round(c.width || 240));
-    const vh = Math.max(10, Math.round(c.height || 135));
+    const sc  = Math.max(1, c.scale || 4);
+    const vw  = Math.max(10, Math.round(c.width  || 240));
+    const vh  = Math.max(10, Math.round(c.height || 135));
+    const dpr = window.devicePixelRatio || 2;
+
     if (canvas.width !== vw || canvas.height !== vh) {
-      canvas.width = vw;
+      canvas.width  = vw;
       canvas.height = vh;
     }
-    canvas.style.width = `${vw * sc}px`;
+    canvas.style.width  = `${vw * sc}px`;
     canvas.style.height = `${vh * sc}px`;
 
+    // Elements whose inline styles are mutated by applyClockTransform.
+    const SNAP_IDS = ['clock', 'clockInner', 'dateLine', 'timeLine',
+                      'hour', 'minute', 'colon-min', 'sec', 'colon-sec',
+                      'millis', 'colon-millis'];
+
+    // ── Synchronous snapshot ──────────────────────────────────────────────
+    // 1. Snapshot REAL inline styles so we can restore by re-assigning them
+    //    — NOT by recomputing.  applyClockTransform measures ink width, which
+    //    changes when digits change ("1" is narrower than "8"), so a recompute
+    //    would visibly shift the live clock every second.
+    const realStyles = {};
+    SNAP_IDS.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) realStyles[id] = el.getAttribute('style') || '';
+    });
+
+    // 2. Apply virtual viewport + recompute layout for vw×vh.
+    window._suppressCanvasDraw = true;
+    window._virtualViewportOverride = { vw, vh };
+    try {
+      if (typeof applyClockTransform === 'function') applyClockTransform();
+    } catch (e) { console.warn('[sim] applyClockTransform (virtual):', e); }
+
+    // 3. Snapshot virtual styles + transform params.
+    const virtualStyles = {};
+    SNAP_IDS.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) virtualStyles[id] = el.getAttribute('style') || '';
+    });
+    const vtp = window.lastTransformParams ? { ...window.lastTransformParams } : null;
+
+    // 4. Restore real styles + suppress CSS transition so the live clock
+    //    doesn't animate from virtual→real (#clockInner has
+    //    `transition: transform 420ms`; applyClockTransform's internal
+    //    `void offsetHeight` commits the virtual transform, which would
+    //    otherwise animate back to the real one).
+    window._virtualViewportOverride = null;
+    const ciLive = document.getElementById('clockInner');
+    const tlLive = document.getElementById('timeLine');
+    SNAP_IDS.forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      if (realStyles[id]) el.setAttribute('style', realStyles[id]);
+      else el.removeAttribute('style');
+    });
+    // Override the just-restored `transition` to suppress this frame's animation.
+    if (ciLive) ciLive.style.transition = 'none';
+    if (tlLive) tlLive.style.transition = 'none';
+    // Force reflow so the browser commits the real transform with transition:none.
+    void document.body.offsetHeight;
+    // On the next frame, restore the original transitions (read from realStyles).
+    requestAnimationFrame(() => {
+      const ciStyle = realStyles['clockInner'] || '';
+      const tlStyle = realStyles['timeLine'] || '';
+      const ciTrans = (ciStyle.match(/transition\s*:\s*([^;]+)/i) || [, ''])[1].trim();
+      const tlTrans = (tlStyle.match(/transition\s*:\s*([^;]+)/i) || [, ''])[1].trim();
+      if (ciLive) ciLive.style.transition = ciTrans;
+      if (tlLive) tlLive.style.transition = tlTrans;
+    });
+    window._suppressCanvasDraw = false;
+    // ── End snapshot ──────────────────────────────────────────────────────
+
     _drawInFlight = true;
+    document.querySelectorAll('.html2canvas-container').forEach(n => n.remove());
 
-    // Guard against leaked html2canvas staging nodes from interrupted captures.
-    document.querySelectorAll(".html2canvas-container").forEach(node => node.remove());
+    console.log('[sim] start', { vw, vh, scale: vtp?.scale, rot: vtp?.rotation });
 
-    html2canvas(clock, {
-      scale: window.devicePixelRatio || 2,
-      backgroundColor: "#000",
+    // Capture document.body with the iframe sized exactly vw×vh.  At that
+    // size, the CSS `100vw/100vh` rules make body / #clockContainer / #clock
+    // all vw×vh naturally, and flex centres #clockInner at (vw/2, vh/2).
+    // The virtual font sizes fit that space, so only scale+rotation is
+    // needed on clockInner — no translation.
+    html2canvas(document.body, {
+      x: 0, y: 0, width: vw, height: vh,
+      scale: dpr,
+      backgroundColor: '#000',
       logging: false,
       useCORS: true,
-      windowWidth: window.innerWidth,
-      windowHeight: window.innerHeight,
+      windowWidth:  vw,
+      windowHeight: vh,
       scrollX: 0,
       scrollY: 0,
       removeContainer: true,
       onclone: (doc) => {
-        const menu = doc.getElementById("menuPanel");
-        if (menu && menu.parentNode) menu.parentNode.removeChild(menu);
-        const popupClone = doc.getElementById("virtualClockPopup");
-        if (popupClone && popupClone.parentNode) popupClone.parentNode.removeChild(popupClone);
+        console.log('[sim] onclone fired');
+        // Apply virtual font sizes / margins.
+        SNAP_IDS.forEach(id => {
+          const el = doc.getElementById(id);
+          if (!el) return;
+          if (virtualStyles[id]) el.setAttribute('style', virtualStyles[id]);
+          else el.removeAttribute('style');
+        });
+
+        // clockInner: flex centres its box at (vw/2, vh/2); apply scale+rotate
+        // around that centre.  No translation — virtual font sizes fit vw×vh.
+        const ci = doc.getElementById('clockInner');
+        if (ci && vtp) {
+          ci.style.transform = `rotate(${vtp.rotation}deg) scale(${vtp.scale})`;
+          ci.style.transformOrigin = 'center center';
+          ci.style.transition = 'none';
+        }
+        // timeLine translateX was real-viewport-relative — zero it.
+        const tl = doc.getElementById('timeLine');
+        if (tl) {
+          tl.style.transform = 'translateX(0)';
+          tl.style.transition = 'none';
+        }
+        // Make sure #clock is visible (real one may be hidden during animations).
+        const c2 = doc.getElementById('clock');
+        if (c2) {
+          c2.style.display = 'flex';
+          c2.style.visibility = 'visible';
+        }
+        // Remove UI chrome.
+        ['menuPlaceholder', 'rowCoordinateDisplay', 'virtualClockPopup']
+          .forEach(id => { const el = doc.getElementById(id); if (el) el.remove(); });
       }
     }).then(src => {
+      console.log('[sim] html2canvas done', src ? `${src.width}×${src.height}` : 'null');
       if (!src || !src.width || !src.height) return;
-      const ctx = canvas.getContext("2d");
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = "high";
-      ctx.fillStyle = "#000";
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#000';
       ctx.fillRect(0, 0, vw, vh);
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
       ctx.drawImage(src, 0, 0, src.width, src.height, 0, 0, vw, vh);
     }).catch(err => {
-      console.warn("html2canvas failed:", err);
+      console.warn('[sim] html2canvas failed:', err);
     }).finally(() => {
       _drawInFlight = false;
-      if (_drawQueued) {
-        _drawQueued = false;
-        drawClockToCanvas();
-      }
+      if (_drawQueued) { _drawQueued = false; drawClockToCanvas(); }
     });
   });
 }

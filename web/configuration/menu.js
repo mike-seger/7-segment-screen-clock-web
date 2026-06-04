@@ -170,7 +170,9 @@ function initMenuEvents() {
 
     // Restore Tab
     try {
-        const lastTab = localStorage.getItem('screenClock_selectedTab') || 'fonts';
+        const rawTab = localStorage.getItem('screenClock_selectedTab') || 'fonts';
+        // Migrate old 'bug-report' tab id to 'debug'
+        const lastTab = rawTab === 'bug-report' ? 'debug' : rawTab;
         selectTab(lastTab);
     } catch (e) {
         selectTab('fonts');

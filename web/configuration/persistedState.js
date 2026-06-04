@@ -184,7 +184,7 @@ function loadContainer() {
             const w = Number(parsed.width);
             const h = Number(parsed.height);
             return {
-                enabled: !!parsed.enabled,
+                enabled: false,  // never restore enabled state — always start fresh
                 scale:   Number.isFinite(sc) && sc >= 1 ? sc : DEFAULT_CONTAINER.scale,
                 width:   Number.isFinite(w) && w >= 10 ? Math.round(w) : DEFAULT_CONTAINER.width,
                 height:  Number.isFinite(h) && h >= 10 ? Math.round(h) : DEFAULT_CONTAINER.height,
@@ -196,7 +196,9 @@ function loadContainer() {
 
 function saveContainer(val) {
     try {
-        localStorage.setItem(STORAGE_KEY_CONTAINER, JSON.stringify(val));
+        // Do not persist the enabled flag — simulation is off by default on every page load.
+        const toSave = { scale: val.scale, width: val.width, height: val.height };
+        localStorage.setItem(STORAGE_KEY_CONTAINER, JSON.stringify(toSave));
     } catch {}
 }
 

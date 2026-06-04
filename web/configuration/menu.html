@@ -26,7 +26,7 @@
             <div class="menuTab" data-tab="system" title="System & Network">
                 <span class="symbol">settings_applications</span>
             </div>
-            <div class="menuTab" data-tab="bug-report" title="Bug Report">
+            <div class="menuTab" data-tab="debug" title="Debug">
                 <span class="symbol">bug_report</span>
             </div>
         </div>
@@ -274,8 +274,8 @@
                 </div>
             </div>
 
-            <!-- 6. BUG REPORT -->
-            <div class="menu-tab-content" id="tab-bug-report" style="display: none;">
+            <!-- 6. DEBUG -->
+            <div class="menu-tab-content" id="tab-debug" style="display: none;">
                 <div class="menu-subsection">
                     <label style="margin: 4px 0;">
                         <span style="display: flex; align-items: center; gap: 6px;">
@@ -284,29 +284,31 @@
                         </span>
                     </label>
 
-                    <!-- Simulated display container -->
-                    <h3 style="margin-top: 10px;">Simulated Display</h3>
-                    <label style="margin: 4px 0 8px;">
-                        <span style="display: flex; align-items: center; gap: 6px;">
-                            <input type="checkbox" id="containerEnabled">
-                            Simulate small display
-                        </span>
-                    </label>
-                    <div id="containerControls" style="display: none; margin-left: 4px;">
-                        <div style="margin-bottom: 8px;">
-                            <label for="containerWidth" style="font-size: 11px; color: #ccc; display: flex; justify-content: space-between; margin-bottom: 2px;">Width (px) <span id="containerWidthValue"></span></label>
-                            <input type="range" id="containerWidth" min="10" max="1920" value="320" style="width: 100%;">
-                        </div>
-                        <div style="margin-bottom: 8px;">
-                            <label for="containerHeight" style="font-size: 11px; color: #ccc; display: flex; justify-content: space-between; margin-bottom: 2px;">Height (px) <span id="containerHeightValue"></span></label>
-                            <input type="range" id="containerHeight" min="10" max="1080" value="240" style="width: 100%;">
-                        </div>
-                        <label for="containerScale" style="margin: 4px 0; display: flex; align-items: center; justify-content: space-between; gap: 8px;">
-                            <span>Pixel size</span>
-                            <span class="valueBadge" id="containerScaleValue"></span>
+                    <!-- Simulated display container (hidden for non-desktop/non-browser clients) -->
+                    <div id="simulatedDisplaySection" style="display: none;">
+                        <h3 style="margin-top: 10px;">Simulated Display</h3>
+                        <label style="margin: 4px 0 8px;">
+                            <span style="display: flex; align-items: center; gap: 6px;">
+                                <input type="checkbox" id="containerEnabled">
+                                Simulate small display
+                            </span>
                         </label>
-                        <input type="range" id="containerScale" min="1" max="20" step="1" style="width: 100%; margin-bottom: 4px;">
-                        <div style="font-size: 11px; color: #888; margin-top: 4px;" id="containerSizeHint"></div>
+                        <div id="containerControls" style="display: none; margin-left: 4px;">
+                            <div style="margin-bottom: 8px;">
+                                <label for="containerWidth" style="font-size: 11px; color: #ccc; display: flex; justify-content: space-between; margin-bottom: 2px;">Width (px) <span id="containerWidthValue"></span></label>
+                                <input type="range" id="containerWidth" min="10" max="1920" value="320" style="width: 100%;">
+                            </div>
+                            <div style="margin-bottom: 8px;">
+                                <label for="containerHeight" style="font-size: 11px; color: #ccc; display: flex; justify-content: space-between; margin-bottom: 2px;">Height (px) <span id="containerHeightValue"></span></label>
+                                <input type="range" id="containerHeight" min="10" max="1080" value="240" style="width: 100%;">
+                            </div>
+                            <label for="containerScale" style="margin: 4px 0; display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                                <span>Pixel size</span>
+                                <span class="valueBadge" id="containerScaleValue"></span>
+                            </label>
+                            <input type="range" id="containerScale" min="1" max="20" step="1" style="width: 100%; margin-bottom: 4px;">
+                            <div style="font-size: 11px; color: #888; margin-top: 4px;" id="containerSizeHint"></div>
+                        </div>
                     </div>
                 </div>
             </div>
