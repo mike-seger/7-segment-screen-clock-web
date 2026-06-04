@@ -491,9 +491,15 @@ function drawClockToCanvas() {
     // html2canvas sizes its clone iframe.  Virtual font sizes were computed
     // for vw×vh, so only scale+rotation is applied to clockInner — no
     // translation needed.
+    // html2canvas render resolution:
+    //   sc===1 (high-fidelity, smooth): oversample at dpr for crisp retina text.
+    //   sc> 1 (pixel-art / LED-panel):  render at native 1:1 so each source
+    //                                   pixel maps to exactly one virtual
+    //                                   pixel — NO downscale, NO double sampling.
+    const h2cScale = pixelated ? 1 : dpr;
     html2canvas(document.body, {
       x: 0, y: 0, width: vw, height: vh,
-      scale: dpr,
+      scale: h2cScale,
       backgroundColor: '#000',
       logging: false,
       useCORS: true,
@@ -620,12 +626,14 @@ function drawClockToCanvas() {
       const ctx = canvas.getContext('2d');
       ctx.fillStyle = '#000';
       ctx.fillRect(0, 0, internalW, internalH);
-      if (pixelated) {
-        ctx.imageSmoothingEnabled = false;
-      } else {
-        ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = 'high';
-      }
+      // src dimensions:
+      //   sc===1 → vw*dpr × vh*dpr  | canvas internal = vw*dpr × vh*dpr  (1:1 crisp).
+      //   sc> 1 → vw    × vh      | canvas internal = vw    × vh      (1:1 native).
+      // Either way the copy is 1:1 — no resampling, no detail loss.  CSS
+      // `image-rendering: pixelated` then upscales the small bitmap to
+      // vw*sc × vh*sc on screen for the chunky LED-panel look.
+      ctx.imageSmoothingEnabled = !pixelated;
+      if (!pixelated) ctx.imageSmoothingQuality = 'high';
       ctx.drawImage(src, 0, 0, src.width, src.height, 0, 0, internalW, internalH);
     }).catch(err => {
       console.warn('[sim] html2canvas failed:', err);
