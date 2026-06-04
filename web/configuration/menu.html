@@ -293,15 +293,13 @@
                         </span>
                     </label>
                     <div id="containerControls" style="display: none; margin-left: 4px;">
-                        <div style="display: flex; gap: 8px; margin-bottom: 8px;">
-                            <div style="flex: 1; min-width: 0;">
-                                <label for="containerWidth" style="font-size: 11px; color: #ccc; margin-bottom: 2px; display: block;">Width (px)</label>
-                                <input type="number" id="containerWidth" min="10" max="3840" step="1" style="width: 100%; box-sizing: border-box;">
-                            </div>
-                            <div style="flex: 1; min-width: 0;">
-                                <label for="containerHeight" style="font-size: 11px; color: #ccc; margin-bottom: 2px; display: block;">Height (px)</label>
-                                <input type="number" id="containerHeight" min="10" max="2160" step="1" style="width: 100%; box-sizing: border-box;">
-                            </div>
+                        <div style="margin-bottom: 8px;">
+                            <label for="containerWidth" style="font-size: 11px; color: #ccc; display: flex; justify-content: space-between; margin-bottom: 2px;">Width (px) <span id="containerWidthValue"></span></label>
+                            <input type="range" id="containerWidth" min="10" max="1920" value="320" style="width: 100%;">
+                        </div>
+                        <div style="margin-bottom: 8px;">
+                            <label for="containerHeight" style="font-size: 11px; color: #ccc; display: flex; justify-content: space-between; margin-bottom: 2px;">Height (px) <span id="containerHeightValue"></span></label>
+                            <input type="range" id="containerHeight" min="10" max="1080" value="240" style="width: 100%;">
                         </div>
                         <label for="containerScale" style="margin: 4px 0; display: flex; align-items: center; justify-content: space-between; gap: 8px;">
                             <span>Pixel size</span>

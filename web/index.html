@@ -163,33 +163,12 @@ function initializeExternalPopupDocument(popupWin) {
 
   const style = doc.createElement("style");
   style.textContent = [
-    "html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; color: #ddd; font-family: monospace; }",
+    "html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; }",
     "body { display: flex; flex-direction: column; }",
-    ".bar { height: 36px; flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; padding: 0 10px; background: #252528; border-bottom: 1px solid #333; box-sizing: border-box; }",
-    ".title { font-size: 11px; letter-spacing: 0.8px; text-transform: uppercase; }",
-    ".close { appearance: none; border: none; background: transparent; color: #bbb; font-size: 18px; line-height: 1; cursor: pointer; }",
-    ".close:hover { color: #fff; }",
     ".wrap { flex: 1 1 auto; display: flex; align-items: flex-start; justify-content: flex-start; overflow: auto; background: #000; }",
     "canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edges; background: #000; }"
   ].join("\n");
   doc.head.appendChild(style);
-
-  const bar = doc.createElement("div");
-  bar.className = "bar";
-
-  const title = doc.createElement("span");
-  title.className = "title";
-  title.textContent = "Simulated Display";
-
-  const closeBtn = doc.createElement("button");
-  closeBtn.className = "close";
-  closeBtn.id = "closeBtn";
-  closeBtn.type = "button";
-  closeBtn.setAttribute("aria-label", "Close");
-  closeBtn.textContent = "\u00D7";
-
-  bar.appendChild(title);
-  bar.appendChild(closeBtn);
 
   const wrap = doc.createElement("div");
   wrap.className = "wrap";
@@ -198,7 +177,6 @@ function initializeExternalPopupDocument(popupWin) {
   canvas.id = "virtualClockCanvasExternal";
   wrap.appendChild(canvas);
 
-  doc.body.appendChild(bar);
   doc.body.appendChild(wrap);
 }
 
@@ -212,16 +190,6 @@ function bindExternalPopupHandlers(popupWin) {
       window.__onExternalSimPopupClosed();
     }
   };
-
-  try {
-    const closeBtn = popupWin.document.getElementById("closeBtn");
-    if (closeBtn) {
-      closeBtn.addEventListener("click", () => {
-        notifyClose();
-        popupWin.close();
-      });
-    }
-  } catch {}
 
   try {
     popupWin.addEventListener("beforeunload", notifyClose);
@@ -351,7 +319,7 @@ function drawClockToCanvas() {
     document.querySelectorAll(".html2canvas-container").forEach(node => node.remove());
 
     html2canvas(clock, {
-      scale: 1,
+      scale: window.devicePixelRatio || 2,
       backgroundColor: "#000",
       logging: false,
       useCORS: true,
@@ -369,7 +337,8 @@ function drawClockToCanvas() {
     }).then(src => {
       if (!src || !src.width || !src.height) return;
       const ctx = canvas.getContext("2d");
-      ctx.imageSmoothingEnabled = false;
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
       ctx.fillStyle = "#000";
       ctx.fillRect(0, 0, vw, vh);
       ctx.drawImage(src, 0, 0, src.width, src.height, 0, 0, vw, vh);

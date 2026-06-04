@@ -138,7 +138,9 @@ function initConfiguration() {
         containerScale:         document.getElementById("containerScale"),
         containerScaleValue:    document.getElementById("containerScaleValue"),
         containerWidth:         document.getElementById("containerWidth"),
+        containerWidthValue:    document.getElementById("containerWidthValue"),
         containerHeight:        document.getElementById("containerHeight"),
+        containerHeightValue:   document.getElementById("containerHeightValue"),
         containerControls:      document.getElementById("containerControls"),
         containerSizeHint:      document.getElementById("containerSizeHint"),
         glowEnabled:            document.getElementById("glowEnabled"),
@@ -407,8 +409,18 @@ function initConfiguration() {
             els.containerEnabled.checked = !!c.enabled;
             if (els.containerScale)    els.containerScale.value    = c.scale != null ? c.scale : 4;
             if (els.containerScaleValue) els.containerScaleValue.textContent = (c.scale != null ? c.scale : 4) + "px";
-            if (els.containerWidth) els.containerWidth.value = c.width != null ? c.width : 240;
-            if (els.containerHeight) els.containerHeight.value = c.height != null ? c.height : 135;
+            const initW = c.width != null ? c.width : 320;
+            const initH = c.height != null ? c.height : 240;
+            if (els.containerWidth) {
+                els.containerWidth.value = initW;
+                els.containerWidth.step = initW > 300 ? 10 : 2;
+            }
+            if (els.containerWidthValue) els.containerWidthValue.textContent = initW + "px";
+            if (els.containerHeight) {
+                els.containerHeight.value = initH;
+                els.containerHeight.step = initH > 300 ? 10 : 2;
+            }
+            if (els.containerHeightValue) els.containerHeightValue.textContent = initH + "px";
             if (els.containerControls) els.containerControls.style.display = c.enabled ? "" : "none";
             updateContainerSizeHint();
         }
@@ -778,6 +790,16 @@ function initConfiguration() {
             el.addEventListener("input", () => {
                 if (el === els.containerScale && els.containerScaleValue) {
                     els.containerScaleValue.textContent = el.value + "px";
+                }
+                if (el === els.containerWidth) {
+                    const v = parseInt(el.value, 10);
+                    el.step = v > 300 ? 10 : 2;
+                    if (els.containerWidthValue) els.containerWidthValue.textContent = v + "px";
+                }
+                if (el === els.containerHeight) {
+                    const v = parseInt(el.value, 10);
+                    el.step = v > 300 ? 10 : 2;
+                    if (els.containerHeightValue) els.containerHeightValue.textContent = v + "px";
                 }
                 readContainerFromForm();
                 updateContainerSizeHint();
