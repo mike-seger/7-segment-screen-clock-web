@@ -1,4 +1,4 @@
-const { app, BrowserWindow, powerMonitor } = require('electron');
+const { app, BrowserWindow, powerMonitor, ipcMain } = require('electron');
 const path = require('path');
 const express = require('express');
 const cors = require('cors');
@@ -580,10 +580,22 @@ function createWindow() {
     height: 768,
     backgroundColor: '#000000',
     fullscreen: false,
+    fullscreenable: true,
     webPreferences: {
       nodeIntegration: false,
-      contextIsolation: true
+      contextIsolation: true,
+      preload: path.join(__dirname, 'preload.js')
     }
+  });
+
+  ipcMain.handle('toggle-fullscreen', () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    mainWindow.setFullScreen(!mainWindow.isFullScreen());
+  });
+
+  ipcMain.handle('is-fullscreen', () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return false;
+    return mainWindow.isFullScreen();
   });
 
   // Load Express clock index

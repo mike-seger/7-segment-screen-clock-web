@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Simulated Display</title>
+<style>
+html, body {
+  margin: 0; padding: 0;
+  width: 100%; height: 100%;
+  background: #000;
+  overflow: hidden;
+}
+body { display: flex; align-items: flex-start; justify-content: flex-start; }
+canvas {
+  display: block;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  background: #000;
+}
+</style>
+</head>
+<body>
+<canvas id="virtualClockCanvasExternal"></canvas>
+</body>
+</html>

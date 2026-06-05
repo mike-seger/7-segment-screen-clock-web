@@ -145,8 +145,12 @@ function prefersExternalSimulationPopup() {
   try {
     const ua = navigator.userAgent || "";
     const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile/i.test(ua);
+    if (isMobileUA) return false;
+    // Electron embeds its version in the UA string — always treat it as a
+    // desktop environment with a fine pointer.
+    if (/Electron\//.test(ua)) return true;
     const hasFinePointer = window.matchMedia && window.matchMedia("(hover: hover) and (pointer: fine)").matches;
-    return !isMobileUA && !!hasFinePointer;
+    return !!hasFinePointer;
   } catch {
     return false;
   }
@@ -243,9 +247,18 @@ function openSimulationPopup(vw, vh, sc) {
   }
   _externalPopupBlocked = false;
 
-  // window.open with a fixed name: since the previous window was closed, the
-  // browser treats this as a new window and honours the size/position features.
-  const newWin = window.open("about:blank", "screenClockSimulationPopup", getExternalPopupFeatures(vw, vh, sc));
+  // Open a self-contained HTML page so no cross-window DOM manipulation is
+  // needed — this is reliable in both browsers and Electron (where
+  // window.open("about:blank") opens fine but document access from the opener
+  // is restricted by context isolation).
+  const popupUrl = (function() {
+    try {
+      // Resolve relative to the current page so it works under any origin
+      // (file://, http://localhost:8080, etc.).
+      return new URL("sim-popup.html", location.href).href;
+    } catch { return "sim-popup.html"; }
+  })();
+  const newWin = window.open(popupUrl, "screenClockSimulationPopup", getExternalPopupFeatures(vw, vh, sc));
   if (!newWin) {
     _externalPopupBlocked = true;
     clearTimeout(_simClosingProgrammaticallyTimer);
@@ -253,14 +266,11 @@ function openSimulationPopup(vw, vh, sc) {
     return null;
   }
   _externalSimWindow = newWin;
-  initializeExternalPopupDocument(_externalSimWindow);
   bindExternalPopupHandlers(_externalSimWindow);
 
   // Browsers disagree about whether `width`/`height` in window.open features
   // refer to inner content area or outer window box.  Measure the actual inner
   // size after the popup is open and resize to compensate for chrome delta.
-  // We schedule this on rAF and then once more on a short timeout to handle
-  // browsers where outerHeight/innerHeight settle asynchronously.
   const targetInnerW = Math.round(vw * sc);
   const targetInnerH = Math.round(vh * sc);
   const correctPopupInnerSize = () => {
@@ -277,25 +287,25 @@ function openSimulationPopup(vw, vh, sc) {
       }
     } catch {}
   };
-  try {
-    _externalSimWindow.requestAnimationFrame(() => {
-      correctPopupInnerSize();
-      // Second pass to converge on browsers that report stale sizes briefly.
-      setTimeout(correctPopupInnerSize, 50);
-    });
-  } catch {
-    setTimeout(correctPopupInnerSize, 0);
+  // Run size correction after the popup page has loaded.
+  const scheduleCorrection = () => {
+    correctPopupInnerSize();
     setTimeout(correctPopupInnerSize, 50);
+  };
+  try {
+    if (_externalSimWindow.document && _externalSimWindow.document.readyState === 'complete') {
+      scheduleCorrection();
+    } else {
+      _externalSimWindow.addEventListener('load', scheduleCorrection);
+    }
+  } catch {
+    setTimeout(scheduleCorrection, 200);
   }
 
-  const canvas = _externalSimWindow.document.getElementById("virtualClockCanvasExternal");
-  if (canvas) {
-    canvas.width = vw;
-    canvas.height = vh;
-    canvas.style.width = `${vw * sc}px`;
-    canvas.style.height = `${vh * sc}px`;
-  }
-  return canvas || null;
+  // Return the window object (not the canvas — the page may still be loading).
+  // drawClockToCanvas / getActiveSimulationCanvas will find the canvas once
+  // the page has finished loading.
+  return newWin;
 }
 
 function closeExternalSimulationPopup() {
@@ -329,26 +339,16 @@ function applyContainerMode() {
     const vw = Math.max(10, Math.round(c.width || 240));
     const vh = Math.max(10, Math.round(c.height || 135));
 
-    // Open popup if not already showing; otherwise just update canvas size.
+    // Open popup if not already showing; otherwise just redraw.
     if (!_externalSimWindow || _externalSimWindow.closed) {
-      const canvas = openSimulationPopup(vw, vh, sc);
-      if (!canvas) {
-        // Browser blocked the popup — reset UI.
+      const opened = openSimulationPopup(vw, vh, sc);
+      if (!opened) {
+        // Browser/Electron blocked the popup — reset UI.
         if (c) c.enabled = false;
         const cb = document.getElementById("containerEnabled");
         if (cb && cb.checked) { cb.checked = false; cb.dispatchEvent(new Event("change")); }
         return;
       }
-    } else {
-      try {
-        const canvas = _externalSimWindow.document.getElementById("virtualClockCanvasExternal");
-        if (canvas) {
-          canvas.width = vw;
-          canvas.height = vh;
-          canvas.style.width = `${vw * sc}px`;
-          canvas.style.height = `${vh * sc}px`;
-        }
-      } catch {}
     }
     drawClockToCanvas();
   } else {
@@ -1848,6 +1848,12 @@ function normalizeRotationIfNeeded() {
 }
 
 async function toggleFullscreen() {
+  // In Electron, use the IPC bridge exposed by preload.js.
+  if (window.electronAPI && typeof window.electronAPI.toggleFullscreen === 'function') {
+    await window.electronAPI.toggleFullscreen();
+    return;
+  }
+
   const doc = document;
   const docEl = document.documentElement;
 
