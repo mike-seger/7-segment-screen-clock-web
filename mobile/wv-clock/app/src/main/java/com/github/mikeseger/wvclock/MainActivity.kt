@@ -72,7 +72,22 @@ class MainActivity : Activity() {
             settings.loadWithOverviewMode = true
             settings.useWideViewPort = true
             setBackgroundColor(0xFF000000.toInt())
+            addJavascriptInterface(WvBridge(), "Android")
+            webChromeClient = object : android.webkit.WebChromeClient() {
+                override fun onConsoleMessage(msg: android.webkit.ConsoleMessage): Boolean {
+                    Log.w(TAG, "JS: ${msg.message()} [${msg.sourceId()}:${msg.lineNumber()}]")
+                    return true
+                }
+            }
             webViewClient = object : WebViewClient() {
+                override fun onRenderProcessGone(
+                    view: WebView?,
+                    detail: android.webkit.RenderProcessGoneDetail?
+                ): Boolean {
+                    Log.e(TAG, "WebView renderer gone (crashed=${detail?.didCrash()}), reloading")
+                    view?.loadUrl("http://127.0.0.1:$port/")
+                    return true
+                }
                 override fun onPageFinished(view: WebView?, url: String?) {
                     super.onPageFinished(view, url)
                     val offset = server?.calculatedOffsetMs ?: 0L
@@ -339,6 +354,17 @@ class MainActivity : Activity() {
             )
         } catch (e: Exception) {
             null
+        }
+    }
+
+    /** JS-callable bridge — methods run on the JS thread, use runOnUiThread for UI ops. */
+    inner class WvBridge {
+        @android.webkit.JavascriptInterface
+        fun hardRestart() {
+            Log.w(TAG, "JS requested hardRestart — reloading clock page")
+            runOnUiThread {
+                webView.loadUrl("http://127.0.0.1:$port/")
+            }
         }
     }
 

@@ -1,18 +1,21 @@
 <svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- Outer clock ring -->
-  <path
-    d="M760 760C700 820 620 860 512 860C330 860 180 710 180 528C180 346 330 196 512 196C694 196 844 346 844 528"
-    stroke="#04fb62"
-    stroke-width="50"
-    stroke-linecap="round"
-  />
+  <!-- Scale 0.80 from center so arc fits within adaptive-icon safe zone -->
+  <g transform="translate(512 512) scale(0.80) translate(-512 -512)">
+    <!-- Outer clock ring -->
+    <path
+      d="M760 760C700 820 620 860 512 860C330 860 180 710 180 528C180 346 330 196 512 196C694 196 844 346 844 528"
+      stroke="#04fb62"
+      stroke-width="50"
+      stroke-linecap="round"
+    />
 
-  <!-- Clock hands -->
-  <path
-    d="M512 400V560L620 632"
-    stroke="#04fb62"
-    stroke-width="50"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-  />
+    <!-- Clock hands -->
+    <path
+      d="M512 400V560L620 632"
+      stroke="#04fb62"
+      stroke-width="50"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+  </g>
 </svg>

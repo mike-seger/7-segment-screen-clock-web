@@ -823,13 +823,37 @@ class ClockServer(
         } else { "-" }
         val attrs = JSONArray().apply {
             fun row(label: String, value: String) = put(JSONObject().put("label", label).put("value", value))
+            val dm = android.util.DisplayMetrics().also {
+                (context.getSystemService(android.content.Context.WINDOW_SERVICE) as android.view.WindowManager)
+                    .defaultDisplay.getRealMetrics(it)
+            }
             row("Brand / Model", "${android.os.Build.BRAND}  /  ${android.os.Build.MODEL}")
             row("OS", "Android ${android.os.Build.VERSION.RELEASE}")
+            row("Resolution (w \u00d7 h)", "${dm.widthPixels} \u00d7 ${dm.heightPixels}")
+            row("Density (DPI)", "${dm.densityDpi}")
             row("Serial", serial)
             row("Android ID", deviceId ?: "unknown")
             row("Build", buildTimeDisplay)
             row("Git commit", buildInfo.optString("gitCommit", "unknown"))
             row("Uptime", fmtUptime(uptimeMs))
+            row("App uptime", fmtUptime(System.currentTimeMillis() - serverStartMs))
+            // Battery temperature
+            val battIntent = context.registerReceiver(null, android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED))
+            val tempTenths = battIntent?.getIntExtra(android.os.BatteryManager.EXTRA_TEMPERATURE, Int.MIN_VALUE) ?: Int.MIN_VALUE
+            if (tempTenths != Int.MIN_VALUE) row("Battery temp", "%.1f \u00b0C".format(tempTenths / 10f))
+            // RAM
+            val am = context.getSystemService(android.content.Context.ACTIVITY_SERVICE) as android.app.ActivityManager
+            val mi = android.app.ActivityManager.MemoryInfo().also { am.getMemoryInfo(it) }
+            val usedMb = (mi.totalMem - mi.availMem) / 1_048_576L
+            val totalMb = mi.totalMem / 1_048_576L
+            row("RAM used / total", "$usedMb / $totalMb MB")
+            // Wi-Fi RSSI
+            val wm = context.applicationContext.getSystemService(android.content.Context.WIFI_SERVICE) as? android.net.wifi.WifiManager
+            @Suppress("DEPRECATION") val rssi = wm?.connectionInfo?.rssi
+            if (rssi != null && rssi != -127) {
+                val bars = android.net.wifi.WifiManager.calculateSignalLevel(rssi, 5)
+                row("Wi-Fi signal", "$rssi dBm  ($bars/4 bars)")
+            }
         }
         val json = JSONObject().apply {
             put("attrs", attrs)

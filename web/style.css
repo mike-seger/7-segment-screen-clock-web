@@ -321,6 +321,34 @@ html, body {
     user-select: none;
 }
 
+#gpuHealthOverlay {
+    position: fixed;
+    bottom: 0.6rem;
+    right: 0.6rem;
+    z-index: 910;
+    padding: 0.35rem 0.6rem;
+    background: rgba(0, 0, 0, 0.72);
+    border: 1px solid rgba(4, 251, 98, 0.22);
+    border-radius: 4px;
+    color: #c8ffd8;
+    font-family: monospace;
+    font-size: 11px;
+    line-height: 1.5;
+    white-space: pre;
+    pointer-events: auto;
+    cursor: pointer;
+    user-select: none;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+#gpuHealthOverlay:hover,
+#gpuHealthOverlay.expanded {
+    opacity: 1;
+}
+#gpuHealthOverlay .gpu-warn  { color: #f5c400; }
+#gpuHealthOverlay .gpu-error { color: #ff5555; }
+#gpuHealthOverlay .gpu-ok    { color: #04fb62; }
+
 #debugCopyToast {
     position: fixed;
     left: 50%;

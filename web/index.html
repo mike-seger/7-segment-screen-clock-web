@@ -61,6 +61,7 @@
 </div><!-- /#clockContainer -->
 
     <div id="rowCoordinateDisplay" aria-live="polite"></div>
+    <div id="gpuHealthOverlay" title="Tap to toggle GPU health panel"></div>
 
 
 <script>
@@ -1891,6 +1892,7 @@ function updateMillis() {
 
 let lastRenderSecond = -1;
 function tick() {
+  window._lastTickMs = Date.now();
   const nowMs = Date.now() + (window.__timeMasterOffsetMs || 0);
   const nowSec = Math.floor(nowMs / 1000);
   if (nowSec !== lastRenderSecond) {
@@ -1901,6 +1903,126 @@ function tick() {
   requestAnimationFrame(tick);
 }
 requestAnimationFrame(tick);
+
+// Watchdog A: reload if the rAF loop freezes entirely (e.g. renderer killed).
+// Only fires when tick() stops updating _lastTickMs for >10 s.
+setInterval(function() {
+  if (Date.now() - (window._lastTickMs || Date.now()) > 10000) {
+    console.error('[watchdog] tick frozen >10s, reloading');
+    location.reload();
+  }
+}, 5000);
+
+// Watchdog B: reload on GPU context loss (e.g. CBUF/SCISSOR OOM on some
+// Android devices where rAF keeps firing but the GPU compositor is dead).
+// Also polls gl.getError() every 5 s to catch accumulating OOM errors before
+// full context loss, and tracks rAF rate for GPU-thrashing detection.
+(function() {
+  var probe = document.createElement('canvas');
+  probe.width = 1; probe.height = 1;
+  var gl = probe.getContext('webgl') || probe.getContext('experimental-webgl');
+  if (!gl) return;
+
+  // B1: context-lost event (fires when the GPU context is fully gone).
+  probe.addEventListener('webglcontextlost', function(e) {
+    e.preventDefault();
+    console.error('[watchdog] WebGL context lost, hard-restarting in 1s');
+    setTimeout(function() {
+      if (window.Android && window.Android.hardRestart) {
+        window.Android.hardRestart();
+      } else {
+        location.reload();
+      }
+    }, 1000);
+  });
+  // B2: gl.getError() polling — detects OOM errors before full context loss.
+  var _glErrCount = 0;
+  setInterval(function() {
+    if (gl.isContextLost()) return;
+    var err = gl.getError();
+    if (err === gl.OUT_OF_MEMORY) {
+      _glErrCount++;
+      console.warn('[watchdog] gl.OUT_OF_MEMORY count=' + _glErrCount);
+      if (_glErrCount >= 2) {
+        console.error('[watchdog] repeated gl OOM, hard-restarting');
+        if (window.Android && window.Android.hardRestart) {
+          window.Android.hardRestart();
+        } else {
+          location.reload();
+        }
+      }
+    } else {
+      _glErrCount = 0;
+    }
+  }, 5000);
+
+  // B3 removed — once the PowerVR CBUF is exhausted no JS-level action
+  // can recover it (about:blank / reload both keep the same renderer process).
+  // Only B4 (proactive reload before CBUF fills) is reliable.
+
+  // B4: proactive uptime reload — GPU CBUF fills in ~40–65 min on affected
+  // devices; reload at 30 min to reset GPU state well before it fails.
+  var _startMs = Date.now();
+  setInterval(function() {
+    var uptimeMin = (Date.now() - _startMs) / 60000;
+    if (uptimeMin >= 30) {
+      console.warn('[watchdog] proactive reload at ' + uptimeMin.toFixed(1) + ' min uptime');
+      location.reload();
+    }
+  }, 60000);
+
+  // ── Real-time GPU health overlay ─────────────────────────────────────────
+  var _overlay = document.getElementById('gpuHealthOverlay');
+  var _overlayExpanded = false;
+  if (_overlay) {
+    _overlay.addEventListener('click', function() {
+      _overlayExpanded = !_overlayExpanded;
+      _overlay.classList.toggle('expanded', _overlayExpanded);
+    });
+  }
+
+  var _lastFps = 0;
+  var _contextLost = false;
+  var _lastGlErr = 'none';
+  var _lastWatchdog = '—';
+
+  // Track rAF rate for overlay display only (no longer used for watchdog).
+  (function fpsSampler() {
+    var _buf = [];
+    var _fn = function(ts) {
+      _buf.push(ts);
+      if (_buf.length > 30) _buf.shift();
+      if (_buf.length >= 2) {
+        var span = _buf[_buf.length-1] - _buf[0];
+        _lastFps = (_buf.length - 1) / (span / 1000);
+      }
+      requestAnimationFrame(_fn);
+    };
+    requestAnimationFrame(_fn);
+  }());
+
+  probe.addEventListener('webglcontextlost', function() {
+    _contextLost = true;
+    _lastWatchdog = 'B1:ctx-lost';
+  });
+
+  function _updateOverlay() {
+    if (!_overlay) return;
+    var uptimeMin = (Date.now() - _startMs) / 60000;
+    var ctxClass  = _contextLost ? 'gpu-error' : 'gpu-ok';
+    var ctxLabel  = _contextLost ? 'LOST' : 'ok';
+    var fpsClass  = _lastFps > 10 ? (_lastFps > 20 ? 'gpu-error' : 'gpu-warn') : 'gpu-ok';
+    var errClass  = (_glErrCount > 0) ? 'gpu-error' : 'gpu-ok';
+    var wdClass   = (_lastWatchdog !== '—') ? 'gpu-warn' : 'gpu-ok';
+    _overlay.innerHTML =
+      'GPU  ctx:<span class="' + ctxClass + '">' + ctxLabel + '</span>' +
+      '  fps:<span class="' + fpsClass + '">' + _lastFps.toFixed(0) + '</span>' +
+      '  oom:<span class="' + errClass + '">' + _glErrCount + '</span>' +
+      '\nup:' + uptimeMin.toFixed(1) + 'm' +
+      '  wd:<span class="' + wdClass + '">' + _lastWatchdog + '</span>';
+  }
+  setInterval(_updateOverlay, 1000);
+}());
 applyClockTransform();
 (function() {
   const weekdayEl = document.getElementById("weekday");

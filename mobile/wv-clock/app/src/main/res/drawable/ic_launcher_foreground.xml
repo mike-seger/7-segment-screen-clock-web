@@ -6,18 +6,26 @@
     android:viewportWidth="1024"
     android:viewportHeight="1024">
 
-    <!-- Outer clock arc -->
-    <path
-        android:strokeColor="#4C6FFF"
-        android:strokeWidth="36"
-        android:strokeLineCap="round"
-        android:pathData="M760,760 C700,820 620,860 512,860 C330,860 180,710 180,528 C180,346 330,196 512,196 C694,196 844,346 844,528" />
+    <!-- Scale 0.80 from center so arc fits within adaptive-icon safe zone -->
+    <group
+        android:scaleX="0.80"
+        android:scaleY="0.80"
+        android:pivotX="512"
+        android:pivotY="512">
 
-    <!-- Clock hands -->
-    <path
-        android:strokeColor="#4C6FFF"
-        android:strokeWidth="36"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M512,400 L512,560 L620,632" />
+        <!-- Outer clock arc -->
+        <path
+            android:strokeColor="#4C6FFF"
+            android:strokeWidth="36"
+            android:strokeLineCap="round"
+            android:pathData="M760,760 C700,820 620,860 512,860 C330,860 180,710 180,528 C180,346 330,196 512,196 C694,196 844,346 844,528" />
+
+        <!-- Clock hands -->
+        <path
+            android:strokeColor="#4C6FFF"
+            android:strokeWidth="36"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:pathData="M512,400 L512,560 L620,632" />
+    </group>
 </vector>
