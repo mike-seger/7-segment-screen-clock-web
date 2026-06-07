@@ -7,6 +7,18 @@
     <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+    <!-- Required to run WatchdogService as a foreground service (Android 9+) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <!-- Required for foregroundServiceType="specialUse" (Android 14 / API 34) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <!--
+        Required for WatchdogService to add a TYPE_APPLICATION_OVERLAY window.
+        This invisible 1x1 window makes the :watchdog UID "visible" to Android's
+        BAL enforcement, allowing startActivity() after killing the main process —
+        the only BAL exemption path Samsung One UI does not block.
+        Only needed on PowerVR GPU devices; the user is prompted once in Settings.
+    -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
     <application
         android:allowBackup="true"
@@ -38,5 +50,26 @@
                 <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
             </intent-filter>
         </receiver>
+
+        <!--
+            PowerVR CBUF watchdog — runs in a separate OS process (:watchdog).
+            A separate process means a separate PID, so this service survives
+            MainActivity process deaths.  It broadcasts ACTION_CBUF_RESET to
+            the main process every 25 min; MainActivity terminates the WebView
+            renderer subprocess (where CBUF accumulates) via
+            WebViewCompat.getWebViewRenderProcess().terminate().  The main
+            process is never killed, so there are no BAL issues on Samsung.
+            Only started at runtime when a PowerVR GPU is detected.
+        -->
+        <service
+            android:name=".WatchdogService"
+            android:process=":watchdog"
+            android:foregroundServiceType="specialUse"
+            android:exported="false" />
+
+        <!-- Advisory: required by Play Store policy for specialUse FGS (N/A here) -->
+        <property
+            android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+            android:value="PowerVR CBUF watchdog — restarts main process every 25 min to prevent GPU driver exhaustion on SM-T220" />
     </application>
 </manifest>

@@ -41,6 +41,7 @@ android {
 
 dependencies {
     implementation("org.nanohttpd:nanohttpd:2.3.1")
+    implementation("androidx.webkit:webkit:1.12.1")
 }
 
 // --- Copy the repository's web/ directory into assets so the embedded
@@ -114,6 +115,12 @@ tasks.register<Exec>("deployToDevice") {
             val adb = listOf("adb", "-s", serial)
             logger.lifecycle("Deploying to device: $serial")
             project.exec { commandLine(adb + listOf("install", "-r", apk.absolutePath)) }
+            // Grant SYSTEM_ALERT_WINDOW (overlay permission) so the PowerVR watchdog
+            // can add its invisible 1x1 BAL-exemption window.  This permission is
+            // normally granted once by the user via Settings; pre-grant it here so
+            // dev installs never redirect to the Settings screen on launch.
+            project.exec { commandLine(adb + listOf("shell", "appops", "set",
+                "com.github.mikeseger.wvclock", "SYSTEM_ALERT_WINDOW", "allow")) }
             project.exec { commandLine(adb + listOf("shell", "am", "start", "-n", "com.github.mikeseger.wvclock/.MainActivity")) }
         }
     }

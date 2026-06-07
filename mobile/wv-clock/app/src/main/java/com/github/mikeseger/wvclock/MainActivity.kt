@@ -7,9 +7,13 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.net.wifi.WifiManager
+import android.opengl.EGL14
+import android.opengl.GLES20
 import android.os.BatteryManager
 import android.os.Build
 import android.os.Bundle
+import android.os.Process
+import android.provider.Settings
 import android.util.Log
 import android.view.View
 import android.view.WindowInsets
@@ -26,6 +30,25 @@ class MainActivity : Activity() {
     private var multicastLock: android.net.wifi.WifiManager.MulticastLock? = null
 
     private var sleepOverlayView: View? = null
+
+    // Set to true once the background EGL probe confirms a PowerVR GPU.
+    private var isPowerVR = false
+
+    // Dynamically registered so it only lives while the main process is alive.
+    // Receives ACTION_KILL_FOR_RESTART from WatchdogService (:watchdog process)
+    // and immediately kills this process, resetting the PowerVR CBUF counter
+    // (the kernel driver tracks CBUF budget per OS PID).
+    private val restartReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            Log.w(TAG, "restartReceiver: killing main process for PowerVR CBUF reset (wasAsleep=$isAsleep)")
+            // Persist sleep state so the fresh process can restore it.
+            getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .edit()
+                .putBoolean(PREFS_KEY_WAS_ASLEEP, isAsleep)
+                .commit()  // commit() not apply() — must flush before killProcess
+            Process.killProcess(Process.myPid())
+        }
+    }
 
     private var sleepTimeoutMinutes = 0
     private var isAsleep = false
@@ -103,7 +126,17 @@ class MainActivity : Activity() {
                     } catch (e: Exception) {
                         Log.e(TAG, "Error parsing initial state json", e)
                     }
-                    resetSleepTimer()
+
+                    // Restore sleep state persisted by the watchdog kill receiver.
+                    // A touch will wake the clock immediately via dispatchTouchEvent.
+                    val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                    if (prefs.getBoolean(PREFS_KEY_WAS_ASLEEP, false)) {
+                        Log.w(TAG, "onPageFinished: restoring sleep state after watchdog restart")
+                        prefs.edit().remove(PREFS_KEY_WAS_ASLEEP).apply()
+                        sleepScreen()
+                    } else {
+                        resetSleepTimer()
+                    }
                 }
             }
         }
@@ -123,6 +156,10 @@ class MainActivity : Activity() {
         }
 
         startServer()
+
+        // Start the PowerVR CBUF watchdog in a background thread so GPU
+        // detection (EGL probe) doesn't block the main thread.
+        Thread { startPvrWatchdogIfNeeded() }.start()
 
         webView.loadUrl("http://127.0.0.1:$port/")
 
@@ -159,6 +196,18 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         registerReceiver(screenOnReceiver, IntentFilter(Intent.ACTION_SCREEN_ON))
+        // Re-register the restart receiver (may have been unregistered on pause).
+        @Suppress("UnspecifiedRegisterReceiverFlag")
+        if (Build.VERSION.SDK_INT >= 33) {
+            registerReceiver(
+                restartReceiver,
+                IntentFilter(WatchdogService.ACTION_KILL_FOR_RESTART),
+                Context.RECEIVER_NOT_EXPORTED
+            )
+        } else {
+            registerReceiver(restartReceiver, IntentFilter(WatchdogService.ACTION_KILL_FOR_RESTART))
+        }
+        maybeStartWatchdog()
         server?.notifyAppResumed()
     }
 
@@ -166,6 +215,7 @@ class MainActivity : Activity() {
         super.onPause()
         server?.notifyAppPaused()
         try { unregisterReceiver(screenOnReceiver) } catch (_: Exception) {}
+        try { unregisterReceiver(restartReceiver) } catch (_: Exception) {}
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -357,6 +407,97 @@ class MainActivity : Activity() {
         }
     }
 
+    // ------------------------------------------------------------------ GPU watchdog
+
+    /**
+     * Queries GL_RENDERER via a short-lived EGL pbuffer context (no CBUF cost
+     * because it's immediately destroyed) and starts WatchdogService only on
+     * PowerVR hardware.  Must be called off the main thread.
+     */
+    private fun startPvrWatchdogIfNeeded() {
+        if (isPowerVRGpu()) {
+            isPowerVR = true
+            Log.w(TAG, "PowerVR GPU detected — CBUF watchdog needed")
+            runOnUiThread { maybeStartWatchdog() }
+        }
+    }
+
+    /**
+     * Starts WatchdogService if PowerVR is detected AND SYSTEM_ALERT_WINDOW
+     * is granted.  If permission is missing, opens the system settings page
+     * for the user to grant it.  Safe to call from onResume() — it picks up
+     * the permission after the user returns from the settings screen.
+     */
+    private fun maybeStartWatchdog() {
+        if (!isPowerVR) return
+        if (Settings.canDrawOverlays(this)) {
+            Log.w(TAG, "PowerVR watchdog: overlay permission granted — starting service")
+            startService(Intent(this, WatchdogService::class.java))
+        } else {
+            // Permission not yet granted.  Show a one-time notification that
+            // deeplinks to the Settings page — the clock stays visible and
+            // fully functional; the user can grant it at their convenience.
+            // Without it the watchdog simply won't run, and the 30-min JS
+            // reload (watchdog B4) remains as a partial safety net.
+            val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            if (!prefs.getBoolean(PREFS_KEY_OVERLAY_PROMPTED, false)) {
+                prefs.edit().putBoolean(PREFS_KEY_OVERLAY_PROMPTED, true).apply()
+                Log.w(TAG, "PowerVR watchdog: SYSTEM_ALERT_WINDOW not granted — showing one-time prompt")
+                Toast.makeText(
+                    this,
+                    "To prevent GPU crashes: Settings → Apps → WV Clock → Appear on top → Allow",
+                    Toast.LENGTH_LONG
+                ).show()
+            } else {
+                Log.w(TAG, "PowerVR watchdog: SYSTEM_ALERT_WINDOW not granted (prompt already shown)")
+            }
+        }
+    }
+
+    private fun isPowerVRGpu(): Boolean {
+        return try {
+            val display = EGL14.eglGetDisplay(EGL14.EGL_DEFAULT_DISPLAY)
+            if (display == EGL14.EGL_NO_DISPLAY) return false
+            EGL14.eglInitialize(display, null, 0, null, 0)
+
+            val cfgAttribs = intArrayOf(
+                EGL14.EGL_RENDERABLE_TYPE, EGL14.EGL_OPENGL_ES2_BIT,
+                EGL14.EGL_NONE
+            )
+            val configs = arrayOfNulls<android.opengl.EGLConfig>(1)
+            val numCfg = IntArray(1)
+            if (!EGL14.eglChooseConfig(display, cfgAttribs, 0, configs, 0, 1, numCfg, 0)
+                || numCfg[0] == 0) {
+                EGL14.eglTerminate(display)
+                return false
+            }
+
+            val ctxAttribs = intArrayOf(EGL14.EGL_CONTEXT_CLIENT_VERSION, 2, EGL14.EGL_NONE)
+            val ctx = EGL14.eglCreateContext(display, configs[0]!!, EGL14.EGL_NO_CONTEXT, ctxAttribs, 0)
+            if (ctx == EGL14.EGL_NO_CONTEXT) {
+                EGL14.eglTerminate(display)
+                return false
+            }
+
+            val pbufAttribs = intArrayOf(EGL14.EGL_WIDTH, 1, EGL14.EGL_HEIGHT, 1, EGL14.EGL_NONE)
+            val pbuf = EGL14.eglCreatePbufferSurface(display, configs[0]!!, pbufAttribs, 0)
+            EGL14.eglMakeCurrent(display, pbuf, pbuf, ctx)
+
+            val renderer = GLES20.glGetString(GLES20.GL_RENDERER) ?: ""
+            Log.i(TAG, "GPU renderer: $renderer")
+
+            EGL14.eglMakeCurrent(display, EGL14.EGL_NO_SURFACE, EGL14.EGL_NO_SURFACE, EGL14.EGL_NO_CONTEXT)
+            EGL14.eglDestroySurface(display, pbuf)
+            EGL14.eglDestroyContext(display, ctx)
+            EGL14.eglTerminate(display)
+
+            renderer.contains("PowerVR", ignoreCase = true)
+        } catch (e: Exception) {
+            Log.e(TAG, "GPU detection failed", e)
+            false
+        }
+    }
+
     /** JS-callable bridge — methods run on the JS thread, use runOnUiThread for UI ops. */
     inner class WvBridge {
         @android.webkit.JavascriptInterface
@@ -370,5 +511,8 @@ class MainActivity : Activity() {
 
     companion object {
         private const val TAG = "WvClock"
+        private const val PREFS_NAME = "wvclock_prefs"
+        private const val PREFS_KEY_WAS_ASLEEP = "watchdog_was_asleep"
+        private const val PREFS_KEY_OVERLAY_PROMPTED = "overlay_permission_prompted"
     }
 }
