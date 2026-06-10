@@ -61,6 +61,37 @@
     return typeof k === "string" && k.indexOf(SYNC_PREFIX) === 0 && !EXCLUDE_KEYS[k];
   }
 
+  function parseIpFromUrl(url) {
+    if (!url) return "";
+    try {
+      var parsed = new URL(url);
+      return (parsed.hostname || "").trim();
+    } catch (_) {
+      return "";
+    }
+  }
+
+  function normalizeMacAddress(raw) {
+    if (typeof raw !== "string") return "";
+    var compact = raw.trim();
+    if (!compact) return "";
+    compact = compact.replace(/-/g, ":").toUpperCase();
+    return /^([0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(compact) ? compact : "";
+  }
+
+  function getClockIpAddress(clk) {
+    if (clk && typeof clk.ipAddress === "string" && clk.ipAddress.trim()) {
+      return clk.ipAddress.trim();
+    }
+    return parseIpFromUrl(clk && clk.url ? clk.url : "");
+  }
+
+  function getClockMacAddress(clk) {
+    var mac = normalizeMacAddress(clk && clk.macAddress ? clk.macAddress : "");
+    if (mac) return mac;
+    return normalizeMacAddress(clk && clk.mac ? clk.mac : "");
+  }
+
   // ---- localStorage hook: forward local writes to the server ----
   var origSet = Storage.prototype.setItem;
   var origRemove = Storage.prototype.removeItem;
@@ -753,9 +784,22 @@
             } catch (_) {}
           });
 
-          var span = document.createElement("span");
-          span.style.cssText = "font-size: 14px; color: " + (clk.isSelf ? "#888" : "#fff") + ";";
-          span.textContent = clk.name;
+          var nameContainer = document.createElement("div");
+          nameContainer.style.cssText = "display: flex; flex-direction: column; min-width: 0;";
+
+          var nameSpan = document.createElement("span");
+          nameSpan.style.cssText = "font-size: 14px; color: " + (clk.isSelf ? "#888" : "#fff") + "; line-height: 1.2;";
+          nameSpan.textContent = clk.name;
+
+          var detailsSpan = document.createElement("span");
+          detailsSpan.style.cssText = "font-size: 10px; color: #7f8794; line-height: 1.2; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;";
+          var detailsText = [];
+          var macAddress = getClockMacAddress(clk);
+          if (macAddress) detailsText.push("MAC " + macAddress);
+          detailsSpan.textContent = detailsText.join("   ");
+
+          nameContainer.appendChild(nameSpan);
+          nameContainer.appendChild(detailsSpan);
 
           // Action buttons container
           var actionContainer = document.createElement("div");
@@ -839,7 +883,7 @@
 
           row.appendChild(checkbox);
           row.appendChild(radio);
-          row.appendChild(span);
+          row.appendChild(nameContainer);
           row.appendChild(actionContainer);
           listContainer.appendChild(row);
         });
@@ -989,7 +1033,7 @@
     var panel = document.createElement("div");
     panel.id = panelId;
     panel.style.cssText = "position:fixed;top:" + topPx + "px;right:" + rightPx + "px;z-index:" + (2147483640 + openCount) + ";" +
-      "background:#1a1a1a;border:1px solid #444;border-radius:8px;width:360px;max-width:92vw;" +
+      "background:#1a1a1a;border:1px solid #444;border-radius:8px;width:520px;max-width:96vw;" +
       "font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;color:#eee;" +
       "box-shadow:0 8px 32px rgba(0,0,0,0.7);user-select:none;";
 
@@ -1056,17 +1100,23 @@
 
     // ---- Content area ----
     var body = document.createElement("div");
-    body.style.cssText = "padding:12px 14px 14px;";
+    body.style.cssText = "padding:12px 14px 14px;overflow-wrap:anywhere;";
     var gridId = panelId + "_grid";
+    var deviceAttrs = [];
+    var ipAddress = getClockIpAddress(clk);
+    var macAddress = getClockMacAddress(clk);
+    if (ipAddress) deviceAttrs.push({ label: "IP Address", value: ipAddress });
+    if (macAddress) deviceAttrs.push({ label: "MAC Address", value: macAddress });
 
     if (info) {
-      if (info.attrs && info.attrs.length) {
+      var attrs = deviceAttrs.concat(info.attrs && info.attrs.length ? info.attrs : []);
+      if (attrs.length) {
         var grid = document.createElement("div");
         grid.id = gridId;
-        grid.style.cssText = "display:grid;grid-template-columns:auto 1fr;gap:3px 10px;margin-bottom:12px;line-height:1.5;";
-        info.attrs.forEach(function(a) {
+        grid.style.cssText = "display:grid;grid-template-columns:minmax(120px,auto) minmax(0,1fr);gap:3px 10px;margin-bottom:12px;line-height:1.5;";
+        attrs.forEach(function(a) {
           var lbl = document.createElement("span"); lbl.style.color = "#777"; lbl.textContent = a.label;
-          var val = document.createElement("span"); val.style.color = "#ddd"; val.textContent = a.value;
+          var val = document.createElement("span"); val.style.color = "#ddd"; val.style.wordBreak = "break-word"; val.style.overflowWrap = "anywhere"; val.textContent = a.value;
           grid.appendChild(lbl); grid.appendChild(val);
         });
         body.appendChild(grid);
@@ -1077,6 +1127,14 @@
       err.style.cssText = "color:#666;padding:8px 0;";
       err.textContent = "Device info unavailable.";
       body.appendChild(err);
+      var fallbackGrid = document.createElement("div");
+      fallbackGrid.style.cssText = "display:grid;grid-template-columns:minmax(120px,auto) minmax(0,1fr);gap:3px 10px;margin-bottom:12px;line-height:1.5;";
+      deviceAttrs.forEach(function(a) {
+        var lbl = document.createElement("span"); lbl.style.color = "#777"; lbl.textContent = a.label;
+        var val = document.createElement("span"); val.style.color = "#ddd"; val.style.wordBreak = "break-word"; val.style.overflowWrap = "anywhere"; val.textContent = a.value;
+        fallbackGrid.appendChild(lbl); fallbackGrid.appendChild(val);
+      });
+      body.insertBefore(fallbackGrid, err);
     }
 
     panel.appendChild(body);

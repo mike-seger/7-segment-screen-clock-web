@@ -65,9 +65,48 @@ const EXPRESS_PORT = 8080;
 const UDP_PORT = 8766;
 const MULTICAST_ADDR = '255.255.255.255';
 const HOST_IP = ip.address();
+const HOST_MAC = getMacForIp(HOST_IP);
 
-// Memory store for discovered clocks: { url: { name, url, lastSeen, isSelf, battery } }
+// Memory store for discovered clocks: { url: { name, url, lastSeen, battery, milliWatts, isAsleep, ipAddress, macAddress } }
 const discoveredClocks = {};
+
+function normalizeMacAddress(raw) {
+  if (typeof raw !== 'string') return '';
+  const normalized = raw.trim().replace(/-/g, ':').toUpperCase();
+  if (!/^([0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(normalized)) return '';
+  if (normalized === '00:00:00:00:00:00') return '';
+  return normalized;
+}
+
+function getMacForIp(targetIp) {
+  try {
+    const interfaces = os.networkInterfaces() || {};
+    let fallbackMac = '';
+    for (const entries of Object.values(interfaces)) {
+      if (!Array.isArray(entries)) continue;
+      for (const entry of entries) {
+        if (!entry || entry.internal) continue;
+        const mac = normalizeMacAddress(entry.mac || '');
+        if (!fallbackMac && mac) fallbackMac = mac;
+        if (entry.family === 'IPv4' && entry.address === targetIp && mac) {
+          return mac;
+        }
+      }
+    }
+    return fallbackMac;
+  } catch (_) {
+    return '';
+  }
+}
+
+function extractHostFromUrl(urlString) {
+  if (typeof urlString !== 'string' || !urlString) return '';
+  try {
+    return new URL(urlString).hostname || '';
+  } catch (_) {
+    return '';
+  }
+}
 
 // SSE clients for /api/events
 const sseClients = new Set();
@@ -141,6 +180,8 @@ expressApp.get('/api/clocks', (req, res) => {
     url: `http://${HOST_IP}:${EXPRESS_PORT}`,
     isSelf: true,
     battery: getSelfBattery(),
+    ipAddress: HOST_IP,
+    macAddress: HOST_MAC,
     isAsleep: false
   });
 
@@ -153,6 +194,8 @@ expressApp.get('/api/clocks', (req, res) => {
         isSelf: false,
         battery: typeof discoveredClocks[url].battery === 'number' ? discoveredClocks[url].battery : -1,
         milliWatts: typeof discoveredClocks[url].milliWatts === 'number' ? discoveredClocks[url].milliWatts : -1,
+        ipAddress: discoveredClocks[url].ipAddress || extractHostFromUrl(discoveredClocks[url].url),
+        macAddress: normalizeMacAddress(discoveredClocks[url].macAddress || ''),
         isAsleep: !!discoveredClocks[url].isAsleep
       });
     } else {
@@ -277,8 +320,14 @@ expressApp.get('/api/time', (req, res) => {
 const SERVER_ID = `desktop-mac-${HOST_IP}`;
 
 // Serve index.html with remote-bridge.js injected (mirrors Android ClockServer).
-const WEB_DIR = path.join(__dirname, '../web');
-const BRIDGE_FILE = path.join(__dirname, '../mobile/wv-clock/app/src/main/assets/remote-bridge.js');
+// When packaged, extraResources places web/ and remote-bridge.js under process.resourcesPath.
+const isPackaged = app.isPackaged;
+const WEB_DIR = isPackaged
+  ? path.join(process.resourcesPath, 'web')
+  : path.join(__dirname, '../web');
+const BRIDGE_FILE = isPackaged
+  ? path.join(process.resourcesPath, 'remote-bridge.js')
+  : path.join(__dirname, '../mobile/wv-clock/app/src/main/assets/remote-bridge.js');
 
 function serveIndex(req, res) {
   try {
@@ -329,6 +378,8 @@ udpSocket.on('message', (msg, rinfo) => {
         const battery = typeof obj.battery === 'number' ? obj.battery : -1;
         const milliWatts = typeof obj.milliWatts === 'number' ? obj.milliWatts : -1;
         const isAsleep = !!obj.isAsleep;
+        const ipAddress = typeof obj.ipAddress === 'string' && obj.ipAddress ? obj.ipAddress : extractHostFromUrl(obj.url);
+        const macAddress = normalizeMacAddress(typeof obj.macAddress === 'string' ? obj.macAddress : '');
         const changed = !prev
           || prev.isAsleep !== isAsleep
           || Math.abs((prev.battery || -1) - battery) >= 5;
@@ -338,7 +389,9 @@ udpSocket.on('message', (msg, rinfo) => {
           lastSeen: Date.now(),
           battery,
           milliWatts,
-          isAsleep
+          isAsleep,
+          ipAddress,
+          macAddress
         };
         if (changed) broadcastClocksUpdate();
       }
@@ -358,6 +411,8 @@ setInterval(() => {
       name: `macOS Clock (${HOST_IP})`,
       url: `http://${HOST_IP}:${EXPRESS_PORT}`,
       battery: getSelfBattery(),
+      ipAddress: HOST_IP,
+      macAddress: HOST_MAC,
       isAsleep: false
     };
     const message = `WvClockDiscovery:${JSON.stringify(payload)}`;

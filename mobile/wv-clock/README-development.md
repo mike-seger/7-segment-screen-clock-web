@@ -63,6 +63,10 @@ sdk use java 17.0.19-librca
 
 Use `-Pdevice=<serial>` to target one device explicitly.
 
+If you remove the app first with `adb uninstall com.github.mikeseger.wvclock`,
+`adb` may report `Unknown package` when the app is already gone. That is
+harmless and does not block the next deploy.
+
 ## Notes
 
 - The repo README still describes the broader project layout and runtime

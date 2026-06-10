@@ -21,6 +21,7 @@ import android.view.WindowInsetsController
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
+import java.net.NetworkInterface
 
 class MainActivity : Activity() {
 
@@ -28,6 +29,7 @@ class MainActivity : Activity() {
     private var server: ClockServer? = null
     private val port = 8765
     private var multicastLock: android.net.wifi.WifiManager.MulticastLock? = null
+        private var wifiLock: WifiManager.WifiLock? = null
 
     private var sleepOverlayView: View? = null
 
@@ -151,6 +153,13 @@ class MainActivity : Activity() {
                 setReferenceCounted(true)
                 acquire()
             }
+                wifiLock = wifiManager?.createWifiLock(
+                    WifiManager.WIFI_MODE_FULL_HIGH_PERF,
+                    "WvClockWifiLock"
+                )?.apply {
+                    setReferenceCounted(false)
+                    acquire()
+                }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to acquire multicast lock", e)
         }
@@ -183,6 +192,8 @@ class MainActivity : Activity() {
         } else {
             Log.i(TAG, "Server listening on port $port (no Wi-Fi IP detected)")
         }
+
+        maybeRequestBatteryOptimizationExemption()
     }
 
     private val screenOnReceiver = object : BroadcastReceiver() {
@@ -230,8 +241,12 @@ class MainActivity : Activity() {
             multicastLock?.let {
                 if (it.isHeld) it.release()
             }
+                wifiLock?.let {
+                    if (it.isHeld) it.release()
+                }
         } catch (_: Exception) {}
         multicastLock = null
+            wifiLock = null
         super.onDestroy()
     }
 
@@ -259,7 +274,9 @@ class MainActivity : Activity() {
                             Math.abs(uA.toLong() * uV / 1_000_000L).toInt()
                         } else -1
                     } catch (e: Exception) { -1 }
-                }
+                },
+                    macAddressProvider = { getWifiMacAddress() },
+                    wifiLockHeldProvider = { wifiLock?.isHeld == true }
             )
             s.onOffsetChangedListener = { offset ->
                 webView.post {
@@ -407,6 +424,58 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun getWifiMacAddress(): String? {
+        return try {
+            val preferred = listOf("wlan0", "wifi0", "eth0")
+            val all = mutableListOf<NetworkInterface>()
+            val enumeration = NetworkInterface.getNetworkInterfaces()
+            while (enumeration != null && enumeration.hasMoreElements()) {
+                all.add(enumeration.nextElement())
+            }
+            val ordered = (preferred.mapNotNull { name -> all.find { it.name.equals(name, ignoreCase = true) } }
+                + all.filter { it.name.lowercase() !in preferred }).distinctBy { it.name }
+
+            for (iface in ordered) {
+                val mac = iface.hardwareAddress ?: continue
+                if (mac.size != 6) continue
+                val normalized = mac.joinToString(":") { b -> "%02X".format(b.toInt() and 0xFF) }
+                if (normalized != "00:00:00:00:00:00") return normalized
+            }
+            null
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun maybeRequestBatteryOptimizationExemption() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
+
+        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        if (prefs.getBoolean(PREFS_KEY_BATTERY_PROMPTED, false)) return
+
+        val powerManager = getSystemService(Context.POWER_SERVICE) as? android.os.PowerManager
+        if (powerManager?.isIgnoringBatteryOptimizations(packageName) == true) return
+
+        prefs.edit().putBoolean(PREFS_KEY_BATTERY_PROMPTED, true).apply()
+        Log.w(TAG, "Requesting battery optimization exemption for $packageName")
+        Toast.makeText(
+            this,
+            "Allow battery optimization exemption to keep LAN discovery stable.",
+            Toast.LENGTH_LONG
+        ).show()
+
+        try {
+            startActivity(
+                Intent(
+                    Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                    android.net.Uri.parse("package:$packageName")
+                )
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Could not launch battery optimization settings", e)
+        }
+    }
+
     // ------------------------------------------------------------------ GPU watchdog
 
     /**
@@ -514,5 +583,6 @@ class MainActivity : Activity() {
         private const val PREFS_NAME = "wvclock_prefs"
         private const val PREFS_KEY_WAS_ASLEEP = "watchdog_was_asleep"
         private const val PREFS_KEY_OVERLAY_PROMPTED = "overlay_permission_prompted"
+        private const val PREFS_KEY_BATTERY_PROMPTED = "battery_optimization_prompted"
     }
 }

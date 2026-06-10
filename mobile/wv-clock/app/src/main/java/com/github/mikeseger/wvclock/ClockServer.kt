@@ -28,7 +28,9 @@ class ClockServer(
     private val port: Int,
     private val lanUrlProvider: () -> String?,
     private val batteryLevelProvider: () -> Int = { -1 },
-    private val batteryMilliWattsProvider: () -> Int = { -1 }
+    private val batteryMilliWattsProvider: () -> Int = { -1 },
+    private val macAddressProvider: () -> String? = { null },
+    private val wifiLockHeldProvider: () -> Boolean = { false }
 ) : NanoHTTPD(port) {
 
     // Last-known persisted state (mirrors localStorage keys that begin with screenClock_).
@@ -60,7 +62,9 @@ class ClockServer(
         val lastSeen: Long,
         val battery: Int = -1,
         val milliWatts: Int = -1,
-        val isAsleep: Boolean = false
+        val isAsleep: Boolean = false,
+        val ipAddress: String = "",
+        val macAddress: String = ""
     )
 
     private var udpSocket: DatagramSocket? = null
@@ -151,6 +155,8 @@ class ClockServer(
                                 val battery = if (obj.has("battery")) obj.getInt("battery") else -1
                                 val milliWatts = if (obj.has("milliWatts")) obj.getInt("milliWatts") else -1
                                 val isAsleep = if (obj.has("isAsleep")) obj.getBoolean("isAsleep") else false
+                                val ipAddress = if (obj.has("ipAddress")) obj.optString("ipAddress", "") else parseHostFromUrl(url) ?: ""
+                                val macAddress = normalizeMacAddress(if (obj.has("macAddress")) obj.optString("macAddress", "") else "")
                                 val prev = discoveredClocks[id]
                                 val changed = prev == null
                                     || prev.isAsleep != isAsleep
@@ -162,7 +168,9 @@ class ClockServer(
                                     lastSeen = System.currentTimeMillis(),
                                     battery = battery,
                                     milliWatts = milliWatts,
-                                    isAsleep = isAsleep
+                                    isAsleep = isAsleep,
+                                    ipAddress = ipAddress,
+                                    macAddress = macAddress
                                 )
                                 if (changed) broadcastClocksUpdate()
                             }
@@ -184,6 +192,8 @@ class ClockServer(
                             put("url", url)
                             put("battery", batteryLevelProvider())
                             put("milliWatts", batteryMilliWattsProvider())
+                            put("ipAddress", parseHostFromUrl(url) ?: "")
+                            put("macAddress", normalizeMacAddress(macAddressProvider() ?: ""))
                             put("isAsleep", isScreenAsleep)
                         }
                         val msg = "WvClockDiscovery:$payload"
@@ -445,6 +455,8 @@ class ClockServer(
                 put("isSelf", false)
                 put("battery", clk.battery)
                 put("milliWatts", clk.milliWatts)
+                put("ipAddress", if (clk.ipAddress.isNotBlank()) clk.ipAddress else (parseHostFromUrl(clk.url) ?: ""))
+                put("macAddress", normalizeMacAddress(clk.macAddress))
                 put("isAsleep", clk.isAsleep)
             }
             array.put(obj)
@@ -457,6 +469,8 @@ class ClockServer(
             put("isSelf", true)
             put("battery", batteryLevelProvider())
             put("milliWatts", batteryMilliWattsProvider())
+            put("ipAddress", parseHostFromUrl(selfUrl) ?: "")
+            put("macAddress", normalizeMacAddress(macAddressProvider() ?: ""))
             put("isAsleep", isScreenAsleep)
         }
         array.put(selfObj)
@@ -478,6 +492,22 @@ class ClockServer(
         return newFixedLengthResponse(Response.Status.OK, "application/json", json).apply {
             addHeader("Cache-Control", "no-store")
         }
+    }
+
+    private fun parseHostFromUrl(url: String?): String? {
+        if (url.isNullOrBlank()) return null
+        return try {
+            java.net.URI(url).host
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun normalizeMacAddress(raw: String): String {
+        val normalized = raw.trim().replace('-', ':').uppercase()
+        if (!Regex("^([0-9A-F]{2}:){5}[0-9A-F]{2}$").matches(normalized)) return ""
+        if (normalized == "00:00:00:00:00:00") return ""
+        return normalized
     }
 
     private fun handleGetState(): Response {
@@ -710,6 +740,10 @@ class ClockServer(
         saveActivityEventsAsync()
     }
 
+    private fun lastActivityTimestamp(type: ActivityType, active: Boolean): Long? {
+        return activityEvents.toList().asReversed().firstOrNull { it.type == type && it.isActive == active }?.timestampMs
+    }
+
     private fun loadActivityEvents() {
         try {
             if (!activityFile.exists()) return
@@ -769,6 +803,14 @@ class ClockServer(
 
     private fun handleGetInfo(): Response {
         val now = System.currentTimeMillis()
+        val nowAppActive = activityEvents.filter { it.type == ActivityType.APP }.maxByOrNull { it.timestampMs }?.isActive ?: true
+        val nowScreenAwake = !isScreenAsleep
+        val powerManager = context.getSystemService(android.content.Context.POWER_SERVICE) as? android.os.PowerManager
+        val batteryOptimizationIgnored = powerManager?.isIgnoringBatteryOptimizations(context.packageName) == true
+        val lastAppResumeMs = lastActivityTimestamp(ActivityType.APP, true)
+        val lastAppPauseMs = lastActivityTimestamp(ActivityType.APP, false)
+        val lastScreenOnMs = lastActivityTimestamp(ActivityType.SCREEN, true)
+        val lastScreenOffMs = lastActivityTimestamp(ActivityType.SCREEN, false)
         val maxBuckets = 168
         val earliestEvent = activityEvents.minOfOrNull { it.timestampMs } ?: now
         // Choose bucket size based on data span so short events remain visible
@@ -816,6 +858,15 @@ class ClockServer(
             val totalS = ms / 1000; val m = totalS / 60 % 60; val h = totalS / 3600 % 24; val d = totalS / 86400
             return if (d > 0) "${d}d ${h}h ${m}m" else if (h > 0) "${h}h ${m}m" else "${m}m ${totalS % 60}s"
         }
+        fun fmtAgo(timestampMs: Long?): String {
+            if (timestampMs == null) return "never"
+            val deltaMs = (now - timestampMs).coerceAtLeast(0L)
+            val totalS = deltaMs / 1000
+            val m = totalS / 60 % 60
+            val h = totalS / 3600 % 24
+            val d = totalS / 86400
+            return if (d > 0) "${d}d ${h}h ${m}m ago" else if (h > 0) "${h}h ${m}m ago" else if (m > 0) "${m}m ${totalS % 60}s ago" else "${totalS % 60}s ago"
+        }
         val deviceId = android.provider.Settings.Secure.getString(
             context.contentResolver, android.provider.Settings.Secure.ANDROID_ID)
         val serial = if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.Q) {
@@ -837,6 +888,12 @@ class ClockServer(
             row("Git commit", buildInfo.optString("gitCommit", "unknown"))
             row("Uptime", fmtUptime(uptimeMs))
             row("App uptime", fmtUptime(System.currentTimeMillis() - serverStartMs))
+            row("Battery optimization", if (batteryOptimizationIgnored) "ignored" else "not ignored")
+            row("Wi-Fi lock", if (wifiLockHeldProvider()) "held" else "not held")
+            row("Last app resume", fmtAgo(lastAppResumeMs))
+            row("Last app pause", fmtAgo(lastAppPauseMs))
+            row("Last screen on", fmtAgo(lastScreenOnMs))
+            row("Last screen off", fmtAgo(lastScreenOffMs))
             // Battery temperature
             val battIntent = context.registerReceiver(null, android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED))
             val tempTenths = battIntent?.getIntExtra(android.os.BatteryManager.EXTRA_TEMPERATURE, Int.MIN_VALUE) ?: Int.MIN_VALUE
@@ -859,8 +916,16 @@ class ClockServer(
             put("attrs", attrs)
             put("serverStartMs", serverStartMs)
             put("nowMs", now)
-            val nowAppActive = activityEvents.filter { it.type == ActivityType.APP }.maxByOrNull { it.timestampMs }?.isActive ?: true
-            val nowScreenAwake = !isScreenAsleep
+            put("power", JSONObject().apply {
+                put("batteryOptimizationIgnored", batteryOptimizationIgnored)
+                put("wifiLockHeld", wifiLockHeldProvider())
+                put("appActive", nowAppActive)
+                put("screenAwake", nowScreenAwake)
+                put("lastAppResumeMs", lastAppResumeMs ?: JSONObject.NULL)
+                put("lastAppPauseMs", lastAppPauseMs ?: JSONObject.NULL)
+                put("lastScreenOnMs", lastScreenOnMs ?: JSONObject.NULL)
+                put("lastScreenOffMs", lastScreenOffMs ?: JSONObject.NULL)
+            })
             put("chart", JSONObject().apply {
                 put("bucketMs", bucketMs)
                 put("bucketZeroMs", trimmedBucketZero)

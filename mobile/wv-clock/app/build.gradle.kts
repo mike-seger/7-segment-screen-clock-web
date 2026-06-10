@@ -3,6 +3,8 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.TimeZone
 
+val debugApplicationId = "com.github.mikeseger.wvclock.dev"
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -21,6 +23,10 @@ android {
     }
 
     buildTypes {
+        debug {
+            applicationIdSuffix = ".dev"
+            versionNameSuffix = "-dev"
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(
@@ -114,14 +120,16 @@ tasks.register<Exec>("deployToDevice") {
         serials.forEach { serial ->
             val adb = listOf("adb", "-s", serial)
             logger.lifecycle("Deploying to device: $serial")
-            project.exec { commandLine(adb + listOf("install", "-r", apk.absolutePath)) }
+            project.exec {
+                commandLine(adb + listOf("install", "-r", "-d", "-g", apk.absolutePath))
+            }
             // Grant SYSTEM_ALERT_WINDOW (overlay permission) so the PowerVR watchdog
             // can add its invisible 1x1 BAL-exemption window.  This permission is
             // normally granted once by the user via Settings; pre-grant it here so
             // dev installs never redirect to the Settings screen on launch.
             project.exec { commandLine(adb + listOf("shell", "appops", "set",
-                "com.github.mikeseger.wvclock", "SYSTEM_ALERT_WINDOW", "allow")) }
-            project.exec { commandLine(adb + listOf("shell", "am", "start", "-n", "com.github.mikeseger.wvclock/.MainActivity")) }
+                debugApplicationId, "SYSTEM_ALERT_WINDOW", "allow")) }
+            project.exec { commandLine(adb + listOf("shell", "am", "start", "-W", "-n", "$debugApplicationId/com.github.mikeseger.wvclock.MainActivity")) }
         }
     }
     commandLine("true")
