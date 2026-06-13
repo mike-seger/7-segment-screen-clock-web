@@ -134,6 +134,7 @@ function initConfiguration() {
         secOffsetValue:    document.getElementById("secOffsetValue"),
 
         showDebug:              document.getElementById("showDebug"),
+        showGpuInfo:            document.getElementById("showGpuInfo"),
         containerEnabled:       document.getElementById("containerEnabled"),
         containerScale:         document.getElementById("containerScale"),
         containerScaleValue:    document.getElementById("containerScaleValue"),
@@ -403,6 +404,7 @@ function initConfiguration() {
             els.inheritColonColor.checked = state.inheritColonColor === true;
         }
         if (els.showDebug) els.showDebug.checked = state.showDebug === true;
+        if (els.showGpuInfo) els.showGpuInfo.checked = state.showGpuInfo === true;
         // Show simulation section only for clients that support real popout windows
         const simSection = document.getElementById("simulatedDisplaySection");
         if (simSection) {
@@ -768,6 +770,14 @@ function initConfiguration() {
             });
         }
 
+        if (els.showGpuInfo) {
+            els.showGpuInfo.addEventListener("change", () => {
+                state.showGpuInfo = els.showGpuInfo.checked;
+                if (typeof saveShowGpuInfo === "function") saveShowGpuInfo(state.showGpuInfo);
+                if (typeof scheduleGpuHealthOverlayUpdate === "function") scheduleGpuHealthOverlayUpdate();
+            });
+        }
+
         function readContainerFromForm() {
             if (!els.containerEnabled) return;
             const sc = parseFloat(els.containerScale ? els.containerScale.value : 4);
@@ -905,6 +915,7 @@ function initConfiguration() {
             const safeName = name.replace(/[^a-zA-Z0-9_-]/g, "_");
             const data = { ...state };
             delete data.showDebug;
+            delete data.showGpuInfo;
             delete data.container;
             if (els.sizeBudget) data.sizeBudget = Math.min(1, Math.max(0.5, Number(els.sizeBudget.value) || 0.95));
             const entry = { name, data };

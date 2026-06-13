@@ -332,18 +332,13 @@ html, body {
     border-radius: 4px;
     color: #c8ffd8;
     font-family: monospace;
-    font-size: 11px;
+    font-size: 14px;
     line-height: 1.5;
     white-space: pre;
-    pointer-events: auto;
-    cursor: pointer;
+    pointer-events: none;
+    cursor: default;
     user-select: none;
-    opacity: 0;
-    transition: opacity 0.2s ease;
-}
-#gpuHealthOverlay:hover,
-#gpuHealthOverlay.expanded {
-    opacity: 1;
+    display: none;
 }
 #gpuHealthOverlay .gpu-warn  { color: #f5c400; }
 #gpuHealthOverlay .gpu-error { color: #ff5555; }

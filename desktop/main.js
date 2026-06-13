@@ -451,6 +451,17 @@ function updateWebOffset() {
   }
 }
 
+function safeCloseDgramSocket(socket) {
+  if (!socket) return;
+  try {
+    socket.close();
+  } catch (err) {
+    if (!err || err.code !== 'ERR_SOCKET_DGRAM_NOT_RUNNING') {
+      console.warn('[DESKTOP] Unexpected UDP socket close error:', err && err.message ? err.message : err);
+    }
+  }
+}
+
 // Query upstream NTP server using raw binary SNTP (RFC 4330)
 function queryNtp(host, callback) {
   const socket = dgram.createSocket('udp4');
@@ -463,18 +474,24 @@ function queryNtp(host, callback) {
   packet.writeUInt32BE(seconds, 40);
   packet.writeUInt32BE(fraction, 44);
 
+  let done = false;
+  function finish(err, offset, rtt) {
+    if (done) return;
+    done = true;
+    clearTimeout(timeoutId);
+    safeCloseDgramSocket(socket);
+    callback(err, offset, rtt);
+  }
+
   const timeoutId = setTimeout(() => {
-    try { socket.close(); } catch (e) {}
-    callback(new Error('NTP query timeout'));
+    finish(new Error('NTP query timeout'));
   }, 4000);
 
   socket.on('message', (msg) => {
     const t3 = Date.now();
-    clearTimeout(timeoutId);
-    socket.close();
 
     if (msg.length < 48) {
-      callback(new Error('Invalid NTP packet length'));
+      finish(new Error('Invalid NTP packet length'));
       return;
     }
 
@@ -491,20 +508,16 @@ function queryNtp(host, callback) {
     if (rtt < 0) rtt = t3 - t0;
 
     const offset = Math.round(((t1 - t0) + (t2 - t3)) / 2);
-    callback(null, offset, rtt);
+    finish(null, offset, rtt);
   });
 
   socket.on('error', (err) => {
-    clearTimeout(timeoutId);
-    socket.close();
-    callback(err);
+    finish(err);
   });
 
   socket.send(packet, 0, packet.length, 123, host, (err) => {
     if (err) {
-      clearTimeout(timeoutId);
-      socket.close();
-      callback(err);
+      finish(err);
     }
   });
 }
@@ -516,14 +529,21 @@ function performP2pSync(masterHost) {
   const requestPayload = JSON.stringify({ type: "ping", t0: t0 });
   const buffer = Buffer.from(requestPayload);
 
+  let done = false;
+  function finish() {
+    if (done) return;
+    done = true;
+    clearTimeout(timeoutId);
+    safeCloseDgramSocket(clientSocket);
+  }
+
   const timeoutId = setTimeout(() => {
-    try { clientSocket.close(); } catch (e) {}
+    finish();
   }, 1500);
 
   clientSocket.on('message', (msg) => {
     const t3 = Date.now();
-    clearTimeout(timeoutId);
-    clientSocket.close();
+    finish();
     try {
       const response = JSON.parse(msg.toString().trim());
       if (response && response.type === "pong" && response.t0 === t0) {
@@ -545,15 +565,13 @@ function performP2pSync(masterHost) {
   });
 
   clientSocket.on('error', (err) => {
-    clearTimeout(timeoutId);
-    clientSocket.close();
+    finish();
     console.warn(`[DESKTOP] P2P socket error during sync to ${masterHost}:`, err.message);
   });
 
   clientSocket.send(buffer, 0, buffer.length, 8767, masterHost, (err) => {
     if (err) {
-      clearTimeout(timeoutId);
-      clientSocket.close();
+      finish();
       console.warn(`[DESKTOP] P2P send error to ${masterHost}:`, err.message);
     }
   });
@@ -669,8 +687,8 @@ app.on('ready', createWindow);
 
 app.on('window-all-closed', function () {
   try {
-    udpSocket.close();
-    syncSocket.close();
+    safeCloseDgramSocket(udpSocket);
+    safeCloseDgramSocket(syncSocket);
     server.close();
   } catch (e) {}
   if (process.platform !== 'darwin') {

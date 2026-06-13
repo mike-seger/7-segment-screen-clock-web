@@ -58,6 +58,7 @@ let state = { ...DEFAULT_STATE };
 const STORAGE_KEY_CURRENT  = "screenClock_state";
 const STORAGE_KEY_PROFILES = "screenClock_profiles";   // JSON array of names
 const STORAGE_KEY_DEBUG     = "screenClock_debug";
+const STORAGE_KEY_GPU_INFO  = "screenClock_gpuInfo";
 const STORAGE_KEY_CONTAINER = "screenClock_container";
 const PROFILE_PREFIX        = "screenClock_profile_";
 
@@ -213,6 +214,7 @@ function loadCurrentState() {
         console.warn("Failed to load stored state", e);
     }
     state.showDebug = loadShowDebug();
+    state.showGpuInfo = loadShowGpuInfo();
     state.container = loadContainer();
 }
 
@@ -220,6 +222,7 @@ function saveCurrentState() {
     try {
         const toSave = { ...state };
         delete toSave.showDebug;
+        delete toSave.showGpuInfo;
         delete toSave.container;
         localStorage.setItem(STORAGE_KEY_CURRENT, JSON.stringify(toSave));
     } catch (e) {
@@ -233,6 +236,14 @@ function loadShowDebug() {
 
 function saveShowDebug(val) {
     try { localStorage.setItem(STORAGE_KEY_DEBUG, val ? "true" : "false"); } catch {}
+}
+
+function loadShowGpuInfo() {
+    try { return localStorage.getItem(STORAGE_KEY_GPU_INFO) === "true"; } catch { return false; }
+}
+
+function saveShowGpuInfo(val) {
+    try { localStorage.setItem(STORAGE_KEY_GPU_INFO, val ? "true" : "false"); } catch {}
 }
 
 function loadProfileNames() {
@@ -266,6 +277,7 @@ function saveProfile(name) {
     const key = PROFILE_PREFIX + name;
     const toSave = { ...state };
     delete toSave.showDebug;
+    delete toSave.showGpuInfo;
     delete toSave.container;
     localStorage.setItem(key, JSON.stringify(toSave));
     let names = loadProfileNames();
@@ -284,6 +296,7 @@ function loadProfile(name) {
     if (builtin) {
         state = normalizeSizingState({ ...DEFAULT_STATE, ...builtin.data });
         state.showDebug = loadShowDebug();
+        state.showGpuInfo = loadShowGpuInfo();
         state.container = loadContainer();
         applyLoadedStateUI();
         saveCurrentState();
@@ -296,6 +309,7 @@ function loadProfile(name) {
         const parsed = JSON.parse(raw);
         state = normalizeSizingState({ ...DEFAULT_STATE, ...parsed });
         state.showDebug = loadShowDebug();
+        state.showGpuInfo = loadShowGpuInfo();
         state.container = loadContainer();
         applyLoadedStateUI();
         saveCurrentState();

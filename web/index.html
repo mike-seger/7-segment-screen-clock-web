@@ -61,7 +61,7 @@
 </div><!-- /#clockContainer -->
 
     <div id="rowCoordinateDisplay" aria-live="polite"></div>
-    <div id="gpuHealthOverlay" title="Tap to toggle GPU health panel"></div>
+    <div id="gpuHealthOverlay" title="GPU health panel"></div>
 
 
 <script>
@@ -1973,12 +1973,9 @@ setInterval(function() {
 
   // ── Real-time GPU health overlay ─────────────────────────────────────────
   var _overlay = document.getElementById('gpuHealthOverlay');
-  var _overlayExpanded = false;
-  if (_overlay) {
-    _overlay.addEventListener('click', function() {
-      _overlayExpanded = !_overlayExpanded;
-      _overlay.classList.toggle('expanded', _overlayExpanded);
-    });
+
+  function _isGpuOverlayEnabled() {
+    return typeof state !== "undefined" && state.showGpuInfo === true;
   }
 
   var _lastFps = 0;
@@ -2008,6 +2005,11 @@ setInterval(function() {
 
   function _updateOverlay() {
     if (!_overlay) return;
+    if (!_isGpuOverlayEnabled()) {
+      _overlay.style.display = 'none';
+      return;
+    }
+    _overlay.style.display = 'block';
     var uptimeMin = (Date.now() - _startMs) / 60000;
     var ctxClass  = _contextLost ? 'gpu-error' : 'gpu-ok';
     var ctxLabel  = _contextLost ? 'LOST' : 'ok';
@@ -2021,6 +2023,7 @@ setInterval(function() {
       '\nup:' + uptimeMin.toFixed(1) + 'm' +
       '  wd:<span class="' + wdClass + '">' + _lastWatchdog + '</span>';
   }
+  window.scheduleGpuHealthOverlayUpdate = _updateOverlay;
   setInterval(_updateOverlay, 1000);
 }());
 applyClockTransform();
