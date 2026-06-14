@@ -21,13 +21,15 @@ import android.view.WindowInsetsController
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
+import java.net.BindException
 import java.net.NetworkInterface
 
 class MainActivity : Activity() {
 
     private lateinit var webView: WebView
     private var server: ClockServer? = null
-    private val port = 8765
+    private val preferredPort = 8765
+    private var serverPort = preferredPort
     private var multicastLock: android.net.wifi.WifiManager.MulticastLock? = null
         private var wifiLock: WifiManager.WifiLock? = null
 
@@ -110,7 +112,7 @@ class MainActivity : Activity() {
                     detail: android.webkit.RenderProcessGoneDetail?
                 ): Boolean {
                     Log.e(TAG, "WebView renderer gone (crashed=${detail?.didCrash()}), reloading")
-                    view?.loadUrl("http://127.0.0.1:$port/")
+                    view?.loadUrl(homeUrl())
                     return true
                 }
                 override fun onPageFinished(view: WebView?, url: String?) {
@@ -170,7 +172,7 @@ class MainActivity : Activity() {
         // detection (EGL probe) doesn't block the main thread.
         Thread { startPvrWatchdogIfNeeded() }.start()
 
-        webView.loadUrl("http://127.0.0.1:$port/")
+        webView.loadUrl(homeUrl())
 
         applyImmersive()
 
@@ -185,12 +187,12 @@ class MainActivity : Activity() {
         if (ip != null) {
             Toast.makeText(
                 this,
-                "Remote control: http://$ip:$port/",
+                "Remote control: http://$ip:$serverPort/",
                 Toast.LENGTH_LONG
             ).show()
-            Log.i(TAG, "Remote control URL: http://$ip:$port/")
+            Log.i(TAG, "Remote control URL: http://$ip:$serverPort/")
         } else {
-            Log.i(TAG, "Server listening on port $port (no Wi-Fi IP detected)")
+            Log.i(TAG, "Server listening on port $serverPort (no Wi-Fi IP detected)")
         }
 
         maybeRequestBatteryOptimizationExemption()
@@ -251,11 +253,13 @@ class MainActivity : Activity() {
     }
 
     private fun startServer() {
-        try {
+        val fallbackPorts = listOf(preferredPort, preferredPort + 10, preferredPort + 20)
+        for (candidatePort in fallbackPorts) {
+            try {
             val s = ClockServer(
                 context = applicationContext,
-                port = port,
-                lanUrlProvider = { getWifiIpv4()?.let { "http://$it:$port/" } },
+                port = candidatePort,
+                lanUrlProvider = { getWifiIpv4()?.let { "http://$it:$candidatePort/" } },
                 batteryLevelProvider = {
                     val intent = registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
                     val level = intent?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
@@ -308,10 +312,42 @@ class MainActivity : Activity() {
             }
             s.start(/* timeout */ 5000, /* daemon */ true)
             server = s
-            Log.i(TAG, "ClockServer started on $port")
-        } catch (t: Throwable) {
-            Log.e(TAG, "Failed to start ClockServer", t)
-            Toast.makeText(this, "Server failed: ${t.message}", Toast.LENGTH_LONG).show()
+            serverPort = candidatePort
+            Log.i(TAG, "ClockServer started on $serverPort")
+            return
+            } catch (t: Throwable) {
+                if (isAddressInUse(t)) {
+                    Log.w(TAG, "ClockServer port $candidatePort is busy, trying next port")
+                    continue
+                }
+                Log.e(TAG, "Failed to start ClockServer", t)
+                Toast.makeText(this, "Server failed: ${t.message}", Toast.LENGTH_LONG).show()
+                return
+            }
+        }
+        server = null
+        Toast.makeText(this, "Local server port is busy, loading offline view", Toast.LENGTH_LONG).show()
+        Log.e(TAG, "Failed to start ClockServer on all fallback ports")
+    }
+
+    private fun isAddressInUse(t: Throwable?): Boolean {
+        var cursor = t
+        while (cursor != null) {
+            if (cursor is BindException) return true
+            val msg = cursor.message ?: ""
+            if (msg.contains("EADDRINUSE", ignoreCase = true) || msg.contains("Address already in use", ignoreCase = true)) {
+                return true
+            }
+            cursor = cursor.cause
+        }
+        return false
+    }
+
+    private fun homeUrl(): String {
+        return if (server != null) {
+            "http://127.0.0.1:$serverPort/"
+        } else {
+            "file:///android_asset/web/index.html"
         }
     }
 
@@ -573,7 +609,7 @@ class MainActivity : Activity() {
         fun hardRestart() {
             Log.w(TAG, "JS requested hardRestart — reloading clock page")
             runOnUiThread {
-                webView.loadUrl("http://127.0.0.1:$port/")
+                webView.loadUrl(homeUrl())
             }
         }
     }

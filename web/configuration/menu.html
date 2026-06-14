@@ -26,6 +26,9 @@
             <div class="menuTab" data-tab="system" title="System & Network">
                 <span class="symbol">settings_applications</span>
             </div>
+            <div class="menuTab" data-tab="battery_settings" title="Battery Settings">
+                <span class="symbol">battery_charging_60</span>
+            </div>
             <div class="menuTab" data-tab="debug" title="Debug">
                 <span class="symbol">bug_report</span>
             </div>
@@ -274,7 +277,53 @@
                 </div>
             </div>
 
-            <!-- 6. DEBUG -->
+            <!-- 7. BATTERY SETTINGS -->
+            <div class="menu-tab-content" id="tab-battery_settings" style="display: none;">
+                <div class="menu-subsection">
+                    <h3>Battery Automation</h3>
+                    <label style="margin: 4px 0 10px;">
+                        <span style="display: flex; align-items: center; gap: 6px;">
+                            <input type="checkbox" id="batterySettingsEnabled">
+                            Enable battery switch automation
+                        </span>
+                    </label>
+
+                    <label for="batterySwitchIp">Switch host (IP or DNS)</label>
+                    <input type="text" id="batterySwitchIp" placeholder="e.g. 192.168.1.40 or sonoff.local">
+
+                    <div id="batteryThresholdControls" class="battery-threshold-box">
+                        <label for="batteryThresholdOff">
+                            Turn OFF at / above
+                            <span class="valueBadge" id="batteryThresholdOffValue"></span>
+                        </label>
+                        <input type="range" id="batteryThresholdOff" min="1" max="100" step="1">
+
+                        <label for="batteryThresholdOn" style="margin-top: 8px;">
+                            Turn ON at / below
+                            <span class="valueBadge" id="batteryThresholdOnValue"></span>
+                        </label>
+                        <input type="range" id="batteryThresholdOn" min="0" max="99" step="1">
+                    </div>
+
+                    <div class="battery-switch-controls">
+                        <div style="display: flex; gap: 6px; margin-top: 8px; align-items: center;">
+                            <button id="batterySwitchRefreshBtn" class="battery-refresh-icon-btn" title="Refresh switch state" aria-label="Refresh switch state">
+                                <span class="symbol" aria-hidden="true">refresh</span>
+                            </button>
+                            <button id="batterySwitchToggleBtn" class="battery-switch-toggle is-unknown" style="flex: 1;">Switch: Unknown</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="menu-subsection">
+                    <h3>Battery History (Last 7 Days)</h3>
+                    <div id="batteryHistoryGraphWrap">
+                        <canvas id="batteryHistoryCanvas" width="320" height="120"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 8. DEBUG -->
             <div class="menu-tab-content" id="tab-debug" style="display: none;">
                 <div class="menu-subsection">
                     <label style="margin: 4px 0;">

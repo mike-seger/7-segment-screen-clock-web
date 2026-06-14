@@ -7,9 +7,11 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
 import java.io.InputStream
+import java.net.HttpURLConnection
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
+import java.net.URL
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.Executors
@@ -103,6 +105,30 @@ class ClockServer(
     private var p2pSocket: DatagramSocket? = null
     private var p2pThread: Thread? = null
 
+    private data class BatteryPoint(val timestampMs: Long, val batteryPct: Int)
+    private data class ThresholdPoint(val timestampMs: Long, val thresholdOnPct: Int, val thresholdOffPct: Int)
+    private data class SwitchStatePoint(val timestampMs: Long, val on: Int)
+    private data class BatterySettings(
+        val enabled: Boolean,
+        val switchIp: String,
+        val thresholdOnPct: Int,
+        val thresholdOffPct: Int
+    )
+
+    private val batteryBucketMs = 10L * 60 * 1000
+    private val batteryRetentionMs = 7L * 24 * 60 * 60 * 1000
+    private val batteryMaxPoints = (batteryRetentionMs / batteryBucketMs).toInt()
+    private val minAutomationActionIntervalMs = 5L * 60 * 1000
+    private val batteryHistory = java.util.concurrent.CopyOnWriteArrayList<BatteryPoint>()
+    private val thresholdHistory = java.util.concurrent.CopyOnWriteArrayList<ThresholdPoint>()
+    private val switchStateHistory = java.util.concurrent.CopyOnWriteArrayList<SwitchStatePoint>()
+    private val batteryFile = java.io.File(context.filesDir, "battery_events.json")
+    private val thresholdFile = java.io.File(context.filesDir, "battery_threshold_events.json")
+    private val switchStateFile = java.io.File(context.filesDir, "battery_switch_events.json")
+    @Volatile private var lastBatterySampleBucketMs = 0L
+    @Volatile private var lastAutomationActionAtMs = 0L
+    @Volatile private var lastAutomationAction = ""
+
     private val serverStartMs = System.currentTimeMillis()
     private val activityEvents = java.util.concurrent.CopyOnWriteArrayList<ActivityEvent>()
     private val activityFile = java.io.File(context.filesDir, "activity_events.json")
@@ -115,12 +141,25 @@ class ClockServer(
 
     init {
         loadActivityEvents()
+        loadBatteryHistory()
+        loadThresholdHistory()
+        loadSwitchStateHistory()
         activityEvents.add(ActivityEvent(serverStartMs, true, ActivityType.APP))
         activityEvents.add(ActivityEvent(serverStartMs, true, ActivityType.SCREEN))
+        sampleSelfBattery(serverStartMs)
+        recordThresholdSnapshot(getBatterySettingsFromState(), serverStartMs)
         heartbeat.scheduleAtFixedRate({
             val bytes = ": ping\n\n".toByteArray()
             for (c in sseClients) c.offer(bytes)
         }, 15, 15, TimeUnit.SECONDS)
+        heartbeat.scheduleAtFixedRate({
+            try {
+                sampleSelfBattery(System.currentTimeMillis())
+                evaluateBatteryAutomation()
+            } catch (e: Exception) {
+                Log.w(TAG, "Battery automation loop failed", e)
+            }
+        }, 5, 60, TimeUnit.SECONDS)
     }
 
     override fun start(timeout: Int, daemon: Boolean) {
@@ -417,6 +456,9 @@ class ClockServer(
                 uri == "/api/state" && session.method == Method.POST -> handlePostState(session)
                 uri == "/api/wake" && session.method == Method.POST -> handlePostWake()
                 uri == "/api/sleep" && session.method == Method.POST -> handlePostSleep()
+                uri == "/api/battery-switch/state" && session.method == Method.GET -> handleBatterySwitchState(session)
+                uri == "/api/battery-switch/on" && session.method == Method.POST -> handleBatterySwitchAction(session, "Power On", "ON")
+                uri == "/api/battery-switch/off" && session.method == Method.POST -> handleBatterySwitchAction(session, "Power Off", "OFF")
                 uri == "/api/events" && session.method == Method.GET -> handleSse()
                 uri == "/api/url" && session.method == Method.GET -> handleGetUrl()
                 rootAssets.containsKey(uri) -> {
@@ -578,10 +620,316 @@ class ClockServer(
             lastNtpSyncTime = 0L
             lastP2pSyncTime = 0L
         }
+        if (key == "screenClock_state") {
+            recordThresholdSnapshot(getBatterySettingsFromState(), System.currentTimeMillis())
+        }
 
         broadcast(key, value)
         onStateChangedListener?.invoke(key, value)
         return newFixedLengthResponse(Response.Status.OK, "application/json", "{\"ok\":true}")
+    }
+
+    private fun clampPct(value: Int, fallback: Int): Int {
+        return value.coerceIn(0, 100)
+    }
+
+    private fun getBatterySettingsFromState(): BatterySettings {
+        val fallback = BatterySettings(false, "", 40, 85)
+        return try {
+            val raw = state["screenClock_state"] ?: return fallback
+            val parsed = JSONObject(raw)
+            val src = if (parsed.has("batterySettings")) parsed.optJSONObject("batterySettings") else null
+            val enabled = src?.optBoolean("enabled", false) ?: false
+            val switchIp = (src?.optString("switchIp", "") ?: "").trim()
+            var thresholdOnPct = clampPct(src?.optInt("thresholdOnPct", 40) ?: 40, 40)
+            val thresholdOffPct = clampPct(src?.optInt("thresholdOffPct", 85) ?: 85, 85)
+            if (thresholdOnPct >= thresholdOffPct) thresholdOnPct = (thresholdOffPct - 1).coerceAtLeast(0)
+            BatterySettings(enabled, switchIp, thresholdOnPct, thresholdOffPct)
+        } catch (_: Exception) {
+            fallback
+        }
+    }
+
+    private fun trimBatteryHistory(nowMs: Long = System.currentTimeMillis()) {
+        val cutoff = nowMs - batteryRetentionMs
+        val filtered = batteryHistory.filter { it.timestampMs >= cutoff }.sortedBy { it.timestampMs }
+        batteryHistory.clear()
+        val keep = if (filtered.size > batteryMaxPoints) filtered.takeLast(batteryMaxPoints) else filtered
+        batteryHistory.addAll(keep)
+    }
+
+    private fun trimThresholdHistory(nowMs: Long = System.currentTimeMillis()) {
+        val cutoff = nowMs - batteryRetentionMs
+        val sorted = thresholdHistory.sortedBy { it.timestampMs }
+        if (sorted.isEmpty()) return
+        var firstIdx = sorted.indexOfFirst { it.timestampMs >= cutoff }
+        if (firstIdx < 0) firstIdx = sorted.size - 1
+        val keepFrom = (firstIdx - 1).coerceAtLeast(0)
+        thresholdHistory.clear()
+        thresholdHistory.addAll(sorted.subList(keepFrom, sorted.size))
+    }
+
+    private fun trimSwitchStateHistory(nowMs: Long = System.currentTimeMillis()) {
+        val cutoff = nowMs - batteryRetentionMs
+        val sorted = switchStateHistory.filter { it.timestampMs >= cutoff }.sortedBy { it.timestampMs }
+        if (sorted.isEmpty()) {
+            switchStateHistory.clear()
+            return
+        }
+        var keepFrom = 0
+        val firstInWindow = sorted.indexOfFirst { it.timestampMs >= cutoff }
+        if (firstInWindow > 0) keepFrom = firstInWindow - 1
+        switchStateHistory.clear()
+        switchStateHistory.addAll(sorted.subList(keepFrom, sorted.size))
+    }
+
+    private fun loadBatteryHistory() {
+        try {
+            if (!batteryFile.exists()) return
+            val arr = JSONArray(batteryFile.readText())
+            for (i in 0 until arr.length()) {
+                val obj = arr.getJSONObject(i)
+                batteryHistory.add(BatteryPoint(obj.getLong("ts"), obj.getInt("battery")))
+            }
+            trimBatteryHistory()
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not load battery history", e)
+        }
+    }
+
+    private fun saveBatteryHistory() {
+        try {
+            trimBatteryHistory()
+            val arr = JSONArray()
+            batteryHistory.sortedBy { it.timestampMs }.forEach { p ->
+                arr.put(JSONObject().put("ts", p.timestampMs).put("battery", p.batteryPct))
+            }
+            batteryFile.writeText(arr.toString())
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not save battery history", e)
+        }
+    }
+
+    private fun loadThresholdHistory() {
+        try {
+            if (!thresholdFile.exists()) return
+            val arr = JSONArray(thresholdFile.readText())
+            for (i in 0 until arr.length()) {
+                val obj = arr.getJSONObject(i)
+                thresholdHistory.add(
+                    ThresholdPoint(
+                        obj.getLong("ts"),
+                        obj.getInt("thresholdOnPct"),
+                        obj.getInt("thresholdOffPct")
+                    )
+                )
+            }
+            trimThresholdHistory()
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not load threshold history", e)
+        }
+    }
+
+    private fun loadSwitchStateHistory() {
+        try {
+            if (!switchStateFile.exists()) return
+            val arr = JSONArray(switchStateFile.readText())
+            for (i in 0 until arr.length()) {
+                val obj = arr.getJSONObject(i)
+                switchStateHistory.add(SwitchStatePoint(obj.getLong("ts"), if (obj.optInt("on", 0) != 0) 1 else 0))
+            }
+            trimSwitchStateHistory()
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not load switch state history", e)
+        }
+    }
+
+    private fun saveThresholdHistory() {
+        try {
+            trimThresholdHistory()
+            val arr = JSONArray()
+            thresholdHistory.sortedBy { it.timestampMs }.forEach { p ->
+                arr.put(
+                    JSONObject()
+                        .put("ts", p.timestampMs)
+                        .put("thresholdOnPct", p.thresholdOnPct)
+                        .put("thresholdOffPct", p.thresholdOffPct)
+                )
+            }
+            thresholdFile.writeText(arr.toString())
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not save threshold history", e)
+        }
+    }
+
+    private fun saveSwitchStateHistory() {
+        try {
+            trimSwitchStateHistory()
+            val arr = JSONArray()
+            switchStateHistory.sortedBy { it.timestampMs }.forEach { p ->
+                arr.put(JSONObject().put("ts", p.timestampMs).put("on", p.on))
+            }
+            switchStateFile.writeText(arr.toString())
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not save switch state history", e)
+        }
+    }
+
+    private fun recordSwitchState(power: String?, nowMs: Long = System.currentTimeMillis()) {
+        val on = if ((power ?: "").uppercase() == "ON") 1 else 0
+        val prev = switchStateHistory.lastOrNull()
+        if (prev != null && prev.on == on) return
+        switchStateHistory.add(SwitchStatePoint(nowMs, on))
+        saveSwitchStateHistory()
+    }
+
+    private fun sampleSelfBattery(nowMs: Long = System.currentTimeMillis()) {
+        val level = batteryLevelProvider()
+        if (level < 0) return
+        val bucket = (nowMs / batteryBucketMs) * batteryBucketMs
+        if (bucket == lastBatterySampleBucketMs) return
+        lastBatterySampleBucketMs = bucket
+        batteryHistory.add(BatteryPoint(bucket, clampPct(level, 0)))
+        saveBatteryHistory()
+    }
+
+    private fun recordThresholdSnapshot(settings: BatterySettings, nowMs: Long = System.currentTimeMillis()) {
+        val next = ThresholdPoint(nowMs, settings.thresholdOnPct, settings.thresholdOffPct)
+        val prev = thresholdHistory.lastOrNull()
+        if (prev != null && prev.thresholdOnPct == next.thresholdOnPct && prev.thresholdOffPct == next.thresholdOffPct) {
+            return
+        }
+        thresholdHistory.add(next)
+        saveThresholdHistory()
+    }
+
+    private fun normalizeSwitchHost(input: String): String {
+        val raw = input.trim()
+        if (raw.isEmpty()) return ""
+        return try {
+            val full = if (raw.startsWith("http://") || raw.startsWith("https://")) raw else "http://$raw"
+            val uri = java.net.URI(full)
+            if (uri.port > 0) "${uri.host}:${uri.port}" else (uri.host ?: raw)
+        } catch (_: Exception) {
+            raw.removePrefix("http://").removePrefix("https://").trimEnd('/')
+        }
+    }
+
+    private fun tasmotaCommand(hostInput: String, command: String): JSONObject {
+        val host = normalizeSwitchHost(hostInput)
+        if (host.isBlank()) throw IllegalArgumentException("Missing switch host")
+        val encoded = java.net.URLEncoder.encode(command, "UTF-8")
+        val url = URL("http://$host/cm?cmnd=$encoded")
+        val conn = (url.openConnection() as HttpURLConnection).apply {
+            requestMethod = "GET"
+            connectTimeout = 4000
+            readTimeout = 4000
+        }
+        return try {
+            val body = conn.inputStream.bufferedReader().use { it.readText() }
+            try {
+                JSONObject(body)
+            } catch (_: Exception) {
+                JSONObject().put("raw", body)
+            }
+        } finally {
+            conn.disconnect()
+        }
+    }
+
+    private fun normalizedPower(payload: JSONObject?): String? {
+        if (payload == null) return null
+        val any = when {
+            payload.has("POWER") -> payload.opt("POWER")
+            payload.has("Power") -> payload.opt("Power")
+            payload.has("power") -> payload.opt("power")
+            else -> null
+        }
+        return when (any) {
+            is String -> when (any.uppercase()) {
+                "ON" -> "ON"
+                "OFF" -> "OFF"
+                else -> null
+            }
+            is Number -> if (any.toInt() == 0) "OFF" else "ON"
+            is Boolean -> if (any) "ON" else "OFF"
+            else -> null
+        }
+    }
+
+    private fun evaluateBatteryAutomation() {
+        val settings = getBatterySettingsFromState()
+        recordThresholdSnapshot(settings, System.currentTimeMillis())
+        if (!settings.enabled || settings.switchIp.isBlank()) return
+        val battery = batteryLevelProvider()
+        if (battery < 0) return
+        val desiredAction = when {
+            battery >= settings.thresholdOffPct -> "off"
+            battery <= settings.thresholdOnPct -> "on"
+            else -> ""
+        }
+        if (desiredAction.isBlank()) return
+
+        val now = System.currentTimeMillis()
+        if (desiredAction == lastAutomationAction && now - lastAutomationActionAtMs < minAutomationActionIntervalMs) {
+            return
+        }
+        try {
+            val raw = tasmotaCommand(settings.switchIp, if (desiredAction == "on") "Power On" else "Power Off")
+            val power = normalizedPower(raw) ?: if (desiredAction == "on") "ON" else "OFF"
+            recordSwitchState(power)
+            lastAutomationAction = desiredAction
+            lastAutomationActionAtMs = now
+        } catch (e: Exception) {
+            Log.w(TAG, "Battery automation command failed", e)
+        }
+    }
+
+    private fun parseBatterySwitchIp(session: IHTTPSession): String {
+        return session.parms["ip"]?.trim().orEmpty().ifBlank {
+            try {
+                val files = HashMap<String, String>()
+                session.parseBody(files)
+                val raw = files["postData"] ?: session.parms["postData"] ?: ""
+                if (raw.isBlank()) "" else JSONObject(raw).optString("ip", "").trim()
+            } catch (_: Exception) {
+                ""
+            }
+        }
+    }
+
+    private fun handleBatterySwitchState(session: IHTTPSession): Response {
+        val host = parseBatterySwitchIp(session)
+        if (host.isBlank()) {
+            return newFixedLengthResponse(Response.Status.BAD_REQUEST, "application/json", JSONObject().put("ok", false).put("error", "Missing ip").toString())
+        }
+        return try {
+            val raw = tasmotaCommand(host, "Power")
+            val power = normalizedPower(raw)
+            if (power != null) recordSwitchState(power)
+            val out = JSONObject().put("ok", true).put("power", power).put("raw", raw)
+            newFixedLengthResponse(Response.Status.OK, "application/json", out.toString())
+        } catch (e: Exception) {
+            val out = JSONObject().put("ok", false).put("error", e.message ?: "Switch query failed")
+            newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "application/json", out.toString())
+        }
+    }
+
+    private fun handleBatterySwitchAction(session: IHTTPSession, command: String, fallbackPower: String): Response {
+        val host = parseBatterySwitchIp(session)
+        if (host.isBlank()) {
+            return newFixedLengthResponse(Response.Status.BAD_REQUEST, "application/json", JSONObject().put("ok", false).put("error", "Missing ip").toString())
+        }
+        return try {
+            val raw = tasmotaCommand(host, command)
+            val power = normalizedPower(raw) ?: fallbackPower
+            recordSwitchState(power)
+            val out = JSONObject().put("ok", true).put("power", power).put("raw", raw)
+            newFixedLengthResponse(Response.Status.OK, "application/json", out.toString())
+        } catch (e: Exception) {
+            val out = JSONObject().put("ok", false).put("error", e.message ?: "Switch command failed")
+            newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "application/json", out.toString())
+        }
     }
 
     private fun handlePostWake(): Response {
@@ -849,6 +1197,68 @@ class ClockServer(
         return activeDuration.toDouble() / (bucketEnd - bucketStart)
     }
 
+    private fun buildBatterySeries(bucketZeroMs: Long, bucketCount: Int, bucketMs: Long): List<Int?> {
+        val points = batteryHistory.sortedBy { it.timestampMs }
+        if (points.isEmpty()) return List(bucketCount) { null }
+        val out = MutableList<Int?>(bucketCount) { null }
+        var idx = 0
+        var last: Int? = null
+        while (idx < points.size && points[idx].timestampMs < bucketZeroMs) {
+            last = points[idx].batteryPct
+            idx++
+        }
+        for (i in 0 until bucketCount) {
+            val t = bucketZeroMs + i * bucketMs
+            while (idx < points.size && points[idx].timestampMs <= t) {
+                last = points[idx].batteryPct
+                idx++
+            }
+            out[i] = last
+        }
+        return out
+    }
+
+    private fun buildThresholdSeries(bucketZeroMs: Long, bucketCount: Int, bucketMs: Long, useOn: Boolean, fallback: Int): List<Int> {
+        val points = thresholdHistory.sortedBy { it.timestampMs }
+        val out = MutableList(bucketCount) { fallback }
+        var idx = 0
+        var last = fallback
+        while (idx < points.size && points[idx].timestampMs < bucketZeroMs) {
+            last = if (useOn) points[idx].thresholdOnPct else points[idx].thresholdOffPct
+            idx++
+        }
+        for (i in 0 until bucketCount) {
+            val t = bucketZeroMs + i * bucketMs
+            while (idx < points.size && points[idx].timestampMs <= t) {
+                last = if (useOn) points[idx].thresholdOnPct else points[idx].thresholdOffPct
+                idx++
+            }
+            out[i] = last
+        }
+        return out
+    }
+
+    private fun buildSwitchSeries(bucketZeroMs: Long, bucketCount: Int, bucketMs: Long): List<Int> {
+        val points = switchStateHistory.sortedBy { it.timestampMs }
+        val out = MutableList(bucketCount) { 0 }
+        if (points.isEmpty()) return out
+        var idx = 0
+        var last = 0
+        while (idx < points.size && points[idx].timestampMs < bucketZeroMs) {
+            last = if (points[idx].on != 0) 1 else 0
+            idx++
+        }
+        for (i in 0 until bucketCount) {
+            val t = bucketZeroMs + i * bucketMs
+            while (idx < points.size && points[idx].timestampMs <= t) {
+                last = if (points[idx].on != 0) 1 else 0
+                idx++
+            }
+            out[i] = last
+        }
+        return out
+    }
+
     private fun handleGetInfo(): Response {
         val now = System.currentTimeMillis()
         val infoIpAddress = resolveInfoIpAddress()
@@ -861,20 +1271,9 @@ class ClockServer(
         val lastAppPauseMs = lastActivityTimestamp(ActivityType.APP, false)
         val lastScreenOnMs = lastActivityTimestamp(ActivityType.SCREEN, true)
         val lastScreenOffMs = lastActivityTimestamp(ActivityType.SCREEN, false)
-        val maxBuckets = 168
-        val earliestEvent = activityEvents.minOfOrNull { it.timestampMs } ?: now
-        // Choose bucket size based on data span so short events remain visible
-        val dataSpanMs = now - earliestEvent
-        val bucketMs = when {
-            dataSpanMs <= 1L * 3600 * 1000  ->  1L * 60 * 1000    // 1 min buckets for ≤1 h
-            dataSpanMs <= 6L * 3600 * 1000  ->  5L * 60 * 1000    // 5 min buckets for ≤6 h
-            dataSpanMs <= 24L * 3600 * 1000 -> 15L * 60 * 1000    // 15 min buckets for ≤24 h
-            else                             ->  3_600_000L         // 1 h buckets for longer
-        }
-        val earliestBucket = (earliestEvent / bucketMs) * bucketMs
-        val oldestAllowed = now - (maxBuckets - 1) * bucketMs
-        val bucketZero = maxOf(earliestBucket, oldestAllowed)
-        val bucketCount = maxOf(1, ((now - bucketZero) / bucketMs + 1).toInt().coerceAtMost(maxBuckets))
+        val bucketMs = batteryBucketMs
+        val bucketCount = batteryMaxPoints
+        val bucketZero = now - (bucketCount - 1) * bucketMs
         val appActive = (0 until bucketCount).map { i ->
             val bs = bucketZero + i * bucketMs
             computeActiveFraction(bs, bs + bucketMs, ActivityType.APP)
@@ -883,14 +1282,13 @@ class ClockServer(
             val bs = bucketZero + i * bucketMs
             computeActiveFraction(bs, bs + bucketMs, ActivityType.SCREEN)
         }
-        // Trim leading all-zero buckets, keep one zero before first active bucket
-        // threshold: at least 2 minutes of activity in the bucket
-        val minActive = 2.0 * 60 * 1000 / bucketMs
-        val firstActive = (0 until bucketCount).firstOrNull { appActive[it] > minActive || screenAwake[it] > minActive } ?: 0
-        val trimFrom = maxOf(0, firstActive - 1)
-        val trimmedAppActive = if (trimFrom > 0) appActive.drop(trimFrom) else appActive
-        val trimmedScreenAwake = if (trimFrom > 0) screenAwake.drop(trimFrom) else screenAwake
-        val trimmedBucketZero = bucketZero + trimFrom * bucketMs
+        val settings = getBatterySettingsFromState()
+        sampleSelfBattery(now)
+        recordThresholdSnapshot(settings, now)
+        val battery = buildBatterySeries(bucketZero, bucketCount, bucketMs)
+        val thresholdOn = buildThresholdSeries(bucketZero, bucketCount, bucketMs, true, settings.thresholdOnPct)
+        val thresholdOff = buildThresholdSeries(bucketZero, bucketCount, bucketMs, false, settings.thresholdOffPct)
+        val switchOn = buildSwitchSeries(bucketZero, bucketCount, bucketMs)
         val buildInfo = try {
             val bytes = context.assets.open("build_info.json").readBytes()
             JSONObject(String(bytes, Charsets.UTF_8))
@@ -980,9 +1378,16 @@ class ClockServer(
             })
             put("chart", JSONObject().apply {
                 put("bucketMs", bucketMs)
-                put("bucketZeroMs", trimmedBucketZero)
-                put("appActive", JSONArray(trimmedAppActive))
-                put("screenAwake", JSONArray(trimmedScreenAwake))
+                put("bucketZeroMs", bucketZero)
+                put("appActive", JSONArray(appActive))
+                put("screenAwake", JSONArray(screenAwake))
+                put("battery", JSONArray(battery))
+                put("thresholdOn", JSONArray(thresholdOn))
+                put("thresholdOff", JSONArray(thresholdOff))
+                put("switchOn", JSONArray(switchOn))
+                put("nowBattery", batteryLevelProvider())
+                put("nowThresholdOn", settings.thresholdOnPct)
+                put("nowThresholdOff", settings.thresholdOffPct)
                 put("nowAppActive", nowAppActive)
                 put("nowScreenAwake", nowScreenAwake)
             })

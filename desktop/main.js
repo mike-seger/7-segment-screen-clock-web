@@ -20,6 +20,363 @@ const BUILD_TIME = (() => {
 })();
 const activityLog = [{ timestampMs: SERVER_START_MS, isAwake: true }];
 
+const BATTERY_BUCKET_MS = 10 * 60 * 1000;
+const BATTERY_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+const BATTERY_MAX_POINTS = Math.floor(BATTERY_RETENTION_MS / BATTERY_BUCKET_MS);
+const BATTERY_SAMPLE_INTERVAL_MS = 60 * 1000;
+const AUTOMATION_MIN_COMMAND_INTERVAL_MS = 5 * 60 * 1000;
+
+let batteryHistory = [];
+let thresholdHistory = [];
+let switchStateHistory = [];
+let lastBatterySampleBucketMs = 0;
+let lastAutomationActionAt = 0;
+let lastAutomationAction = '';
+
+function batteryHistoryFilePath() {
+  try {
+    return path.join(app.getPath('userData'), 'battery_events.json');
+  } catch (_) {
+    return path.join(__dirname, 'battery_events.json');
+  }
+}
+
+function batteryThresholdEventsFilePath() {
+  try {
+    return path.join(app.getPath('userData'), 'battery_threshold_events.json');
+  } catch (_) {
+    return path.join(__dirname, 'battery_threshold_events.json');
+  }
+}
+
+function batterySwitchEventsFilePath() {
+  try {
+    return path.join(app.getPath('userData'), 'battery_switch_events.json');
+  } catch (_) {
+    return path.join(__dirname, 'battery_switch_events.json');
+  }
+}
+
+function trimBatteryHistory(nowMs = Date.now()) {
+  const cutoff = nowMs - BATTERY_RETENTION_MS;
+  batteryHistory = batteryHistory.filter(p => p && Number.isFinite(p.ts) && p.ts >= cutoff);
+  if (batteryHistory.length > BATTERY_MAX_POINTS) {
+    batteryHistory = batteryHistory.slice(-BATTERY_MAX_POINTS);
+  }
+}
+
+function trimThresholdHistory(nowMs = Date.now()) {
+  const cutoff = nowMs - BATTERY_RETENTION_MS;
+  const sorted = thresholdHistory
+    .filter(p => p && Number.isFinite(p.ts))
+    .sort((a, b) => a.ts - b.ts);
+  const firstInWindow = sorted.findIndex(p => p.ts >= cutoff);
+  if (firstInWindow <= 0) {
+    thresholdHistory = sorted;
+    return;
+  }
+  thresholdHistory = sorted.slice(firstInWindow - 1);
+}
+
+function trimSwitchStateHistory(nowMs = Date.now()) {
+  const cutoff = nowMs - BATTERY_RETENTION_MS;
+  const sorted = switchStateHistory
+    .filter(p => p && Number.isFinite(p.ts) && (p.on === 0 || p.on === 1))
+    .sort((a, b) => a.ts - b.ts);
+  const firstInWindow = sorted.findIndex(p => p.ts >= cutoff);
+  if (firstInWindow <= 0) {
+    switchStateHistory = sorted;
+    return;
+  }
+  switchStateHistory = sorted.slice(firstInWindow - 1);
+}
+
+function writeJsonFileSafe(filePath, value) {
+  try {
+    fs.writeFileSync(filePath, JSON.stringify(value), 'utf8');
+  } catch (err) {
+    console.warn('[DESKTOP] Failed to write', filePath, err && err.message ? err.message : err);
+  }
+}
+
+function loadBatteryPersistence() {
+  try {
+    const raw = fs.readFileSync(batteryHistoryFilePath(), 'utf8');
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      batteryHistory = parsed
+        .map(p => ({ ts: Number(p.ts), battery: Number(p.battery) }))
+        .filter(p => Number.isFinite(p.ts) && Number.isFinite(p.battery));
+    }
+  } catch (_) {}
+  try {
+    const raw = fs.readFileSync(batteryThresholdEventsFilePath(), 'utf8');
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      thresholdHistory = parsed
+        .map(p => ({
+          ts: Number(p.ts),
+          thresholdOnPct: Number(p.thresholdOnPct),
+          thresholdOffPct: Number(p.thresholdOffPct)
+        }))
+        .filter(p => Number.isFinite(p.ts) && Number.isFinite(p.thresholdOnPct) && Number.isFinite(p.thresholdOffPct));
+    }
+  } catch (_) {}
+  try {
+    const raw = fs.readFileSync(batterySwitchEventsFilePath(), 'utf8');
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      switchStateHistory = parsed
+        .map(p => ({ ts: Number(p.ts), on: Number(p.on) ? 1 : 0 }))
+        .filter(p => Number.isFinite(p.ts));
+    }
+  } catch (_) {}
+  trimBatteryHistory();
+  trimThresholdHistory();
+  trimSwitchStateHistory();
+}
+
+function persistBatteryHistory() {
+  trimBatteryHistory();
+  writeJsonFileSafe(batteryHistoryFilePath(), batteryHistory);
+}
+
+function persistThresholdHistory() {
+  trimThresholdHistory();
+  writeJsonFileSafe(batteryThresholdEventsFilePath(), thresholdHistory);
+}
+
+function persistSwitchStateHistory() {
+  trimSwitchStateHistory();
+  writeJsonFileSafe(batterySwitchEventsFilePath(), switchStateHistory);
+}
+
+function clampPct(value, fallback) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(0, Math.min(100, Math.round(n)));
+}
+
+function getBatterySettingsFromState() {
+  const fallback = { enabled: false, switchIp: '', thresholdOnPct: 40, thresholdOffPct: 85 };
+  try {
+    const raw = systemState['screenClock_state'];
+    if (!raw) return fallback;
+    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    const src = (parsed && typeof parsed === 'object' && parsed.batterySettings && typeof parsed.batterySettings === 'object')
+      ? parsed.batterySettings
+      : {};
+    let thresholdOnPct = clampPct(src.thresholdOnPct, fallback.thresholdOnPct);
+    let thresholdOffPct = clampPct(src.thresholdOffPct, fallback.thresholdOffPct);
+    if (thresholdOnPct >= thresholdOffPct) {
+      thresholdOnPct = Math.max(0, thresholdOffPct - 1);
+    }
+    return {
+      enabled: !!src.enabled,
+      switchIp: String(src.switchIp || '').trim(),
+      thresholdOnPct,
+      thresholdOffPct
+    };
+  } catch (_) {
+    return fallback;
+  }
+}
+
+function recordThresholdSnapshot(settings, nowMs = Date.now()) {
+  if (!settings) return;
+  const next = {
+    ts: nowMs,
+    thresholdOnPct: clampPct(settings.thresholdOnPct, 40),
+    thresholdOffPct: clampPct(settings.thresholdOffPct, 85)
+  };
+  if (next.thresholdOnPct >= next.thresholdOffPct) {
+    next.thresholdOnPct = Math.max(0, next.thresholdOffPct - 1);
+  }
+  const prev = thresholdHistory[thresholdHistory.length - 1];
+  if (prev && prev.thresholdOnPct === next.thresholdOnPct && prev.thresholdOffPct === next.thresholdOffPct) {
+    return;
+  }
+  thresholdHistory.push(next);
+  trimThresholdHistory(nowMs);
+  persistThresholdHistory();
+}
+
+function sampleSelfBattery(nowMs = Date.now()) {
+  const level = getSelfBattery();
+  if (!Number.isFinite(level) || level < 0) return;
+  const bucketMs = Math.floor(nowMs / BATTERY_BUCKET_MS) * BATTERY_BUCKET_MS;
+  if (bucketMs === lastBatterySampleBucketMs) return;
+  lastBatterySampleBucketMs = bucketMs;
+  batteryHistory.push({ ts: bucketMs, battery: clampPct(level, 0) });
+  trimBatteryHistory(nowMs);
+  persistBatteryHistory();
+}
+
+function normalizeSwitchHost(input) {
+  const raw = String(input || '').trim();
+  if (!raw) return '';
+  try {
+    if (raw.startsWith('http://') || raw.startsWith('https://')) {
+      const u = new URL(raw);
+      return u.host;
+    }
+  } catch (_) {}
+  return raw.replace(/^https?:\/\//, '').replace(/\/$/, '');
+}
+
+function tasmotaCommand(hostInput, command) {
+  return new Promise((resolve, reject) => {
+    const host = normalizeSwitchHost(hostInput);
+    if (!host) {
+      reject(new Error('Missing switch host'));
+      return;
+    }
+    const options = {
+      host,
+      path: `/cm?cmnd=${encodeURIComponent(command)}`,
+      method: 'GET',
+      timeout: 4000
+    };
+    const req = http.request(options, (resp) => {
+      let body = '';
+      resp.setEncoding('utf8');
+      resp.on('data', (chunk) => { body += chunk; });
+      resp.on('end', () => {
+        if (resp.statusCode && resp.statusCode >= 400) {
+          reject(new Error(`Tasmota HTTP ${resp.statusCode}`));
+          return;
+        }
+        try {
+          const parsed = JSON.parse(body || '{}');
+          resolve(parsed);
+        } catch (_) {
+          resolve({ raw: body });
+        }
+      });
+    });
+    req.on('timeout', () => {
+      req.destroy(new Error('Tasmota timeout'));
+    });
+    req.on('error', reject);
+    req.end();
+  });
+}
+
+function normalizePowerPayload(payload) {
+  const pick = payload && (payload.POWER ?? payload.Power ?? payload.power);
+  if (typeof pick === 'string') {
+    const up = pick.toUpperCase();
+    if (up === 'ON' || up === 'OFF') return up;
+  }
+  if (pick === 1 || pick === true) return 'ON';
+  if (pick === 0 || pick === false) return 'OFF';
+  return null;
+}
+
+function recordSwitchState(power, nowMs = Date.now()) {
+  const on = String(power || '').toUpperCase() === 'ON' ? 1 : 0;
+  const prev = switchStateHistory[switchStateHistory.length - 1];
+  if (prev && prev.on === on) return;
+  switchStateHistory.push({ ts: nowMs, on });
+  trimSwitchStateHistory(nowMs);
+  persistSwitchStateHistory();
+}
+
+async function evaluateBatteryAutomation() {
+  const settings = getBatterySettingsFromState();
+  recordThresholdSnapshot(settings);
+  sampleSelfBattery();
+  if (!settings.enabled || !settings.switchIp) return;
+  const battery = getSelfBattery();
+  if (!Number.isFinite(battery) || battery < 0) return;
+
+  let desiredAction = '';
+  if (battery >= settings.thresholdOffPct) desiredAction = 'off';
+  else if (battery <= settings.thresholdOnPct) desiredAction = 'on';
+  if (!desiredAction) return;
+
+  const now = Date.now();
+  if (desiredAction === lastAutomationAction && (now - lastAutomationActionAt) < AUTOMATION_MIN_COMMAND_INTERVAL_MS) {
+    return;
+  }
+
+  try {
+    const raw = await tasmotaCommand(settings.switchIp, desiredAction === 'on' ? 'Power On' : 'Power Off');
+    const power = normalizePowerPayload(raw) || (desiredAction === 'on' ? 'ON' : 'OFF');
+    recordSwitchState(power);
+    lastAutomationAction = desiredAction;
+    lastAutomationActionAt = now;
+  } catch (err) {
+    console.warn('[DESKTOP] Battery automation command failed:', err && err.message ? err.message : err);
+  }
+}
+
+function buildBatterySeries(bucketZeroMs, bucketCount, bucketMs) {
+  const sorted = batteryHistory.slice().sort((a, b) => a.ts - b.ts);
+  const out = new Array(bucketCount).fill(null);
+  if (!sorted.length) return out;
+  let idx = 0;
+  let last = null;
+  while (idx < sorted.length && sorted[idx].ts < bucketZeroMs) {
+    last = sorted[idx].battery;
+    idx++;
+  }
+  for (let i = 0; i < bucketCount; i++) {
+    const t = bucketZeroMs + i * bucketMs;
+    while (idx < sorted.length && sorted[idx].ts <= t) {
+      last = sorted[idx].battery;
+      idx++;
+    }
+    out[i] = Number.isFinite(last) ? last : null;
+  }
+  return out;
+}
+
+function buildThresholdSeries(bucketZeroMs, bucketCount, bucketMs, field, fallback) {
+  const sorted = thresholdHistory.slice().sort((a, b) => a.ts - b.ts);
+  const out = new Array(bucketCount).fill(fallback);
+  let idx = 0;
+  let last = fallback;
+  while (idx < sorted.length && sorted[idx].ts < bucketZeroMs) {
+    const v = Number(sorted[idx][field]);
+    if (Number.isFinite(v)) last = v;
+    idx++;
+  }
+  for (let i = 0; i < bucketCount; i++) {
+    const t = bucketZeroMs + i * bucketMs;
+    while (idx < sorted.length && sorted[idx].ts <= t) {
+      const v = Number(sorted[idx][field]);
+      if (Number.isFinite(v)) last = v;
+      idx++;
+    }
+    out[i] = last;
+  }
+  return out;
+}
+
+function buildSwitchSeries(bucketZeroMs, bucketCount, bucketMs) {
+  const sorted = switchStateHistory.slice().sort((a, b) => a.ts - b.ts);
+  const out = new Array(bucketCount).fill(0);
+  let idx = 0;
+  let last = 0;
+  while (idx < sorted.length && sorted[idx].ts < bucketZeroMs) {
+    last = sorted[idx].on ? 1 : 0;
+    idx++;
+  }
+  for (let i = 0; i < bucketCount; i++) {
+    const t = bucketZeroMs + i * bucketMs;
+    while (idx < sorted.length && sorted[idx].ts <= t) {
+      last = sorted[idx].on ? 1 : 0;
+      idx++;
+    }
+    out[i] = last;
+  }
+  return out;
+}
+
+loadBatteryPersistence();
+sampleSelfBattery();
+
 function trimActivityLog() {
   const cutoff = Date.now() - 7 * 24 * 3600 * 1000;
   const firstKeep = activityLog.findIndex(e => e.timestampMs > cutoff);
@@ -166,6 +523,9 @@ expressApp.post('/api/state', (req, res) => {
       lastNtpSyncTime = 0;
       lastP2pSyncTime = 0;
     }
+    if (key === 'screenClock_state') {
+      recordThresholdSnapshot(getBatterySettingsFromState());
+    }
   }
   res.json({ success: true });
 });
@@ -232,6 +592,54 @@ expressApp.post('/api/sleep', (req, res) => {
   res.json({ ok: true });
 });
 
+expressApp.get('/api/battery-switch/state', async (req, res) => {
+  const host = String(req.query.ip || '').trim();
+  if (!host) {
+    res.status(400).json({ ok: false, error: 'Missing ip query parameter' });
+    return;
+  }
+  try {
+    const raw = await tasmotaCommand(host, 'Power');
+    const power = normalizePowerPayload(raw);
+    if (power) recordSwitchState(power);
+    res.json({ ok: true, power, raw });
+  } catch (err) {
+    res.status(502).json({ ok: false, error: err && err.message ? err.message : 'Switch query failed' });
+  }
+});
+
+expressApp.post('/api/battery-switch/on', async (req, res) => {
+  const host = String(req.body && req.body.ip ? req.body.ip : '').trim();
+  if (!host) {
+    res.status(400).json({ ok: false, error: 'Missing ip in request body' });
+    return;
+  }
+  try {
+    const raw = await tasmotaCommand(host, 'Power On');
+    const power = normalizePowerPayload(raw) || 'ON';
+    recordSwitchState(power);
+    res.json({ ok: true, power, raw });
+  } catch (err) {
+    res.status(502).json({ ok: false, error: err && err.message ? err.message : 'Switch ON failed' });
+  }
+});
+
+expressApp.post('/api/battery-switch/off', async (req, res) => {
+  const host = String(req.body && req.body.ip ? req.body.ip : '').trim();
+  if (!host) {
+    res.status(400).json({ ok: false, error: 'Missing ip in request body' });
+    return;
+  }
+  try {
+    const raw = await tasmotaCommand(host, 'Power Off');
+    const power = normalizePowerPayload(raw) || 'OFF';
+    recordSwitchState(power);
+    res.json({ ok: true, power, raw });
+  } catch (err) {
+    res.status(502).json({ ok: false, error: err && err.message ? err.message : 'Switch OFF failed' });
+  }
+});
+
 /**
  * GET /api/info
  *
@@ -259,24 +667,24 @@ expressApp.post('/api/sleep', (req, res) => {
 expressApp.get('/api/info', (req, res) => {
   res.set('Cache-Control', 'no-store');
   const now = Date.now();
-  const bucketMs = 3_600_000;
-  const bucketCount = 7 * 24;
+  const bucketMs = BATTERY_BUCKET_MS;
+  const bucketCount = BATTERY_MAX_POINTS;
   const bucketZero = now - (bucketCount - 1) * bucketMs;
-  const appActiveRaw = [];
-  const screenAwakeRaw = [];
+  const appActive = [];
+  const screenAwake = [];
   for (let i = 0; i < bucketCount; i++) {
     const bs = bucketZero + i * bucketMs;
     const be = bs + bucketMs;
-    appActiveRaw.push(SERVER_START_MS < be ? (be - Math.max(SERVER_START_MS, bs)) / bucketMs : 0);
-    screenAwakeRaw.push(computeDesktopAwakeFraction(bs, be));
+    appActive.push(SERVER_START_MS < be ? (be - Math.max(SERVER_START_MS, bs)) / bucketMs : 0);
+    screenAwake.push(computeDesktopAwakeFraction(bs, be));
   }
-  // Trim leading all-zero buckets, keep one zero before first active bucket
-  const minActive = 1 / 60; // at least 1 minute in an hour to count as non-zero
-  const firstActive = appActiveRaw.findIndex((v, i) => v > minActive || screenAwakeRaw[i] > minActive);
-  const trimFrom = Math.max(0, (firstActive === -1 ? 0 : firstActive) - 1);
-  const appActive = appActiveRaw.slice(trimFrom);
-  const screenAwake = screenAwakeRaw.slice(trimFrom);
-  const trimmedBucketZero = bucketZero + trimFrom * bucketMs;
+  sampleSelfBattery(now);
+  const batterySettings = getBatterySettingsFromState();
+  recordThresholdSnapshot(batterySettings, now);
+  const battery = buildBatterySeries(bucketZero, bucketCount, bucketMs);
+  const thresholdOn = buildThresholdSeries(bucketZero, bucketCount, bucketMs, 'thresholdOnPct', batterySettings.thresholdOnPct);
+  const thresholdOff = buildThresholdSeries(bucketZero, bucketCount, bucketMs, 'thresholdOffPct', batterySettings.thresholdOffPct);
+  const switchOn = buildSwitchSeries(bucketZero, bucketCount, bucketMs);
   res.json({
     attrs: [
       { label: 'Brand / Model', value: `${os.type()}  /  ${os.hostname()}` },
@@ -289,8 +697,21 @@ expressApp.get('/api/info', (req, res) => {
     ],
     serverStartMs: SERVER_START_MS,
     nowMs: now,
-    chart: { bucketMs, bucketZeroMs: trimmedBucketZero, appActive, screenAwake,
-      nowAppActive: true, nowScreenAwake: activityLog[activityLog.length - 1]?.isAwake ?? true }
+    chart: {
+      bucketMs,
+      bucketZeroMs: bucketZero,
+      appActive,
+      screenAwake,
+      battery,
+      thresholdOn,
+      thresholdOff,
+      switchOn,
+      nowBattery: getSelfBattery(),
+      nowThresholdOn: batterySettings.thresholdOnPct,
+      nowThresholdOff: batterySettings.thresholdOffPct,
+      nowAppActive: true,
+      nowScreenAwake: activityLog[activityLog.length - 1]?.isAwake ?? true
+    }
   });
 });
 
@@ -424,6 +845,16 @@ setInterval(() => {
     console.error('[DESKTOP] UDP broadcast failure:', err);
   }
 }, 5000);
+
+setInterval(() => {
+  sampleSelfBattery();
+}, BATTERY_SAMPLE_INTERVAL_MS);
+
+setInterval(() => {
+  evaluateBatteryAutomation().catch((err) => {
+    console.warn('[DESKTOP] Battery automation loop error:', err && err.message ? err.message : err);
+  });
+}, BATTERY_SAMPLE_INTERVAL_MS);
 
 // ---------------- High-precision Synchronization System ----------------
 

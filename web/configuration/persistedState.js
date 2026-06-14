@@ -33,7 +33,13 @@ const DEFAULT_STATE = {
         weekday: true, day: true, month: true, year: true,
         hour: true, minute: true, seconds: true, millis: false
     },
-    millisDecimals: 3
+    millisDecimals: 3,
+    batterySettings: {
+        enabled: false,
+        switchIp: "",
+        thresholdOffPct: 85,
+        thresholdOnPct: 40
+    }
 };
 
 function getDefaultBuiltinProfile() {
@@ -70,6 +76,30 @@ function normalizeWeight(value, fallback) {
     const n = Number(value);
     if (!Number.isFinite(n)) return fallback;
     return Math.min(MAX_WEIGHT, Math.max(MIN_WEIGHT, n));
+}
+
+function clampPercent(value, fallback) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return fallback;
+    return Math.max(0, Math.min(100, Math.round(n)));
+}
+
+function normalizeBatterySettings(value) {
+    const src = (value && typeof value === "object") ? value : {};
+    const fallback = DEFAULT_STATE.batterySettings;
+
+    let thresholdOffPct = clampPercent(src.thresholdOffPct, fallback.thresholdOffPct);
+    let thresholdOnPct = clampPercent(src.thresholdOnPct, fallback.thresholdOnPct);
+    if (thresholdOnPct >= thresholdOffPct) {
+        thresholdOnPct = Math.max(0, thresholdOffPct - 1);
+    }
+
+    return {
+        enabled: !!src.enabled,
+        switchIp: String(src.switchIp || "").trim(),
+        thresholdOffPct,
+        thresholdOnPct
+    };
 }
 
 function normalizeSizingState(inputState) {
@@ -149,6 +179,15 @@ function normalizeSizingState(inputState) {
 
     const _msDec = Number(source.millisDecimals);
     next.millisDecimals = Number.isFinite(_msDec) && _msDec >= 1 && _msDec <= 3 ? Math.round(_msDec) : 3;
+
+    const batterySettingsSource = source.batterySettings || {
+        enabled: source.batterySettingsEnabled,
+        switchName: source.batterySwitchName,
+        switchIp: source.batterySwitchIp,
+        thresholdOffPct: source.batteryThresholdOffPct,
+        thresholdOnPct: source.batteryThresholdOnPct
+    };
+    next.batterySettings = normalizeBatterySettings(batterySettingsSource);
 
     return next;
 }

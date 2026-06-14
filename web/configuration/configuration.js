@@ -159,6 +159,17 @@ function initConfiguration() {
         padHours:          document.getElementById("padHours"),
         recenterLeadingOne:document.getElementById("recenterLeadingOne"),
 
+        batterySettingsEnabled: document.getElementById("batterySettingsEnabled"),
+        batterySwitchIp:        document.getElementById("batterySwitchIp"),
+        batteryThresholdOn:     document.getElementById("batteryThresholdOn"),
+        batteryThresholdOff:    document.getElementById("batteryThresholdOff"),
+        batteryThresholdOnValue: document.getElementById("batteryThresholdOnValue"),
+        batteryThresholdOffValue: document.getElementById("batteryThresholdOffValue"),
+        batteryThresholdControls: document.getElementById("batteryThresholdControls"),
+        batterySwitchRefreshBtn: document.getElementById("batterySwitchRefreshBtn"),
+        batterySwitchToggleBtn: document.getElementById("batterySwitchToggleBtn"),
+        batteryHistoryCanvas: document.getElementById("batteryHistoryCanvas"),
+
         profileName:       document.getElementById("profileName"),
         profileSelect:     document.getElementById("profileSelect"),
         saveProfileBtn:      document.getElementById("saveProfileBtn"),
@@ -191,6 +202,296 @@ function initConfiguration() {
             const sc = state.container && state.container.scale != null ? state.container.scale : 4;
             els.containerScaleValue.textContent = sc + "px";
         }
+        if (els.batteryThresholdOffValue) {
+            const bs = state.batterySettings || {};
+            els.batteryThresholdOffValue.textContent = `${bs.thresholdOffPct != null ? bs.thresholdOffPct : 85}%`;
+        }
+        if (els.batteryThresholdOnValue) {
+            const bs = state.batterySettings || {};
+            els.batteryThresholdOnValue.textContent = `${bs.thresholdOnPct != null ? bs.thresholdOnPct : 40}%`;
+        }
+    }
+
+    let batterySwitchPower = null;
+
+    function clampBatteryThreshold(value, fallback) {
+        const n = Number(value);
+        if (!Number.isFinite(n)) return fallback;
+        return Math.max(0, Math.min(100, Math.round(n)));
+    }
+
+    function normalizeBatterySettingsState(changedBy) {
+        if (!state.batterySettings || typeof state.batterySettings !== "object") {
+            state.batterySettings = {
+                enabled: false,
+                switchIp: "",
+                thresholdOffPct: 85,
+                thresholdOnPct: 40
+            };
+        }
+
+        const bs = state.batterySettings;
+        bs.enabled = !!bs.enabled;
+        bs.switchIp = String(bs.switchIp || "").trim();
+        bs.thresholdOffPct = clampBatteryThreshold(bs.thresholdOffPct, 85);
+        bs.thresholdOnPct = clampBatteryThreshold(bs.thresholdOnPct, 40);
+
+        if (bs.thresholdOnPct >= bs.thresholdOffPct) {
+            if (changedBy === "thresholdOn") {
+                bs.thresholdOffPct = Math.min(100, bs.thresholdOnPct + 1);
+            } else {
+                bs.thresholdOnPct = Math.max(0, bs.thresholdOffPct - 1);
+            }
+        }
+    }
+
+    function syncBatteryUi() {
+        normalizeBatterySettingsState();
+        const bs = state.batterySettings;
+        const isEnabled = !!bs.enabled;
+
+        if (els.batterySettingsEnabled) {
+            els.batterySettingsEnabled.checked = isEnabled;
+        }
+        if (els.batterySwitchIp) {
+            els.batterySwitchIp.value = bs.switchIp || "";
+            els.batterySwitchIp.disabled = !isEnabled;
+        }
+        if (els.batteryThresholdOff) {
+            els.batteryThresholdOff.value = bs.thresholdOffPct;
+            els.batteryThresholdOff.disabled = !isEnabled;
+        }
+        if (els.batteryThresholdOn) {
+            els.batteryThresholdOn.value = bs.thresholdOnPct;
+            els.batteryThresholdOn.disabled = !isEnabled;
+        }
+        if (els.batteryThresholdControls) {
+            els.batteryThresholdControls.classList.toggle("is-disabled", !isEnabled);
+        }
+        const switchActionsEnabled = isEnabled && !!(bs.switchIp || "").trim();
+        if (els.batterySwitchRefreshBtn) els.batterySwitchRefreshBtn.disabled = !switchActionsEnabled;
+        if (els.batterySwitchToggleBtn) els.batterySwitchToggleBtn.disabled = !switchActionsEnabled;
+    }
+
+    function setBatterySwitchState(power, note) {
+        const up = typeof power === "string" ? power.toUpperCase() : null;
+        batterySwitchPower = (up === "ON" || up === "OFF") ? up : null;
+        if (!els.batterySwitchToggleBtn) return;
+        const btn = els.batterySwitchToggleBtn;
+        btn.classList.remove("is-on", "is-off", "is-unknown");
+        if (batterySwitchPower === "ON") {
+            btn.classList.add("is-on");
+            btn.textContent = note ? `Switch: ON (${note})` : "Switch: ON";
+            return;
+        }
+        if (batterySwitchPower === "OFF") {
+            btn.classList.add("is-off");
+            btn.textContent = note ? `Switch: OFF (${note})` : "Switch: OFF";
+            return;
+        }
+        btn.classList.add("is-unknown");
+        btn.textContent = note ? `Switch: Unknown (${note})` : "Switch: Unknown";
+    }
+
+    async function batterySwitchRequest(path, options) {
+        const bs = state.batterySettings || {};
+        const ip = String(bs.switchIp || "").trim();
+        if (!ip) throw new Error("No switch IP configured");
+
+        const opts = Object.assign({ method: "GET", headers: {} }, options || {});
+        if (opts.body && typeof opts.body !== "string") {
+            opts.headers["Content-Type"] = "application/json";
+            opts.body = JSON.stringify(opts.body);
+        }
+        const url = path.indexOf("?") >= 0 ? path : `${path}?ip=${encodeURIComponent(ip)}`;
+        const resp = await fetch(url, opts);
+        let payload = {};
+        try {
+            payload = await resp.json();
+        } catch (_) {}
+        if (!resp.ok || payload.ok === false) {
+            throw new Error(payload.error || `Request failed (${resp.status})`);
+        }
+        return payload;
+    }
+
+    async function refreshBatterySwitchState() {
+        try {
+            setBatterySwitchState(null, "Checking");
+            const payload = await batterySwitchRequest("/api/battery-switch/state");
+            setBatterySwitchState(payload.power);
+        } catch (e) {
+            setBatterySwitchState(null, `Error: ${e.message}`);
+        }
+    }
+
+    async function sendBatterySwitchAction(action) {
+        const endpoint = action === "on" ? "/api/battery-switch/on" : "/api/battery-switch/off";
+        const bs = state.batterySettings || {};
+        const ip = String(bs.switchIp || "").trim();
+        if (!ip) {
+            setBatterySwitchState(null, "Missing switch IP");
+            return;
+        }
+        try {
+            setBatterySwitchState(batterySwitchPower, `Sending ${action.toUpperCase()}`);
+            await batterySwitchRequest(endpoint, { method: "POST", body: { ip } });
+            await refreshBatterySwitchState();
+        } catch (e) {
+            setBatterySwitchState(null, `Error: ${e.message}`);
+        }
+    }
+
+    async function toggleBatterySwitchState() {
+        if (batterySwitchPower == null) {
+            await refreshBatterySwitchState();
+        }
+        const nextAction = batterySwitchPower === "ON" ? "off" : "on";
+        await sendBatterySwitchAction(nextAction);
+    }
+
+    function drawBatteryHistoryGraph(chart) {
+        const canvas = els.batteryHistoryCanvas;
+        if (!canvas) return;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return;
+
+        const parentW = canvas.parentElement && canvas.parentElement.clientWidth ? canvas.parentElement.clientWidth : 320;
+        const width = Math.max(280, parentW - 4);
+        const height = 140;
+        if (canvas.width !== width || canvas.height !== height) {
+            canvas.width = width;
+            canvas.height = height;
+        }
+
+        ctx.clearRect(0, 0, width, height);
+        ctx.fillStyle = "#0c1017";
+        ctx.fillRect(0, 0, width, height);
+
+        const padL = 30;
+        const padR = 30;
+        const padT = 8;
+        const padB = 20;
+        const plotW = width - padL - padR;
+        const plotH = height - padT - padB;
+
+        ctx.strokeStyle = "#1d2a3a";
+        ctx.lineWidth = 1;
+        for (let pct = 0; pct <= 100; pct += 25) {
+            const y = padT + ((100 - pct) / 100) * plotH;
+            ctx.beginPath();
+            ctx.moveTo(padL, y);
+            ctx.lineTo(padL + plotW, y);
+            ctx.stroke();
+            ctx.fillStyle = "#7f93a7";
+            ctx.font = "10px ui-monospace, Menlo, Consolas, monospace";
+            ctx.textAlign = "right";
+            ctx.fillText(`${pct}%`, padL - 4, y + 3);
+        }
+
+        const battery = Array.isArray(chart && chart.battery) ? chart.battery : [];
+        const thresholdOn = Array.isArray(chart && chart.thresholdOn) ? chart.thresholdOn : [];
+        const thresholdOff = Array.isArray(chart && chart.thresholdOff) ? chart.thresholdOff : [];
+        const switchOn = Array.isArray(chart && chart.switchOn) ? chart.switchOn : [];
+        const n = Math.max(2, battery.length, thresholdOn.length, thresholdOff.length, switchOn.length);
+        const toX = (i) => padL + (i / (n - 1)) * plotW;
+        const toY = (v) => padT + ((100 - Math.max(0, Math.min(100, Number(v)))) / 100) * plotH;
+
+        const bucketZeroMs = Number(chart && chart.bucketZeroMs) || (Date.now() - (n - 1) * 10 * 60 * 1000);
+        const bucketMs = Number(chart && chart.bucketMs) || (10 * 60 * 1000);
+
+        ctx.save();
+        ctx.strokeStyle = "#1e2e42";
+        ctx.fillStyle = "#8ca1b7";
+        ctx.font = "10px ui-monospace, Menlo, Consolas, monospace";
+        for (let i = 0; i <= 7; i++) {
+            const x = padL + (i / 7) * plotW;
+            ctx.beginPath();
+            ctx.moveTo(x, padT);
+            ctx.lineTo(x, padT + plotH);
+            ctx.stroke();
+            if (i === 0 || i === 3 || i === 7) {
+                const ts = bucketZeroMs + (i / 7) * (n - 1) * bucketMs;
+                const d = new Date(ts);
+                const label = `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
+                ctx.textAlign = i === 0 ? "left" : (i === 7 ? "right" : "center");
+                ctx.fillText(label, x, height - 6);
+            }
+        }
+        ctx.restore();
+
+        if (switchOn.length) {
+            const barH = plotH * 0.10;
+            ctx.save();
+            ctx.fillStyle = "rgba(102, 220, 128, 0.65)";
+            for (let i = 0; i < n; i++) {
+                const on = i < switchOn.length ? Number(switchOn[i]) > 0 : Number(switchOn[switchOn.length - 1]) > 0;
+                if (!on) continue;
+                const x0 = toX(i);
+                const x1 = toX(Math.min(i + 1, n - 1));
+                const w = Math.max(1, x1 - x0);
+                ctx.fillRect(x0, padT + plotH - barH, w, barH);
+            }
+            ctx.restore();
+        }
+
+        const drawStep = (arr, color, dash) => {
+            if (!arr.length) return;
+            ctx.save();
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 1.4;
+            if (dash) ctx.setLineDash(dash);
+            ctx.beginPath();
+            let prevY = toY(arr[0]);
+            ctx.moveTo(toX(0), prevY);
+            for (let i = 1; i < n; i++) {
+                const val = i < arr.length ? arr[i] : arr[arr.length - 1];
+                const y = toY(val);
+                const x = toX(i);
+                ctx.lineTo(x, prevY);
+                if (y !== prevY) {
+                    ctx.lineTo(x, y);
+                    prevY = y;
+                }
+            }
+            ctx.stroke();
+            ctx.restore();
+        };
+
+        drawStep(thresholdOff, "#ff7e67", [6, 4]);
+        drawStep(thresholdOn, "#4ecdc4", [3, 3]);
+
+        if (battery.length) {
+            ctx.save();
+            ctx.strokeStyle = "#f2d66b";
+            ctx.lineWidth = 1.8;
+            ctx.beginPath();
+            let started = false;
+            for (let i = 0; i < n; i++) {
+                const v = i < battery.length ? battery[i] : null;
+                if (v == null || !Number.isFinite(Number(v))) continue;
+                const x = toX(i);
+                const y = toY(v);
+                if (!started) {
+                    ctx.moveTo(x, y);
+                    started = true;
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            }
+            if (started) ctx.stroke();
+            ctx.restore();
+        }
+
+    }
+
+    async function refreshBatteryGraphFromInfo() {
+        try {
+            const r = await fetch("/api/info", { cache: "no-store" });
+            if (!r.ok) return;
+            const payload = await r.json();
+            drawBatteryHistoryGraph(payload && payload.chart ? payload.chart : {});
+        } catch (_) {}
     }
 
     function syncMultiFontUi() {
@@ -455,6 +756,9 @@ function initConfiguration() {
         if (els.padHours) els.padHours.checked = state.padHours === true;
         if (els.recenterLeadingOne) els.recenterLeadingOne.checked = state.recenterLeadingOne === true;
 
+        normalizeBatterySettingsState();
+        syncBatteryUi();
+
         // Font selects: set whenever fonts are already populated (e.g. profile switch).
         // On first load populateFontSelects() handles this; setting here is harmless
         // if options aren't ready yet (no matching option → value stays unchanged).
@@ -467,7 +771,7 @@ function initConfiguration() {
         updateBadgesFromState();
     }
 
-    function readFormIntoState() {
+    function readFormIntoState(changedBy) {
         state.multiFont = els.multiFont ? els.multiFont.checked : true;
         state.numericScale  = Number(els.numericScale.value);
         state.alphaScale    = Number(els.alphaScale.value);
@@ -499,6 +803,16 @@ function initConfiguration() {
         if (els.glowEnabled) state.glowEnabled = els.glowEnabled.checked;
         if (els.glowAmount) state.glowAmount = Math.min(20, Math.max(1, Number(els.glowAmount.value) || 5));
         if (els.glowIntensity) state.glowIntensity = Math.min(20, Math.max(1, Number(els.glowIntensity.value) || 3));
+
+        const prevEnabled = !!(state.batterySettings && state.batterySettings.enabled);
+        state.batterySettings = {
+            enabled: els.batterySettingsEnabled ? !!els.batterySettingsEnabled.checked : prevEnabled,
+            switchIp: els.batterySwitchIp ? (els.batterySwitchIp.value || "") : "",
+            thresholdOffPct: els.batteryThresholdOff ? Number(els.batteryThresholdOff.value) : 85,
+            thresholdOnPct: els.batteryThresholdOn ? Number(els.batteryThresholdOn.value) : 40
+        };
+        normalizeBatterySettingsState(changedBy);
+        syncBatteryUi();
 
         state.visibility = {
             weekday:  els.visWeekday  ? els.visWeekday.checked  : true,
@@ -732,7 +1046,11 @@ function initConfiguration() {
             els.ntpServer,
             els.sleepTimeoutSelect,
             els.padHours,
-            els.recenterLeadingOne
+            els.recenterLeadingOne,
+            els.batterySettingsEnabled,
+            els.batterySwitchIp,
+            els.batteryThresholdOn,
+            els.batteryThresholdOff
         ].filter(Boolean);
 
         function attachSelectArrowKeys(selectEl) {
@@ -754,11 +1072,25 @@ function initConfiguration() {
 
         inputs.forEach(input => {
             input.addEventListener("input", () => {
-                readFormIntoState();
+                let changedBy = null;
+                if (input === els.batteryThresholdOn) changedBy = "thresholdOn";
+                if (input === els.batteryThresholdOff) changedBy = "thresholdOff";
+                readFormIntoState(changedBy);
                 applyState();
                 saveCurrentState();
             });
         });
+
+        if (els.batterySwitchRefreshBtn) {
+            els.batterySwitchRefreshBtn.addEventListener("click", () => {
+                refreshBatterySwitchState();
+            });
+        }
+        if (els.batterySwitchToggleBtn) {
+            els.batterySwitchToggleBtn.addEventListener("click", () => {
+                toggleBatterySwitchState();
+            });
+        }
 
         if (els.showDebug) {
             els.showDebug.addEventListener("change", () => {
@@ -1080,6 +1412,15 @@ function initConfiguration() {
     populateProfileSelect();
     applyState();
     saveCurrentState();
+
+    refreshBatteryGraphFromInfo();
+    refreshBatterySwitchState();
+    setInterval(() => {
+        refreshBatteryGraphFromInfo();
+    }, 60 * 1000);
+    setInterval(() => {
+        refreshBatterySwitchState();
+    }, 60 * 1000);
 
     // Expose a single entry point that re-reads localStorage (e.g. after a
     // remote control client pushed a new state) and refreshes both the
