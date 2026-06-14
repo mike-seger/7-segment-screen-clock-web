@@ -2,3 +2,4 @@
 node_modules
 /tmp
 /config
+build_info.json
