@@ -281,6 +281,8 @@ expressApp.get('/api/info', (req, res) => {
     attrs: [
       { label: 'Brand / Model', value: `${os.type()}  /  ${os.hostname()}` },
       { label: 'OS', value: `${process.platform} ${os.release()}` },
+      { label: 'IP Address', value: HOST_IP || '-' },
+      { label: 'MAC Address', value: HOST_MAC || '-' },
       { label: 'Build', value: fmtBuildTime(BUILD_TIME) },
       { label: 'Git commit', value: GIT_COMMIT },
       { label: 'Uptime', value: fmtUptime(Math.round(process.uptime() * 1000)) }

@@ -67,8 +67,27 @@
       var parsed = new URL(url);
       return (parsed.hostname || "").trim();
     } catch (_) {
-      return "";
+      // Fallback for schemeless hosts like "192.168.1.20:8765".
+      var raw = String(url).trim();
+      if (!raw) return "";
+      var noScheme = raw.replace(/^[a-z]+:\/\//i, "");
+      var hostPart = noScheme.split("/")[0] || "";
+      var host = hostPart.replace(/^\[/, "").replace(/\]$/, "").split(":")[0] || "";
+      return host.trim();
     }
+  }
+
+  function getAttrValue(attrs, label) {
+    if (!attrs || !attrs.length) return "";
+    for (var i = 0; i < attrs.length; i++) {
+      var row = attrs[i];
+      if (!row || typeof row !== "object") continue;
+      if (String(row.label || "").toLowerCase() === String(label || "").toLowerCase()) {
+        var v = row.value;
+        return typeof v === "string" ? v.trim() : (v == null ? "" : String(v).trim());
+      }
+    }
+    return "";
   }
 
   function normalizeMacAddress(raw) {
@@ -90,6 +109,201 @@
     var mac = normalizeMacAddress(clk && clk.macAddress ? clk.macAddress : "");
     if (mac) return mac;
     return normalizeMacAddress(clk && clk.mac ? clk.mac : "");
+  }
+
+  var IP_CACHE_KEY = "screenClock_ipCacheByAndroidId";
+  var URL_ANDROID_ID_KEY = "screenClock_androidIdByClockUrl";
+  var INFO_CACHE_KEY = "screenClock_infoCacheByIp";
+  var CACHE_STALE_MS = 10 * 60 * 1000;
+
+  function loadJsonCache(key) {
+    try {
+      var raw = localStorage.getItem(key);
+      if (!raw) return {};
+      var parsed = JSON.parse(raw);
+      return parsed && typeof parsed === "object" ? parsed : {};
+    } catch (_) {
+      return {};
+    }
+  }
+
+  function saveJsonCache(key, value) {
+    try { localStorage.setItem(key, JSON.stringify(value || {})); } catch (_) {}
+  }
+
+  var ipCacheByAndroidId = loadJsonCache(IP_CACHE_KEY);
+  var androidIdByClockUrl = loadJsonCache(URL_ANDROID_ID_KEY);
+  var infoCacheByIp = loadJsonCache(INFO_CACHE_KEY);
+
+  function normalizeAndroidId(raw) {
+    if (typeof raw !== "string") return "";
+    return raw.trim().toLowerCase();
+  }
+
+  function getDiscoveryIpAddress(clk) {
+    if (clk && typeof clk.ipAddress === "string" && clk.ipAddress.trim()) {
+      return clk.ipAddress.trim();
+    }
+    return "";
+  }
+
+  function cacheAndroidIdForClock(url, androidId) {
+    if (!url || !androidId) return;
+    androidIdByClockUrl[url] = androidId;
+    saveJsonCache(URL_ANDROID_ID_KEY, androidIdByClockUrl);
+  }
+
+  function cacheIpForAndroidId(androidId, ip, source) {
+    if (!androidId || !ip) return;
+    ipCacheByAndroidId[androidId] = {
+      ip: ip,
+      updatedAt: Date.now(),
+      source: source || "unknown"
+    };
+    saveJsonCache(IP_CACHE_KEY, ipCacheByAndroidId);
+  }
+
+  function cloneAttrs(attrs) {
+    return (Array.isArray(attrs) ? attrs : []).map(function(a) {
+      return {
+        label: String(a && a.label ? a.label : "").trim(),
+        value: a && a.value != null ? String(a.value) : ""
+      };
+    }).filter(function(a) { return a.label; });
+  }
+
+  function normalizeInfoTimestampMs(info) {
+    var nowMs = info && Number(info.nowMs);
+    if (Number.isFinite(nowMs) && nowMs > 0) return nowMs;
+    return Date.now();
+  }
+
+  function formatBuildLikeTimestamp(ms) {
+    var d = new Date(Number(ms) || Date.now());
+    var pad = function(n) { return n < 10 ? "0" + n : String(n); };
+    return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) + " " + pad(d.getHours()) + ":" + pad(d.getMinutes());
+  }
+
+  function attrsToMap(attrs) {
+    var map = {};
+    cloneAttrs(attrs).forEach(function(a) { map[a.label] = a.value; });
+    return map;
+  }
+
+  function mapToAttrs(map, preferredOrder) {
+    var order = Array.isArray(preferredOrder) ? preferredOrder.slice() : [];
+    Object.keys(map || {}).forEach(function(k) {
+      if (order.indexOf(k) === -1) order.push(k);
+    });
+    return order.map(function(label) {
+      return { label: label, value: map && map[label] != null ? String(map[label]) : "" };
+    });
+  }
+
+  function desktopOsName(value) {
+    return String(value || "").toLowerCase();
+  }
+
+  function isDesktopLikeOs(value) {
+    var osText = desktopOsName(value);
+    return /windows|darwin|macos|linux/.test(osText);
+  }
+
+  function mergeInfoRows(currentInfo, cachedInfo) {
+    var currentAttrs = cloneAttrs(currentInfo && currentInfo.attrs);
+    var cachedAttrs = cloneAttrs(cachedInfo && cachedInfo.attrs);
+    var currentMap = attrsToMap(currentAttrs);
+    var cachedMap = attrsToMap(cachedAttrs);
+    var mergedMap = {};
+    var order = [];
+
+    function addValue(label, value) {
+      if (!label) return;
+      if (order.indexOf(label) === -1) order.push(label);
+      mergedMap[label] = value;
+    }
+
+    currentAttrs.forEach(function(a) {
+      var value = a.value != null ? String(a.value) : "";
+      if (value) {
+        addValue(a.label, value);
+      } else if (cachedMap[a.label]) {
+        addValue(a.label, cachedMap[a.label]);
+      } else {
+        addValue(a.label, "");
+      }
+    });
+
+    cachedAttrs.forEach(function(a) {
+      if (order.indexOf(a.label) !== -1) return;
+      addValue(a.label, a.value != null ? String(a.value) : "");
+    });
+
+    var infoAsOfMs = normalizeInfoTimestampMs(currentInfo) || (cachedInfo && cachedInfo.infoAsOfMs) || Date.now();
+    addValue("Information as of", formatBuildLikeTimestamp(infoAsOfMs));
+
+    var chart = (currentInfo && currentInfo.chart) || (cachedInfo && cachedInfo.chart) || null;
+    var androidId = normalizeAndroidId((currentMap["Android ID"] || cachedMap["Android ID"] || ""));
+    var brandModel = currentMap["Brand / Model"] || cachedMap["Brand / Model"] || "device";
+
+    var merged = {
+      attrs: mapToAttrs(mergedMap, order),
+      chart: chart,
+      infoAsOfMs: infoAsOfMs,
+      androidId: androidId,
+      brandModel: brandModel
+    };
+    return merged;
+  }
+
+  function getCachedInfoForIp(ip) {
+    return ip && infoCacheByIp[ip] ? infoCacheByIp[ip] : null;
+  }
+
+  function storeInfoCacheForIp(ip, info) {
+    if (!ip || !info) return;
+    infoCacheByIp[ip] = {
+      attrs: cloneAttrs(info.attrs),
+      chart: info.chart || null,
+      infoAsOfMs: info.infoAsOfMs || Date.now(),
+      androidId: normalizeAndroidId(info.androidId || ""),
+      brandModel: info.brandModel || "device"
+    };
+    saveJsonCache(INFO_CACHE_KEY, infoCacheByIp);
+  }
+
+  function resolveClockIpForDisplay(clk, info) {
+    var infoAttrs = info && info.attrs ? info.attrs : null;
+    var androidId = normalizeAndroidId(getAttrValue(infoAttrs, "Android ID") || androidIdByClockUrl[clk && clk.url ? clk.url : ""] || "");
+    var discoveryIp = getDiscoveryIpAddress(clk);
+    var parsedIp = parseIpFromUrl(clk && clk.url ? clk.url : "");
+    var infoIp = getAttrValue(infoAttrs, "IP Address");
+
+    if (androidId && clk && clk.url) {
+      cacheAndroidIdForClock(clk.url, androidId);
+    }
+
+    if (androidId && discoveryIp) {
+      cacheIpForAndroidId(androidId, discoveryIp, "discovery");
+      return { ip: discoveryIp, fromCache: false, androidId: androidId };
+    }
+
+    if (androidId && ipCacheByAndroidId[androidId] && ipCacheByAndroidId[androidId].ip) {
+      var cacheEntry = ipCacheByAndroidId[androidId];
+      var age = Date.now() - (Number(cacheEntry.updatedAt) || 0);
+      var suffix = age > CACHE_STALE_MS ? " c" : "";
+      return { ip: cacheEntry.ip + suffix, fromCache: true, androidId: androidId, ageMs: age };
+    }
+
+    if (parsedIp) {
+      return { ip: parsedIp, fromCache: false, androidId: androidId };
+    }
+
+    if (infoIp) {
+      return { ip: infoIp, fromCache: false, androidId: androidId };
+    }
+
+    return { ip: "", fromCache: false, androidId: androidId };
   }
 
   // ---- localStorage hook: forward local writes to the server ----
@@ -700,8 +914,24 @@
           });
         });
 
+        var infoAllBtn = document.createElement("button");
+        infoAllBtn.style.cssText = "flex: 0 0 auto; min-width: 74px; font-size: 10px; font-weight: bold; border-radius: 4px; padding: 4px 10px; border: 1px solid #31c8ff; background: #042235; color: #31c8ff; cursor: pointer; text-transform: uppercase; letter-spacing: 0.04em; transition: background 0.1s, box-shadow 0.1s; box-shadow: 0 0 8px rgba(49,200,255,0.35);";
+        infoAllBtn.textContent = "Info";
+        infoAllBtn.addEventListener("mouseover", function () {
+          infoAllBtn.style.background = "#0a3450";
+          infoAllBtn.style.boxShadow = "0 0 12px rgba(49,200,255,0.55)";
+        });
+        infoAllBtn.addEventListener("mouseout", function () {
+          infoAllBtn.style.background = "#042235";
+          infoAllBtn.style.boxShadow = "0 0 8px rgba(49,200,255,0.35)";
+        });
+        infoAllBtn.addEventListener("click", function () {
+          toggleConsolidatedInfoOverlay(infoAllBtn);
+        });
+
         controlsGroup.appendChild(wakeAllBtn);
         controlsGroup.appendChild(sleepAllBtn);
+        controlsGroup.appendChild(infoAllBtn);
         section.insertBefore(controlsGroup, listContainer);
 
         // Get currently controlled clock URLs from localStorage
@@ -871,16 +1101,6 @@
             actionContainer.appendChild(toggleBtn);
           }
 
-          // Info badge — circled ⓘ shows device details + activity chart
-          var infoBtn = document.createElement("span");
-          infoBtn.textContent = "\u24d8";
-          infoBtn.title = "Device info";
-          infoBtn.style.cssText = "font-size:13px;color:#6699cc;cursor:pointer;padding:0 2px;line-height:20px;opacity:0.75;display:inline-flex;align-items:center;height:20px;box-sizing:border-box;vertical-align:middle;";
-          infoBtn.addEventListener("mouseover", function() { this.style.opacity = "1"; });
-          infoBtn.addEventListener("mouseout", function() { this.style.opacity = "0.75"; });
-          infoBtn.addEventListener("click", function(e) { e.stopPropagation(); fetchAndShowInfo(clk, infoBtn); });
-          actionContainer.appendChild(infoBtn);
-
           row.appendChild(checkbox);
           row.appendChild(radio);
           row.appendChild(nameContainer);
@@ -894,327 +1114,419 @@
       });
   }
 
-  // ---- Device info overlay ----
+  // ---- Consolidated device info overlay ----
 
   var INFO_OVERLAY_ID = "__wvclock_info_overlay__";
-  var infoRefreshTimers = {};
+  var consolidatedInfoRefreshTimer = null;
+  var CONSOLIDATED_INFO_STATE_KEY = "screenClock_consolidatedInfoState";
+  var consolidatedInfoState = loadJsonCache(CONSOLIDATED_INFO_STATE_KEY);
+  if (typeof consolidatedInfoState.localCollapsed !== "boolean") {
+    consolidatedInfoState.localCollapsed = true;
+    saveJsonCache(CONSOLIDATED_INFO_STATE_KEY, consolidatedInfoState);
+  }
 
-  function drawChartOnCanvas(canvas, chart) {
-    if (!chart) return;
-    var appActive  = (chart.appActive  || []).slice();
-    var screenAwake = (chart.screenAwake || []).slice();
-    var n = Math.max(appActive.length, screenAwake.length);
+  function removeInfoOverlay() {
+    var existing = document.getElementById(INFO_OVERLAY_ID);
+    if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
+    if (consolidatedInfoRefreshTimer) {
+      clearInterval(consolidatedInfoRefreshTimer);
+      consolidatedInfoRefreshTimer = null;
+    }
+  }
+
+  function fetchInfoForClock(clk) {
+    var base = clk && clk.url ? clk.url : "";
+    if (!base) return Promise.resolve({ clk: clk, info: null });
+    if (base.charAt(base.length - 1) !== "/") base += "/";
+    return fetch(base + "api/info", { cache: "no-store" })
+      .then(function(r) { return r.ok ? r.json() : null; })
+      .then(function(info) {
+        var attrs = info && Array.isArray(info.attrs) ? info.attrs : [];
+        var androidId = normalizeAndroidId(getAttrValue(attrs, "Android ID"));
+        if (androidId && clk && clk.url) cacheAndroidIdForClock(clk.url, androidId);
+        var resolvedIp = resolveClockIpForDisplay(clk, info).ip;
+        if (resolvedIp && androidId && getDiscoveryIpAddress(clk)) {
+          cacheIpForAndroidId(androidId, getDiscoveryIpAddress(clk), "discovery");
+        }
+        return {
+          clk: clk,
+          info: info,
+          attrs: attrs,
+          androidId: androidId,
+          ipDisplay: resolvedIp,
+          brandModel: getAttrValue(attrs, "Brand / Model") || (clk && clk.name ? clk.name : "device")
+        };
+      })
+      .catch(function() {
+        return {
+          clk: clk,
+          info: null,
+          attrs: [],
+          androidId: normalizeAndroidId(androidIdByClockUrl[clk && clk.url ? clk.url : ""] || ""),
+          ipDisplay: resolveClockIpForDisplay(clk, null).ip,
+          brandModel: clk && clk.name ? clk.name : "device"
+        };
+      });
+  }
+
+  function uniqueAttrLabels(deviceInfos) {
+    var preferred = [
+      "IP Address", "MAC Address", "Brand / Model", "OS", "Resolution (w \u00d7 h)", "Density (DPI)",
+      "Serial", "Android ID", "Build", "Information as of", "Git commit", "Uptime", "App uptime",
+      "Battery temp", "RAM used / total", "Wi-Fi signal"
+    ];
+    var seen = {};
+    var labels = [];
+    preferred.forEach(function(label) { seen[label] = true; labels.push(label); });
+    deviceInfos.forEach(function(d) {
+      (d.attrs || []).forEach(function(a) {
+        var label = String(a && a.label ? a.label : "").trim();
+        if (!label || seen[label]) return;
+        seen[label] = true;
+        labels.push(label);
+      });
+    });
+    return labels;
+  }
+
+  function drawLogicSegment(ctx, data, nowState, color, x0, yTop, w, h) {
+    var n = data.length;
     if (!n) return;
-    // Pad shorter array and replace any null/undefined/NaN with 0
-    while (appActive.length  < n) appActive.push(0);
-    while (screenAwake.length < n) screenAwake.push(0);
-    for (var ni = 0; ni < n; ni++) {
-      if (!(appActive[ni]  > 0)) appActive[ni]  = 0;
-      if (!(screenAwake[ni] > 0)) screenAwake[ni] = 0;
+    var hiY = yTop + 2;
+    var loY = yTop + h - 2;
+    ctx.beginPath();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.4;
+    for (var i = 0; i <= n; i++) {
+      var isHigh = i < n ? (data[i] > 0) : !!nowState;
+      var x = x0 + (i / n) * w;
+      var y = isHigh ? hiY : loY;
+      if (i === 0) {
+        ctx.moveTo(x, y);
+      } else {
+        var prevHigh = (i - 1) < n ? (data[i - 1] > 0) : !!nowState;
+        if (isHigh !== prevHigh) {
+          ctx.lineTo(x, prevHigh ? hiY : loY);
+          ctx.lineTo(x, y);
+        } else {
+          ctx.lineTo(x, y);
+        }
+      }
     }
-    // Ensure at least 2 data points: prepend a synthetic zero 1 h before first bucket
-    var bucketZeroMs = chart.bucketZeroMs || 0;
-    if (n === 1) {
-      appActive.unshift(0); screenAwake.unshift(0);
-      bucketZeroMs -= (chart.bucketMs || 3600000);
-      n = 2;
+    ctx.stroke();
+  }
+
+  function drawConsolidatedCharts(canvas, deviceInfos) {
+    if (!canvas) return;
+    var rows = deviceInfos.filter(function(d) { return d && ((d.info && d.info.chart) || d.chart); });
+    if (!rows.length) return;
+
+    var rowHeight = 58;
+    var paddingX = 12;
+    var gapWidth = 20;
+    var wrapperWidth = 0;
+    if (canvas.parentNode && canvas.parentNode.clientWidth) {
+      wrapperWidth = canvas.parentNode.clientWidth;
     }
-    // Current real state for the rightmost edge
-    var nowAppActive   = chart.nowAppActive   !== undefined ? !!chart.nowAppActive   : appActive[n-1]   > 0;
-    var nowScreenAwake = chart.nowScreenAwake !== undefined ? !!chart.nowScreenAwake : screenAwake[n-1] > 0;
+    var targetWidth = Math.max(640, wrapperWidth || 0) - 2;
+    canvas.width = targetWidth;
+    canvas.height = rows.length * rowHeight + 16;
+    canvas.style.width = canvas.width + "px";
+    canvas.style.height = canvas.height + "px";
 
     var ctx = canvas.getContext("2d");
     if (!ctx) return;
-    var W = canvas.width, H = canvas.height;
-    var pl = 2, pr = 2, pt = 2, pb = 14;
-    var cw = W - pl - pr, ch = H - pt - pb;
-    var midY = pt + Math.floor(ch / 2);
-    ctx.clearRect(0, 0, W, H);
-    ctx.fillStyle = "#111"; ctx.fillRect(0, 0, W, H);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "#0e1117";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    var spanMs = n * (chart.bucketMs || 3600000);
-    var spanH = spanMs / 3600000;
-    var gridStepH, labelFmt;
-    if (spanH <= 6) {
-      gridStepH = 1;
-      labelFmt = function(ms) { var d = new Date(ms); var h = d.getHours(), m = d.getMinutes(), p = function(x) { return x < 10 ? "0"+x : ""+x; }; return p(h)+":"+p(m); };
-    } else if (spanH <= 24) {
-      gridStepH = 3;
-      labelFmt = function(ms) { var d = new Date(ms); var h = d.getHours(); return (h < 10 ? "0" + h : h) + ":00"; };
-    } else if (spanH <= 48) {
-      gridStepH = 6;
-      labelFmt = function(ms) {
-        var d = new Date(ms), h = d.getHours(), p = function(x) { return x < 10 ? "0" + x : "" + x; };
-        return p(d.getMonth()+1)+"/"+p(d.getDate())+" "+p(h)+"h";
-      };
-    } else {
-      gridStepH = 24;
-      labelFmt = function(ms) { return new Date(ms).toLocaleDateString(undefined, { weekday: "short" }); };
-    }
+    ctx.font = "12px ui-monospace, Menlo, Consolas, monospace";
+    var labelWidth = 80;
+    rows.forEach(function(d) {
+      var t1 = d.ipDisplay || "-";
+      var t2 = d.brandModel || "device";
+      var w = Math.ceil(Math.max(ctx.measureText(t1).width, ctx.measureText(t2).width)) + 18;
+      if (w > labelWidth) labelWidth = w;
+    });
 
-    // Vertical gridlines
-    ctx.strokeStyle = "#2a2a2a"; ctx.lineWidth = 0.5;
-    for (var gh = 0; gh * gridStepH < spanH + gridStepH; gh++) {
-      var gMs = bucketZeroMs + gh * gridStepH * 3600000;
-      var gx = pl + ((gMs - bucketZeroMs) / spanMs) * cw;
-      if (gx > pl + cw + 1) break;
-      ctx.beginPath(); ctx.moveTo(gx, pt); ctx.lineTo(gx, pt + ch); ctx.stroke();
-    }
+    var plotX = paddingX + labelWidth + gapWidth;
+    var plotW = Math.max(120, canvas.width - plotX - paddingX);
 
-    // Centre divider between the two channels
-    ctx.strokeStyle = "#2a2a2a"; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(pl, midY); ctx.lineTo(pl + cw, midY); ctx.stroke();
+    rows.forEach(function(d, idx) {
+      var y0 = 8 + idx * rowHeight;
+      var chart = (d.info && d.info.chart) || d.chart || {};
+      var appActive = Array.isArray(chart.appActive) ? chart.appActive.slice() : [];
+      var screenAwake = Array.isArray(chart.screenAwake) ? chart.screenAwake.slice() : [];
+      var n = Math.max(appActive.length, screenAwake.length, 2);
+      while (appActive.length < n) appActive.push(0);
+      while (screenAwake.length < n) screenAwake.push(0);
+      var nowApp = chart.nowAppActive !== undefined ? !!chart.nowAppActive : appActive[n - 1] > 0;
+      var nowScr = chart.nowScreenAwake !== undefined ? !!chart.nowScreenAwake : screenAwake[n - 1] > 0;
 
-    // Logic-analyzer step-wave. Buckets 0..n-1; position n = "now" using nowState.
-    // Each bucket value > 0.5 = HIGH, else LOW.
-    function drawLogicChannel(data, nowState, color, chanTop, chanH) {
-      var hiY = chanTop + 2;
-      var loY = chanTop + chanH - 2;
-      ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = 1.5;
-      for (var i = 0; i <= n; i++) {
-        var isHigh = i < n ? (data[i] > 0) : nowState;
-        var x = pl + (i / n) * cw;
-        var y = isHigh ? hiY : loY;
-        if (i === 0) {
-          ctx.moveTo(x, y);
-        } else {
-          var prevHigh = (i - 1) < n ? (data[i-1] > 0) : nowState;
-          if (isHigh !== prevHigh) {
-            ctx.lineTo(x, prevHigh ? hiY : loY);
-            ctx.lineTo(x, y);
-          } else {
-            ctx.lineTo(x, y);
-          }
-        }
-      }
+      ctx.strokeStyle = "#22303c";
+      ctx.lineWidth = 1;
+      ctx.strokeRect(6, y0, canvas.width - 12, rowHeight - 4);
+
+      var deviceLabelTop = d.ipDisplay || "-";
+      var deviceLabelBottom = d.brandModel || "device";
+      ctx.fillStyle = "#c7d7e7";
+      ctx.font = "12px ui-monospace, Menlo, Consolas, monospace";
+      ctx.textAlign = "left";
+      ctx.fillText(deviceLabelTop, 12, y0 + 16);
+      ctx.fillStyle = "#8fa7b8";
+      ctx.fillText(deviceLabelBottom, 12, y0 + 30);
+
+      var plotY = y0 + 6;
+      var plotH = rowHeight - 20;
+      var midY = plotY + Math.floor(plotH / 2);
+
+      ctx.strokeStyle = "#1f2a34";
+      ctx.beginPath();
+      ctx.moveTo(plotX, midY);
+      ctx.lineTo(plotX + plotW, midY);
       ctx.stroke();
-    }
 
-    var halfH = Math.floor(ch / 2) - 1;
-    drawLogicChannel(screenAwake, nowScreenAwake, "#55ddff", pt,       halfH);
-    drawLogicChannel(appActive,   nowAppActive,   "#ffdd55", midY + 1, halfH);
-
-    // X-axis labels — always exactly 4, evenly spaced
-    ctx.fillStyle = "#888"; ctx.font = "8px sans-serif";
-    for (var li = 0; li < 4; li++) {
-      var lMs = bucketZeroMs + (li / 3) * spanMs;
-      var lx = pl + (li / 3) * cw;
-      ctx.textAlign = li === 0 ? "left" : li === 3 ? "right" : "center";
-      try { ctx.fillText(labelFmt(lMs), lx, H - 2); } catch (e) {}
-    }
-  }
-
-  function renderInfoChart(container, chart, chartId) {
-    if (!chart || !((chart.appActive || []).length)) return;
-    var legend = document.createElement("div");
-    legend.style.cssText = "display:flex;gap:12px;margin-bottom:2px;font-size:10px;";
-    var l1 = document.createElement("span"); l1.style.color = "#55ddff"; l1.textContent = "\u25cf Scr awake";
-    var l2 = document.createElement("span"); l2.style.color = "#ffdd55"; l2.textContent = "\u25cf App active";
-    legend.appendChild(l1); legend.appendChild(l2);
-    container.appendChild(legend);
-    var canvas = document.createElement("canvas");
-    canvas.id = chartId;
-    canvas.width = 336; canvas.height = 72;
-    canvas.style.cssText = "width:100%;height:72px;display:block;border:1px solid #333;border-radius:3px;";
-    container.appendChild(canvas);
-    drawChartOnCanvas(canvas, chart);
-  }
-
-  function renderInfoOverlay(clk, info) {
-    var devKey = clk.url.replace(/[^a-zA-Z0-9]/g, "_");
-    var panelId = INFO_OVERLAY_ID + "_" + devKey;
-    var chartId = panelId + "_chart";
-    hideInfoOverlay(devKey);
-
-    var openCount = document.querySelectorAll('[id^="' + INFO_OVERLAY_ID + '_"]').length;
-    var topPx   = 80  + openCount * 28;
-    var rightPx = 16  + openCount * 16;
-
-    var panel = document.createElement("div");
-    panel.id = panelId;
-    panel.style.cssText = "position:fixed;top:" + topPx + "px;right:" + rightPx + "px;z-index:" + (2147483640 + openCount) + ";" +
-      "background:#1a1a1a;border:1px solid #444;border-radius:8px;width:520px;max-width:96vw;" +
-      "font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;color:#eee;" +
-      "box-shadow:0 8px 32px rgba(0,0,0,0.7);user-select:none;";
-
-    // ---- Drag-handle title bar ----
-    var header = document.createElement("div");
-    header.style.cssText = "display:flex;align-items:center;justify-content:space-between;" +
-      "padding:9px 12px 8px;cursor:grab;border-bottom:1px solid #2a2a2a;";
-
-    var title = document.createElement("span");
-    title.style.cssText = "font-size:13px;font-weight:bold;color:#ccc;";
-    title.textContent = clk.name;
-    header.appendChild(title);
-
-    var xBtn = document.createElement("span");
-    xBtn.textContent = "\u00d7";
-    xBtn.style.cssText = "color:#666;font-size:18px;line-height:1;cursor:pointer;padding:0 2px;";
-    xBtn.addEventListener("mouseover", function() { xBtn.style.color = "#bbb"; });
-    xBtn.addEventListener("mouseout",  function() { xBtn.style.color = "#666"; });
-    xBtn.addEventListener("click", function() { hideInfoOverlay(devKey); });
-    header.appendChild(xBtn);
-    panel.appendChild(header);
-
-    // ---- Drag logic (mouse) ----
-    var dragOffX = 0, dragOffY = 0, dragging = false;
-    header.addEventListener("mousedown", function(e) {
-      if (e.button !== 0) return;
-      dragging = true;
-      var r = panel.getBoundingClientRect();
-      dragOffX = e.clientX - r.left;
-      dragOffY = e.clientY - r.top;
-      header.style.cursor = "grabbing";
-      e.preventDefault();
-    });
-    var onMouseMove = function(e) {
-      if (!dragging) return;
-      panel.style.right = "auto";
-      panel.style.left = Math.max(0, Math.min(e.clientX - dragOffX, window.innerWidth  - panel.offsetWidth))  + "px";
-      panel.style.top  = Math.max(0, Math.min(e.clientY - dragOffY, window.innerHeight - panel.offsetHeight)) + "px";
-    };
-    var onMouseUp = function() { if (dragging) { dragging = false; header.style.cursor = "grab"; } };
-    document.addEventListener("mousemove", onMouseMove);
-    document.addEventListener("mouseup",   onMouseUp);
-
-    // ---- Drag logic (touch) ----
-    header.addEventListener("touchstart", function(e) {
-      var t = e.touches[0];
-      dragging = true;
-      var r = panel.getBoundingClientRect();
-      dragOffX = t.clientX - r.left;
-      dragOffY = t.clientY - r.top;
-      e.preventDefault();
-    }, { passive: false });
-    var onTouchMove = function(e) {
-      if (!dragging) return;
-      var t = e.touches[0];
-      panel.style.right = "auto";
-      panel.style.left = Math.max(0, Math.min(t.clientX - dragOffX, window.innerWidth  - panel.offsetWidth))  + "px";
-      panel.style.top  = Math.max(0, Math.min(t.clientY - dragOffY, window.innerHeight - panel.offsetHeight)) + "px";
-      e.preventDefault();
-    };
-    var onTouchEnd = function() { dragging = false; };
-    document.addEventListener("touchmove", onTouchMove, { passive: false });
-    document.addEventListener("touchend",  onTouchEnd);
-
-    // ---- Content area ----
-    var body = document.createElement("div");
-    body.style.cssText = "padding:12px 14px 14px;overflow-wrap:anywhere;";
-    var gridId = panelId + "_grid";
-    var deviceAttrs = [];
-    var ipAddress = getClockIpAddress(clk);
-    var macAddress = getClockMacAddress(clk);
-    if (ipAddress) deviceAttrs.push({ label: "IP Address", value: ipAddress });
-    if (macAddress) deviceAttrs.push({ label: "MAC Address", value: macAddress });
-
-    if (info) {
-      var attrs = deviceAttrs.concat(info.attrs && info.attrs.length ? info.attrs : []);
-      if (attrs.length) {
-        var grid = document.createElement("div");
-        grid.id = gridId;
-        grid.style.cssText = "display:grid;grid-template-columns:minmax(120px,auto) minmax(0,1fr);gap:3px 10px;margin-bottom:12px;line-height:1.5;";
-        attrs.forEach(function(a) {
-          var lbl = document.createElement("span"); lbl.style.color = "#777"; lbl.textContent = a.label;
-          var val = document.createElement("span"); val.style.color = "#ddd"; val.style.wordBreak = "break-word"; val.style.overflowWrap = "anywhere"; val.textContent = a.value;
-          grid.appendChild(lbl); grid.appendChild(val);
-        });
-        body.appendChild(grid);
+      for (var gi = 0; gi <= 4; gi++) {
+        var gx = plotX + (gi / 4) * plotW;
+        ctx.strokeStyle = "#18212a";
+        ctx.beginPath();
+        ctx.moveTo(gx, plotY);
+        ctx.lineTo(gx, plotY + plotH);
+        ctx.stroke();
       }
-      if (info.chart) renderInfoChart(body, info.chart, chartId);
-    } else {
-      var err = document.createElement("div");
-      err.style.cssText = "color:#666;padding:8px 0;";
-      err.textContent = "Device info unavailable.";
-      body.appendChild(err);
-      var fallbackGrid = document.createElement("div");
-      fallbackGrid.style.cssText = "display:grid;grid-template-columns:minmax(120px,auto) minmax(0,1fr);gap:3px 10px;margin-bottom:12px;line-height:1.5;";
-      deviceAttrs.forEach(function(a) {
-        var lbl = document.createElement("span"); lbl.style.color = "#777"; lbl.textContent = a.label;
-        var val = document.createElement("span"); val.style.color = "#ddd"; val.style.wordBreak = "break-word"; val.style.overflowWrap = "anywhere"; val.textContent = a.value;
-        fallbackGrid.appendChild(lbl); fallbackGrid.appendChild(val);
-      });
-      body.insertBefore(fallbackGrid, err);
-    }
 
-    panel.appendChild(body);
-    document.body.appendChild(panel);
+      drawLogicSegment(ctx, screenAwake, nowScr, "#55ddff", plotX, plotY, plotW, Math.floor(plotH / 2));
+      drawLogicSegment(ctx, appActive, nowApp, "#ffdd55", plotX, midY, plotW, Math.floor(plotH / 2));
 
-    panel._cleanupDrag = function() {
-      document.removeEventListener("mousemove", onMouseMove);
-      document.removeEventListener("mouseup",   onMouseUp);
-      document.removeEventListener("touchmove", onTouchMove);
-      document.removeEventListener("touchend",  onTouchEnd);
-    };
-
-    var onKey = function(e) {
-      if (e.key === "Escape") { hideInfoOverlay(devKey); document.removeEventListener("keydown", onKey, true); }
-    };
-    document.addEventListener("keydown", onKey, true);
-
-    // Refresh chart every 60 s while panel is open
-    if (clk && clk.url) {
-      var base = clk.url;
-      if (base.charAt(base.length - 1) !== "/") base += "/";
-      infoRefreshTimers[devKey] = setInterval(function() {
-        if (!document.getElementById(panelId)) { clearInterval(infoRefreshTimers[devKey]); delete infoRefreshTimers[devKey]; return; }
-        fetch(base + "api/info", { cache: "no-store" })
-          .then(function(r) { return r.json(); })
-          .then(function(freshInfo) {
-            var canvas = document.getElementById(chartId);
-            if (canvas) drawChartOnCanvas(canvas, freshInfo.chart);
-            if (freshInfo.attrs) {
-              var g = document.getElementById(gridId);
-              if (g) {
-                var spans = g.querySelectorAll("span");
-                freshInfo.attrs.forEach(function(a, i) {
-                  if (spans[i * 2 + 1]) spans[i * 2 + 1].textContent = a.value;
-                });
-              }
-            }
-          })
-          .catch(function() {});
-      }, 30000);
-    }
-  }
-
-  function hideInfoOverlay(devKey) {
-    var panelId = devKey ? INFO_OVERLAY_ID + "_" + devKey : null;
-    var els = panelId
-      ? [document.getElementById(panelId)]
-      : Array.prototype.slice.call(document.querySelectorAll('[id^="' + INFO_OVERLAY_ID + '_"]'));
-    els.forEach(function(el) {
-      if (!el) return;
-      if (el._cleanupDrag) el._cleanupDrag();
-      if (el.parentNode) el.parentNode.removeChild(el);
+      var bucketZeroMs = Number(chart.bucketZeroMs) || Date.now() - (n * 3600000);
+      var bucketMs = Number(chart.bucketMs) || 3600000;
+      var totalMs = Math.max(1, n * bucketMs);
+      ctx.fillStyle = "#7e94a8";
+      ctx.font = "10px ui-monospace, Menlo, Consolas, monospace";
+      for (var ti = 0; ti <= 3; ti++) {
+        var tx = plotX + (ti / 3) * plotW;
+        var tMs = bucketZeroMs + (ti / 3) * totalMs;
+        var dte = new Date(tMs);
+        var hh = dte.getHours();
+        var mm = dte.getMinutes();
+        var label = (hh < 10 ? "0" + hh : String(hh)) + ":" + (mm < 10 ? "0" + mm : String(mm));
+        ctx.textAlign = ti === 0 ? "left" : (ti === 3 ? "right" : "center");
+        ctx.fillText(label, tx, y0 + rowHeight - 4);
+      }
     });
-    if (devKey) {
-      if (infoRefreshTimers[devKey]) { clearInterval(infoRefreshTimers[devKey]); delete infoRefreshTimers[devKey]; }
-    } else {
-      Object.keys(infoRefreshTimers).forEach(function(k) { clearInterval(infoRefreshTimers[k]); delete infoRefreshTimers[k]; });
-    }
+    ctx.textAlign = "left";
   }
 
-  function fetchAndShowInfo(clk, btnEl) {
-    var devKey = clk.url.replace(/[^a-zA-Z0-9]/g, "_");
-    var panelId = INFO_OVERLAY_ID + "_" + devKey;
-    // Toggle: if already open, close it
-    if (document.getElementById(panelId)) { hideInfoOverlay(devKey); return; }
-    var base = clk.url;
-    if (base.charAt(base.length - 1) !== "/") base += "/";
-    var prevText = btnEl.textContent;
-    btnEl.textContent = "\u23f3";
-    btnEl.style.pointerEvents = "none";
-    fetch(base + "api/info", { cache: "no-store" })
-      .then(function(r) { return r.json(); })
-      .then(function(info) {
-        btnEl.textContent = prevText; btnEl.style.pointerEvents = "";
-        renderInfoOverlay(clk, info);
-      })
-      .catch(function() {
-        btnEl.textContent = prevText; btnEl.style.pointerEvents = "";
-        renderInfoOverlay(clk, null);
+  function exportConsolidatedInfoTsv(deviceInfos, labels, overlayState) {
+    if (!Array.isArray(deviceInfos) || !deviceInfos.length) return;
+    var header = ["Field"].concat(deviceInfos.map(function(d) {
+      return (d.ipDisplay || "-") + " | " + (d.brandModel || "device");
+    }));
+    var rows = [header.join("\t")];
+    labels.forEach(function(label) {
+      var cols = [label];
+      deviceInfos.forEach(function(d) {
+        var val = "-";
+        if (label === "IP Address") {
+          val = d.ipDisplay || "-";
+        } else if (label === "MAC Address") {
+          val = getClockMacAddress(d.clk) || getAttrValue(d.attrs, "MAC Address") || "-";
+        } else if (label === "Information as of") {
+          val = d.infoAsOf || ((overlayState && overlayState.infoAsOf) || formatBuildLikeTimestamp(Date.now()));
+        } else {
+          val = getAttrValue(d.attrs, label) || getAttrValue(d.cachedAttrs, label) || "-";
+        }
+        cols.push(String(val).replace(/[\t\n\r]+/g, " "));
       });
+      rows.push(cols.join("\t"));
+    });
+    var blob = new Blob([rows.join("\n")], { type: "text/tab-separated-values;charset=utf-8" });
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "network-device-info-" + formatBuildLikeTimestamp(Date.now()).replace(/[ :]/g, "-") + ".tsv";
+    a.style.display = "none";
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function() {
+      URL.revokeObjectURL(a.href);
+      if (a.parentNode) a.parentNode.removeChild(a);
+    }, 0);
+  }
+
+  function renderConsolidatedInfoOverlay(deviceInfos, overlayState) {
+    removeInfoOverlay();
+
+    var overlay = document.createElement("div");
+    overlay.id = INFO_OVERLAY_ID;
+    overlay.style.cssText = "position:fixed;left:10px;right:10px;top:54px;bottom:10px;z-index:2147483642;background:#11151c;border:1px solid #2b3846;border-radius:10px;color:#d8e8f7;font-family:ui-monospace,Menlo,Consolas,monospace;box-shadow:0 10px 36px rgba(0,0,0,0.65);display:flex;flex-direction:column;";
+
+    var header = document.createElement("div");
+    header.style.cssText = "display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid #273443;";
+    var title = document.createElement("div");
+    title.textContent = "Network Device Info";
+    title.style.cssText = "font-size:14px;font-weight:bold;color:#9fd8ff;letter-spacing:0.04em;text-transform:uppercase;";
+    var legend = document.createElement("div");
+    legend.innerHTML = "<span style='color:#55ddff'>\u25cf Scr awake</span>  <span style='color:#ffdd55'>\u25cf App active</span>";
+    legend.style.cssText = "font-size:11px;opacity:0.92;";
+    var closeBtn = document.createElement("button");
+    closeBtn.textContent = "\u00d7";
+    closeBtn.style.cssText = "background:transparent;border:none;color:#8ea5ba;font-size:22px;cursor:pointer;line-height:1;padding:0 4px;";
+    closeBtn.addEventListener("click", removeInfoOverlay);
+    var titleWrap = document.createElement("div");
+    titleWrap.appendChild(title);
+    titleWrap.appendChild(legend);
+    header.appendChild(titleWrap);
+    header.appendChild(closeBtn);
+    overlay.appendChild(header);
+
+    var metaRow = document.createElement("div");
+    metaRow.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 14px;border-bottom:1px solid #273443;font-size:12px;";
+    var infoAsOf = document.createElement("div");
+    infoAsOf.style.cssText = "color:#8fa7b8;";
+    infoAsOf.textContent = "Information as of " + ((overlayState && overlayState.infoAsOf) || formatBuildLikeTimestamp(Date.now()));
+    metaRow.appendChild(infoAsOf);
+
+    var localVisible = deviceInfos.some(function(d) { return d && d.isLocal; });
+    if (localVisible) {
+      var localToggle = document.createElement("button");
+      localToggle.type = "button";
+      localToggle.textContent = overlayState && overlayState.localCollapsed ? "show local" : "hide local";
+      localToggle.style.cssText = "background:#17202a;border:1px solid #314055;color:#9fd8ff;border-radius:999px;padding:4px 10px;font:inherit;cursor:pointer;";
+      localToggle.addEventListener("click", function() {
+        consolidatedInfoState.localCollapsed = !consolidatedInfoState.localCollapsed;
+        saveJsonCache(CONSOLIDATED_INFO_STATE_KEY, consolidatedInfoState);
+        loadConsolidatedInfo(null);
+      });
+      metaRow.appendChild(localToggle);
+    }
+    var exportBtn = document.createElement("button");
+    exportBtn.type = "button";
+    exportBtn.textContent = "export";
+    exportBtn.style.cssText = "background:#17202a;border:1px solid #314055;color:#9fd8ff;border-radius:999px;padding:4px 10px;font:inherit;cursor:pointer;";
+    metaRow.appendChild(exportBtn);
+    overlay.appendChild(metaRow);
+
+    var body = document.createElement("div");
+    body.style.cssText = "flex:1;overflow:auto;padding:12px;";
+
+    var visibleInfos = deviceInfos.filter(function(info) {
+      return !(overlayState && overlayState.localCollapsed && info && info.isLocal);
+    });
+    var labels = uniqueAttrLabels(visibleInfos);
+    var grid = document.createElement("div");
+    grid.style.cssText = "display:grid;gap:4px 3em;align-items:start;grid-template-columns:minmax(max-content,220px) repeat(" + visibleInfos.length + ", minmax(max-content,1fr));width:max-content;min-width:100%;";
+
+    labels.forEach(function(label) {
+      var lbl = document.createElement("div");
+      lbl.textContent = label;
+      lbl.style.cssText = "color:#7f93a6;font-size:12px;padding:2px 0;border-bottom:1px dashed #1d2a36;";
+      grid.appendChild(lbl);
+
+      visibleInfos.forEach(function(d) {
+        var valText = "-";
+        if (label === "IP Address") {
+          valText = d.ipDisplay || "-";
+          if (d.ipDisplay && d.ipDisplay.slice(-2) === " c") {
+            valText = d.ipDisplay;
+          }
+        } else if (label === "MAC Address") {
+          valText = getClockMacAddress(d.clk) || getAttrValue(d.attrs, "MAC Address") || "-";
+        } else if (label === "Information as of") {
+          valText = d.infoAsOf || overlayState && overlayState.infoAsOf || formatBuildLikeTimestamp(Date.now());
+        } else {
+          valText = getAttrValue(d.attrs, label) || getAttrValue(d.cachedAttrs, label) || "-";
+        }
+        var val = document.createElement("div");
+        val.textContent = valText;
+        val.style.cssText = "color:#dbe7f2;font-size:12px;padding:2px 0;border-bottom:1px dashed #1d2a36;word-break:break-word;overflow-wrap:anywhere;";
+        grid.appendChild(val);
+      });
+    });
+    body.appendChild(grid);
+    exportBtn.addEventListener("click", function() {
+      exportConsolidatedInfoTsv(visibleInfos, labels, overlayState);
+    });
+
+    var graphWrap = document.createElement("div");
+    graphWrap.style.cssText = "margin-top:14px;overflow:hidden;border:1px solid #263543;border-radius:6px;background:#0f141b;";
+    var canvas = document.createElement("canvas");
+    graphWrap.appendChild(canvas);
+    body.appendChild(graphWrap);
+    drawConsolidatedCharts(canvas, visibleInfos);
+
+    overlay.appendChild(body);
+    document.body.appendChild(overlay);
+
+    var onEsc = function(e) {
+      if (e.key === "Escape") {
+        document.removeEventListener("keydown", onEsc, true);
+        removeInfoOverlay();
+      }
+    };
+    document.addEventListener("keydown", onEsc, true);
+  }
+
+  function loadConsolidatedInfo(btnEl) {
+    var clocks = (discoveredClocksList || []).slice();
+    if (!clocks.length) return Promise.resolve();
+    var prevText = btnEl ? btnEl.textContent : "";
+    if (btnEl) {
+      btnEl.textContent = "Loading";
+      btnEl.style.pointerEvents = "none";
+    }
+
+    return Promise.all(clocks.map(fetchInfoForClock)).then(function(rows) {
+      var deviceInfos = rows.map(function(row) {
+        var clk = row && row.clk ? row.clk : null;
+        var resolved = resolveClockIpForDisplay(clk, row && row.info ? row.info : null);
+        var ip = resolved && resolved.ip ? resolved.ip : "";
+        var cacheEntry = getCachedInfoForIp(ip);
+        var merged = mergeInfoRows(row && row.info ? row.info : row, cacheEntry);
+        merged.ipDisplay = ip || (row && row.ipDisplay) || "";
+        merged.brandModel = merged.brandModel || (row && row.brandModel) || "device";
+        merged.isLocal = isDesktopLikeOs(getAttrValue(merged.attrs, "OS") || merged.brandModel) || !!(row && row.isLocal);
+        merged.cachedAttrs = cacheEntry && cacheEntry.attrs ? cacheEntry.attrs : [];
+        merged.infoAsOf = formatBuildLikeTimestamp(merged.infoAsOfMs || Date.now());
+        merged.chart = (row && row.info && row.info.chart) || (cacheEntry && cacheEntry.chart) || null;
+        merged.info = row && row.info ? row.info : (cacheEntry && cacheEntry.chart ? { chart: cacheEntry.chart } : null);
+        merged.clk = clk;
+        if (ip) storeInfoCacheForIp(ip, merged);
+        return merged;
+      }).filter(function(info) {
+        return !!(info && (info.ipDisplay || info.brandModel));
+      });
+      consolidatedInfoState.infoAsOf = formatBuildLikeTimestamp(Date.now());
+      saveJsonCache(CONSOLIDATED_INFO_STATE_KEY, consolidatedInfoState);
+      renderConsolidatedInfoOverlay(deviceInfos, consolidatedInfoState);
+      if (btnEl) {
+        btnEl.textContent = prevText;
+        btnEl.style.pointerEvents = "";
+      }
+    }).catch(function() {
+      if (btnEl) {
+        btnEl.textContent = prevText;
+        btnEl.style.pointerEvents = "";
+      }
+    });
+  }
+
+  function toggleConsolidatedInfoOverlay(btnEl) {
+    var existing = document.getElementById(INFO_OVERLAY_ID);
+    if (existing) {
+      removeInfoOverlay();
+      return;
+    }
+    loadConsolidatedInfo(btnEl).then(function() {
+      if (consolidatedInfoRefreshTimer) clearInterval(consolidatedInfoRefreshTimer);
+      consolidatedInfoRefreshTimer = setInterval(function() {
+        if (!document.getElementById(INFO_OVERLAY_ID)) {
+          clearInterval(consolidatedInfoRefreshTimer);
+          consolidatedInfoRefreshTimer = null;
+          return;
+        }
+        loadConsolidatedInfo(null);
+      }, 60000);
+    });
   }
 
   function startClocksScanning() {

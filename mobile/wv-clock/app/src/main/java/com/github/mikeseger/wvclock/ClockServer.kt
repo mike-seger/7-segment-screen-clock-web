@@ -510,6 +510,54 @@ class ClockServer(
         return normalized
     }
 
+    private fun resolveInfoIpAddress(): String {
+        val fromLanUrl = parseHostFromUrl(lanUrlProvider())
+        if (!fromLanUrl.isNullOrBlank()) return fromLanUrl
+
+        try {
+            val wm = context.applicationContext.getSystemService(android.content.Context.WIFI_SERVICE) as? android.net.wifi.WifiManager
+            @Suppress("DEPRECATION")
+            val ipInt = wm?.connectionInfo?.ipAddress ?: 0
+            if (ipInt != 0) {
+                val b1 = ipInt and 0xff
+                val b2 = ipInt shr 8 and 0xff
+                val b3 = ipInt shr 16 and 0xff
+                val b4 = ipInt shr 24 and 0xff
+                val wifiIp = "$b1.$b2.$b3.$b4"
+                if (wifiIp != "0.0.0.0") return wifiIp
+            }
+        } catch (_: Exception) {}
+
+        return try {
+            val interfaces = java.net.NetworkInterface.getNetworkInterfaces()
+            val it = interfaces?.toList().orEmpty()
+            val preferred = listOf("wlan0", "wifi0", "eth0")
+            fun findIpFor(ifName: String): String? {
+                val ni = it.firstOrNull { n ->
+                    n != null && n.name.equals(ifName, ignoreCase = true) && n.isUp && !n.isLoopback
+                } ?: return null
+                return ni.inetAddresses
+                    ?.toList()
+                    ?.firstOrNull { a -> a is java.net.Inet4Address && !a.isLoopbackAddress }
+                    ?.hostAddress
+            }
+
+            for (name in preferred) {
+                val ip = findIpFor(name)
+                if (!ip.isNullOrBlank()) return ip
+            }
+
+            it.asSequence()
+                .filter { n -> n != null && n.isUp && !n.isLoopback }
+                .flatMap { n -> n.inetAddresses?.toList().orEmpty().asSequence() }
+                .firstOrNull { a -> a is java.net.Inet4Address && !a.isLoopbackAddress }
+                ?.hostAddress
+                ?: ""
+        } catch (_: Exception) {
+            ""
+        }
+    }
+
     private fun handleGetState(): Response {
         val json = JSONObject(state as Map<*, *>).toString()
         return newFixedLengthResponse(Response.Status.OK, "application/json", json).apply {
@@ -803,6 +851,8 @@ class ClockServer(
 
     private fun handleGetInfo(): Response {
         val now = System.currentTimeMillis()
+        val infoIpAddress = resolveInfoIpAddress()
+        val infoMacAddress = normalizeMacAddress(macAddressProvider() ?: "")
         val nowAppActive = activityEvents.filter { it.type == ActivityType.APP }.maxByOrNull { it.timestampMs }?.isActive ?: true
         val nowScreenAwake = !isScreenAsleep
         val powerManager = context.getSystemService(android.content.Context.POWER_SERVICE) as? android.os.PowerManager
@@ -880,6 +930,8 @@ class ClockServer(
             }
             row("Brand / Model", "${android.os.Build.BRAND}  /  ${android.os.Build.MODEL}")
             row("OS", "Android ${android.os.Build.VERSION.RELEASE}")
+            row("IP Address", if (infoIpAddress.isNotBlank()) infoIpAddress else "-")
+            row("MAC Address", if (infoMacAddress.isNotBlank()) infoMacAddress else "-")
             row("Resolution (w \u00d7 h)", "${dm.widthPixels} \u00d7 ${dm.heightPixels}")
             row("Density (DPI)", "${dm.densityDpi}")
             row("Serial", serial)
