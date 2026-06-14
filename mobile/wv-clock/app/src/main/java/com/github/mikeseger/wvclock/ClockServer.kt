@@ -11,6 +11,7 @@ import java.net.HttpURLConnection
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
+import java.net.NetworkInterface
 import java.net.URL
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
@@ -116,7 +117,7 @@ class ClockServer(
     )
 
     private val batteryBucketMs = 10L * 60 * 1000
-    private val batteryRetentionMs = 7L * 24 * 60 * 60 * 1000
+    private val batteryRetentionMs = 8L * 24 * 60 * 60 * 1000
     private val batteryMaxPoints = (batteryRetentionMs / batteryBucketMs).toInt()
     private val minAutomationActionIntervalMs = 5L * 60 * 1000
     private val batteryHistory = java.util.concurrent.CopyOnWriteArrayList<BatteryPoint>()
@@ -237,9 +238,10 @@ class ClockServer(
                         }
                         val msg = "WvClockDiscovery:$payload"
                         val bytes = msg.toByteArray(Charsets.UTF_8)
-                        val address = InetAddress.getByName("255.255.255.255")
-                        val packet = DatagramPacket(bytes, bytes.size, address, 8766)
-                        socket.send(packet)
+                        for (address in getBroadcastTargets()) {
+                            val packet = DatagramPacket(bytes, bytes.size, address, 8766)
+                            socket.send(packet)
+                        }
                     } catch (e: Exception) {
                         Log.w(TAG, "Failed to send UDP broadcast", e)
                     }
@@ -459,6 +461,7 @@ class ClockServer(
                 uri == "/api/battery-switch/state" && session.method == Method.GET -> handleBatterySwitchState(session)
                 uri == "/api/battery-switch/on" && session.method == Method.POST -> handleBatterySwitchAction(session, "Power On", "ON")
                 uri == "/api/battery-switch/off" && session.method == Method.POST -> handleBatterySwitchAction(session, "Power Off", "OFF")
+                uri == "/api/battery/sample" && session.method == Method.POST -> handleBatterySampleNow()
                 uri == "/api/events" && session.method == Method.GET -> handleSse()
                 uri == "/api/url" && session.method == Method.GET -> handleGetUrl()
                 rootAssets.containsKey(uri) -> {
@@ -783,14 +786,20 @@ class ClockServer(
         saveSwitchStateHistory()
     }
 
-    private fun sampleSelfBattery(nowMs: Long = System.currentTimeMillis()) {
+    private fun sampleSelfBattery(nowMs: Long = System.currentTimeMillis(), forcePoint: Boolean = false) {
         val level = batteryLevelProvider()
         if (level < 0) return
         val bucket = (nowMs / batteryBucketMs) * batteryBucketMs
-        if (bucket == lastBatterySampleBucketMs) return
+        if (!forcePoint && bucket == lastBatterySampleBucketMs) return
         lastBatterySampleBucketMs = bucket
-        batteryHistory.add(BatteryPoint(bucket, clampPct(level, 0)))
+        val sampleTs = if (forcePoint) nowMs else bucket
+        batteryHistory.add(BatteryPoint(sampleTs, clampPct(level, 0)))
         saveBatteryHistory()
+    }
+
+    private fun handleBatterySampleNow(): Response {
+        sampleSelfBattery(System.currentTimeMillis(), true)
+        return newFixedLengthResponse(Response.Status.OK, "application/json", "{\"ok\":true}")
     }
 
     private fun recordThresholdSnapshot(settings: BatterySettings, nowMs: Long = System.currentTimeMillis()) {
@@ -956,6 +965,46 @@ class ClockServer(
         return newFixedLengthResponse(Response.Status.OK, "application/json", json).apply {
             addHeader("Cache-Control", "no-store")
         }
+    }
+
+    private fun getBroadcastTargets(): List<InetAddress> {
+        val targets = linkedSetOf(InetAddress.getByName("255.255.255.255"))
+        try {
+            val interfaces = NetworkInterface.getNetworkInterfaces()?.toList().orEmpty()
+            for (iface in interfaces) {
+                if (!iface.isUp || iface.isLoopback) continue
+                val broadcast = iface.interfaceAddresses
+                    ?.asSequence()
+                    ?.mapNotNull { it.broadcast }
+                    ?.firstOrNull()
+                if (broadcast != null) {
+                    targets.add(broadcast)
+                    continue
+                }
+                val addr = iface.inetAddresses
+                    ?.toList()
+                    ?.firstOrNull { it is java.net.Inet4Address && !it.isLoopbackAddress }
+                val mask = iface.interfaceAddresses
+                    ?.asSequence()
+                    ?.mapNotNull { it.networkPrefixLength.takeIf { it in 0..32 } }
+                    ?.firstOrNull()
+                if (addr is java.net.Inet4Address && mask != null) {
+                    val ip = addr.address
+                    val prefix = mask.toInt()
+                    val maskBits = if (prefix == 0) 0 else -1 shl (32 - prefix)
+                    val broadcastBytes = ByteArray(4)
+                    for (i in 0 until 4) {
+                        val shift = 24 - i * 8
+                        val ipOctet = ip[i].toInt() and 0xff
+                        val maskOctet = (maskBits shr shift) and 0xff
+                        broadcastBytes[i] = ((ipOctet and maskOctet) or (maskOctet.inv() and 0xff)).toByte()
+                    }
+                    targets.add(InetAddress.getByAddress(broadcastBytes))
+                }
+            }
+        } catch (_: Exception) {
+        }
+        return targets.toList()
     }
 
     // ---------------- SSE ----------------
@@ -1144,11 +1193,11 @@ class ClockServer(
         try {
             if (!activityFile.exists()) return
             val arr = JSONArray(activityFile.readText())
-            val cutoff = System.currentTimeMillis() - 7L * 24 * 3600 * 1000
+            val cutoff = System.currentTimeMillis() - batteryRetentionMs
             for (i in 0 until arr.length()) {
                 val obj = arr.getJSONObject(i)
                 val ts = obj.getLong("ts")
-                if (ts < cutoff - 3_600_000L) continue // skip events older than 7d+1h
+                if (ts < cutoff - 3_600_000L) continue // skip events older than retention+1h
                 val type = try { ActivityType.valueOf(obj.getString("type")) } catch (e: Exception) { ActivityType.SCREEN }
                 activityEvents.add(ActivityEvent(ts, obj.getBoolean("active"), type))
             }
@@ -1169,7 +1218,7 @@ class ClockServer(
     private fun saveActivityEventsAsync() { heartbeat.execute { saveActivityEvents() } }
 
     private fun trimActivityEvents() {
-        val cutoff = System.currentTimeMillis() - 7L * 24 * 3600 * 1000
+        val cutoff = System.currentTimeMillis() - batteryRetentionMs
         val snapshot = activityEvents.toList()
         // Keep one anchor event per type before the cutoff for continuity
         val appAnchor = snapshot.indexOfLast { it.type == ActivityType.APP && it.timestampMs <= cutoff }
@@ -1285,6 +1334,17 @@ class ClockServer(
         val settings = getBatterySettingsFromState()
         sampleSelfBattery(now)
         recordThresholdSnapshot(settings, now)
+        val batterySamplesInWindow = batteryHistory
+            .filter { it.timestampMs >= bucketZero && it.timestampMs <= now }
+            .sortedBy { it.timestampMs }
+        val batterySampleCount = batterySamplesInWindow.size
+        val batteryFirstSampleMs = batterySamplesInWindow.firstOrNull()?.timestampMs
+        val batteryLastSampleMs = batterySamplesInWindow.lastOrNull()?.timestampMs
+        val batterySampleSpanMs = if (batterySampleCount > 0) {
+            kotlin.math.max(bucketMs, (batteryLastSampleMs!! - batteryFirstSampleMs!!) + bucketMs)
+        } else {
+            0L
+        }
         val battery = buildBatterySeries(bucketZero, bucketCount, bucketMs)
         val thresholdOn = buildThresholdSeries(bucketZero, bucketCount, bucketMs, true, settings.thresholdOnPct)
         val thresholdOff = buildThresholdSeries(bucketZero, bucketCount, bucketMs, false, settings.thresholdOffPct)
@@ -1385,6 +1445,10 @@ class ClockServer(
                 put("thresholdOn", JSONArray(thresholdOn))
                 put("thresholdOff", JSONArray(thresholdOff))
                 put("switchOn", JSONArray(switchOn))
+                put("batterySampleCount", batterySampleCount)
+                put("batterySampleSpanMs", batterySampleSpanMs)
+                put("batteryFirstSampleMs", batteryFirstSampleMs ?: JSONObject.NULL)
+                put("batteryLastSampleMs", batteryLastSampleMs ?: JSONObject.NULL)
                 put("nowBattery", batteryLevelProvider())
                 put("nowThresholdOn", settings.thresholdOnPct)
                 put("nowThresholdOff", settings.thresholdOffPct)

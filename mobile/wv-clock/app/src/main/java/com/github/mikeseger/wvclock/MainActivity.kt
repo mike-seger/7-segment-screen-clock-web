@@ -30,6 +30,7 @@ class MainActivity : Activity() {
     private var server: ClockServer? = null
     private val preferredPort = 8765
     private var serverPort = preferredPort
+    private var homeUrlOverride: String? = null
     private var multicastLock: android.net.wifi.WifiManager.MulticastLock? = null
         private var wifiLock: WifiManager.WifiLock? = null
 
@@ -253,13 +254,11 @@ class MainActivity : Activity() {
     }
 
     private fun startServer() {
-        val fallbackPorts = listOf(preferredPort, preferredPort + 10, preferredPort + 20)
-        for (candidatePort in fallbackPorts) {
-            try {
+        try {
             val s = ClockServer(
                 context = applicationContext,
-                port = candidatePort,
-                lanUrlProvider = { getWifiIpv4()?.let { "http://$it:$candidatePort/" } },
+                port = preferredPort,
+                lanUrlProvider = { getWifiIpv4()?.let { "http://$it:$preferredPort/" } },
                 batteryLevelProvider = {
                     val intent = registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
                     val level = intent?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
@@ -312,22 +311,20 @@ class MainActivity : Activity() {
             }
             s.start(/* timeout */ 5000, /* daemon */ true)
             server = s
-            serverPort = candidatePort
+            serverPort = preferredPort
+            homeUrlOverride = null
             Log.i(TAG, "ClockServer started on $serverPort")
-            return
-            } catch (t: Throwable) {
-                if (isAddressInUse(t)) {
-                    Log.w(TAG, "ClockServer port $candidatePort is busy, trying next port")
-                    continue
-                }
-                Log.e(TAG, "Failed to start ClockServer", t)
-                Toast.makeText(this, "Server failed: ${t.message}", Toast.LENGTH_LONG).show()
+        } catch (t: Throwable) {
+            if (isAddressInUse(t)) {
+                server = null
+                serverPort = preferredPort
+                homeUrlOverride = "http://127.0.0.1:$preferredPort/"
+                Log.w(TAG, "ClockServer port $preferredPort is busy; using existing instance instead of starting a second one")
                 return
             }
+            Log.e(TAG, "Failed to start ClockServer", t)
+            Toast.makeText(this, "Server failed: ${t.message}", Toast.LENGTH_LONG).show()
         }
-        server = null
-        Toast.makeText(this, "Local server port is busy, loading offline view", Toast.LENGTH_LONG).show()
-        Log.e(TAG, "Failed to start ClockServer on all fallback ports")
     }
 
     private fun isAddressInUse(t: Throwable?): Boolean {
@@ -344,6 +341,7 @@ class MainActivity : Activity() {
     }
 
     private fun homeUrl(): String {
+        homeUrlOverride?.let { return it }
         return if (server != null) {
             "http://127.0.0.1:$serverPort/"
         } else {
@@ -447,14 +445,34 @@ class MainActivity : Activity() {
         return try {
             val wm = applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
             val ipInt = wm?.connectionInfo?.ipAddress ?: 0
-            if (ipInt == 0) null
-            else String.format(
-                "%d.%d.%d.%d",
-                ipInt and 0xff,
-                ipInt shr 8 and 0xff,
-                ipInt shr 16 and 0xff,
-                ipInt shr 24 and 0xff
-            )
+            if (ipInt != 0) {
+                return String.format(
+                    "%d.%d.%d.%d",
+                    ipInt and 0xff,
+                    ipInt shr 8 and 0xff,
+                    ipInt shr 16 and 0xff,
+                    ipInt shr 24 and 0xff
+                )
+            }
+
+            val preferred = listOf("wlan0", "wifi0", "eth0", "rmnet0")
+            val all = mutableListOf<NetworkInterface>()
+            val enumeration = NetworkInterface.getNetworkInterfaces()
+            while (enumeration != null && enumeration.hasMoreElements()) {
+                all.add(enumeration.nextElement())
+            }
+            val ordered = (preferred.mapNotNull { name -> all.find { it.name.equals(name, ignoreCase = true) } }
+                + all.filter { it.name.lowercase() !in preferred }).distinctBy { it.name }
+
+            for (iface in ordered) {
+                if (!iface.isUp || iface.isLoopback) continue
+                val address = iface.inetAddresses
+                    ?.toList()
+                    ?.firstOrNull { it is java.net.Inet4Address && !it.isLoopbackAddress }
+                    ?.hostAddress
+                if (!address.isNullOrBlank()) return address
+            }
+            null
         } catch (e: Exception) {
             null
         }

@@ -29,6 +29,10 @@
       {
         "from": "../mobile/wv-clock/app/src/main/assets/remote-bridge.js",
         "to": "remote-bridge.js"
+      },
+      {
+        "from": "../mobile/wv-clock/app/src/main/assets/qrcode.min.js",
+        "to": "qrcode.min.js"
       }
     ],
     "mac": {

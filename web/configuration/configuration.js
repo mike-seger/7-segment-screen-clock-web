@@ -315,13 +315,22 @@ function initConfiguration() {
         return payload;
     }
 
-    async function refreshBatterySwitchState() {
+    async function refreshBatterySwitchState(options) {
+        const opts = options || {};
         try {
             setBatterySwitchState(null, "Checking");
             const payload = await batterySwitchRequest("/api/battery-switch/state");
             setBatterySwitchState(payload.power);
+            return true;
         } catch (e) {
+            if (opts.suppressError) {
+                if (opts.fallbackPower) {
+                    setBatterySwitchState(opts.fallbackPower, opts.fallbackNote || "State check pending");
+                }
+                return false;
+            }
             setBatterySwitchState(null, `Error: ${e.message}`);
+            return false;
         }
     }
 
@@ -335,8 +344,17 @@ function initConfiguration() {
         }
         try {
             setBatterySwitchState(batterySwitchPower, `Sending ${action.toUpperCase()}`);
-            await batterySwitchRequest(endpoint, { method: "POST", body: { ip } });
-            await refreshBatterySwitchState();
+            const payload = await batterySwitchRequest(endpoint, { method: "POST", body: { ip } });
+            const reportedPower = payload && typeof payload.power === "string" ? payload.power.toUpperCase() : null;
+            const fallbackPower = (reportedPower === "ON" || reportedPower === "OFF")
+                ? reportedPower
+                : (action === "on" ? "ON" : "OFF");
+            setBatterySwitchState(fallbackPower, "Applied");
+            await refreshBatterySwitchState({
+                suppressError: true,
+                fallbackPower,
+                fallbackNote: "Applied"
+            });
         } catch (e) {
             setBatterySwitchState(null, `Error: ${e.message}`);
         }
@@ -344,7 +362,7 @@ function initConfiguration() {
 
     async function toggleBatterySwitchState() {
         if (batterySwitchPower == null) {
-            await refreshBatterySwitchState();
+            await refreshBatterySwitchState({ suppressError: true });
         }
         const nextAction = batterySwitchPower === "ON" ? "off" : "on";
         await sendBatterySwitchAction(nextAction);
@@ -371,69 +389,185 @@ function initConfiguration() {
         const padL = 30;
         const padR = 30;
         const padT = 8;
-        const padB = 20;
+        const padB = 24;
         const plotW = width - padL - padR;
         const plotH = height - padT - padB;
 
-        ctx.strokeStyle = "#1d2a3a";
-        ctx.lineWidth = 1;
-        for (let pct = 0; pct <= 100; pct += 25) {
-            const y = padT + ((100 - pct) / 100) * plotH;
-            ctx.beginPath();
-            ctx.moveTo(padL, y);
-            ctx.lineTo(padL + plotW, y);
-            ctx.stroke();
-            ctx.fillStyle = "#7f93a7";
-            ctx.font = "10px ui-monospace, Menlo, Consolas, monospace";
-            ctx.textAlign = "right";
-            ctx.fillText(`${pct}%`, padL - 4, y + 3);
-        }
+        const drawHorizontalGrid = (dataPlotHeight) => {
+            ctx.strokeStyle = "#1d2a3a";
+            ctx.lineWidth = 1;
+            for (let pct = 0; pct <= 100; pct += 25) {
+                const y = padT + ((100 - pct) / 100) * dataPlotHeight;
+                ctx.beginPath();
+                ctx.moveTo(padL, y);
+                ctx.lineTo(padL + plotW, y);
+                ctx.stroke();
+                ctx.fillStyle = "#7f93a7";
+                ctx.font = "10px ui-monospace, Menlo, Consolas, monospace";
+                ctx.textAlign = "right";
+                ctx.fillText(`${pct}%`, padL - 4, y + 3);
+            }
+        };
 
         const battery = Array.isArray(chart && chart.battery) ? chart.battery : [];
         const thresholdOn = Array.isArray(chart && chart.thresholdOn) ? chart.thresholdOn : [];
         const thresholdOff = Array.isArray(chart && chart.thresholdOff) ? chart.thresholdOff : [];
         const switchOn = Array.isArray(chart && chart.switchOn) ? chart.switchOn : [];
         const n = Math.max(2, battery.length, thresholdOn.length, thresholdOff.length, switchOn.length);
-        const toX = (i) => padL + (i / (n - 1)) * plotW;
-        const toY = (v) => padT + ((100 - Math.max(0, Math.min(100, Number(v)))) / 100) * plotH;
-
         const bucketZeroMs = Number(chart && chart.bucketZeroMs) || (Date.now() - (n - 1) * 10 * 60 * 1000);
         const bucketMs = Number(chart && chart.bucketMs) || (10 * 60 * 1000);
+
+        const zoomLevelsDays = [1, 3, 5, 7];
+        const dayMs = 24 * 60 * 60 * 1000;
+        let firstDataIdx = -1;
+        let lastDataIdx = -1;
+        for (let i = 0; i < n; i++) {
+            const v = i < battery.length ? Number(battery[i]) : NaN;
+            if (!Number.isFinite(v)) continue;
+            if (firstDataIdx < 0) firstDataIdx = i;
+            lastDataIdx = i;
+        }
+
+        let visibleDays = 1;
+        if (firstDataIdx >= 0 && lastDataIdx >= firstDataIdx) {
+            const sampleSpanFromChart = Number(chart && chart.batterySampleSpanMs);
+            const sampleCountFromChart = Number(chart && chart.batterySampleCount);
+            const fallbackPoints = battery.reduce((acc, v) => {
+                const n = Number(v);
+                return acc + (Number.isFinite(n) ? 1 : 0);
+            }, 0);
+            let collectedSpanMs = 0;
+            if (Number.isFinite(sampleSpanFromChart) && sampleSpanFromChart > 0) {
+                collectedSpanMs = sampleSpanFromChart;
+            } else if (Number.isFinite(sampleCountFromChart) && sampleCountFromChart > 0) {
+                collectedSpanMs = Math.max(bucketMs, sampleCountFromChart * bucketMs);
+            } else if (fallbackPoints > 0) {
+                collectedSpanMs = Math.max(bucketMs, fallbackPoints * bucketMs);
+            }
+            const collectedDays = collectedSpanMs > 0 ? (collectedSpanMs / dayMs) : 0;
+            visibleDays = 1;
+            for (const d of zoomLevelsDays) {
+                if (collectedDays >= d) visibleDays = d;
+            }
+        }
+
+        const visibleBuckets = Math.max(2, Math.min(n, Math.ceil((visibleDays * dayMs) / bucketMs)));
+        const startIdx = Math.max(0, n - visibleBuckets);
+        const nVis = Math.max(2, n - startIdx);
+        const visibleBucketZeroMs = bucketZeroMs + startIdx * bucketMs;
+        const visibleStartMs = visibleBucketZeroMs;
+        const visibleEndMs = visibleBucketZeroMs + Math.max(bucketMs, (nVis - 1) * bucketMs);
+        const visibleSpanMs = Math.max(bucketMs, visibleEndMs - visibleStartMs);
+
+        const valueAt = (arr, i, fallback = null) => {
+            if (!Array.isArray(arr) || !arr.length) return fallback;
+            if (i < arr.length) return arr[i];
+            return arr[arr.length - 1];
+        };
+        const sliceSeries = (arr, fallback = null) => {
+            const out = [];
+            for (let i = startIdx; i < n; i++) {
+                out.push(valueAt(arr, i, fallback));
+            }
+            return out;
+        };
+
+        const batteryVis = sliceSeries(battery, null);
+        const thresholdOnVis = sliceSeries(thresholdOn, 40);
+        const thresholdOffVis = sliceSeries(thresholdOff, 85);
+        const switchOnVis = sliceSeries(switchOn, 0).map(v => Number(v) > 0 ? 1 : 0);
+        const chargingOnRaw = Array.isArray(chart && chart.chargingOn) ? chart.chargingOn : [];
+        let chargingOnVis;
+        if (chargingOnRaw.length) {
+            chargingOnVis = sliceSeries(chargingOnRaw, 0).map(v => Number(v) > 0 ? 1 : 0);
+        } else {
+            const derived = new Array(nVis).fill(0);
+            let prevBattery = null;
+            for (let i = 0; i < nVis; i++) {
+                const v = Number(batteryVis[i]);
+                if (Number.isFinite(v)) {
+                    if (prevBattery != null) derived[i] = v > prevBattery ? 1 : 0;
+                    prevBattery = v;
+                }
+            }
+            chargingOnVis = derived;
+        }
+
+        const toX = (i) => nVis <= 1 ? padL : padL + (i / (nVis - 1)) * plotW;
+        const barsTotalH = Math.max(16, Math.round(plotH * 0.16));
+        const barsGap = 2;
+        const barsH = Math.max(5, Math.floor((barsTotalH - barsGap) / 2));
+        const dataPlotH = Math.max(40, plotH - barsTotalH - 2);
+        const toY = (v) => padT + ((100 - Math.max(0, Math.min(100, Number(v)))) / 100) * dataPlotH;
+
+        drawHorizontalGrid(dataPlotH);
 
         ctx.save();
         ctx.strokeStyle = "#1e2e42";
         ctx.fillStyle = "#8ca1b7";
         ctx.font = "10px ui-monospace, Menlo, Consolas, monospace";
-        for (let i = 0; i <= 7; i++) {
-            const x = padL + (i / 7) * plotW;
+        const majorTickMs = visibleDays <= 1 ? (3 * 60 * 60 * 1000) : dayMs;
+        const maxTickLabels = 4;
+        const highestValidTickMs = Math.floor(visibleEndMs / majorTickMs) * majorTickMs;
+        const ticksInRange = highestValidTickMs >= visibleStartMs
+            ? Math.floor((highestValidTickMs - visibleStartMs) / majorTickMs) + 1
+            : 0;
+        const stepMultiplier = ticksInRange > maxTickLabels
+            ? Math.ceil(ticksInRange / maxTickLabels)
+            : 1;
+        const tickStepMs = majorTickMs * stepMultiplier;
+        const tickTimesDesc = [];
+        if (ticksInRange > 0) {
+            for (let t = highestValidTickMs; t >= visibleStartMs && tickTimesDesc.length < maxTickLabels; t -= tickStepMs) {
+                tickTimesDesc.push(t);
+            }
+        }
+        const tickTimes = tickTimesDesc.reverse();
+        if (!tickTimes.length) tickTimes.push(visibleEndMs);
+
+        for (const ts of tickTimes) {
+            const ratio = Math.max(0, Math.min(1, (ts - visibleStartMs) / visibleSpanMs));
+            const x = padL + ratio * plotW;
             ctx.beginPath();
             ctx.moveTo(x, padT);
-            ctx.lineTo(x, padT + plotH);
+            ctx.lineTo(x, padT + dataPlotH);
             ctx.stroke();
-            if (i === 0 || i === 3 || i === 7) {
-                const ts = bucketZeroMs + (i / 7) * (n - 1) * bucketMs;
-                const d = new Date(ts);
-                const label = `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
-                ctx.textAlign = i === 0 ? "left" : (i === 7 ? "right" : "center");
-                ctx.fillText(label, x, height - 6);
-            }
+            const d = new Date(ts);
+            const label = visibleDays <= 1
+                ? `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`
+                : `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}`;
+            const labelX = Math.max(padL + 14, Math.min(padL + plotW - 14, x));
+            ctx.textAlign = "center";
+            ctx.fillText(label, labelX, height - 6);
         }
         ctx.restore();
 
-        if (switchOn.length) {
-            const barH = plotH * 0.10;
+        const chargingRowY = padT + dataPlotH + 1;
+        const switchRowY = chargingRowY + barsH + barsGap;
+        const drawStateRow = (label, y, rowValues, fillStyle) => {
             ctx.save();
-            ctx.fillStyle = "rgba(102, 220, 128, 0.65)";
-            for (let i = 0; i < n; i++) {
-                const on = i < switchOn.length ? Number(switchOn[i]) > 0 : Number(switchOn[switchOn.length - 1]) > 0;
-                if (!on) continue;
+            ctx.fillStyle = "rgba(19, 31, 46, 0.9)";
+            ctx.fillRect(padL, y, plotW, barsH);
+            ctx.strokeStyle = "#223449";
+            ctx.lineWidth = 1;
+            ctx.strokeRect(padL, y, plotW, barsH);
+            ctx.fillStyle = fillStyle;
+            for (let i = 0; i < nVis; i++) {
+                if (Number(rowValues[i]) <= 0) continue;
                 const x0 = toX(i);
-                const x1 = toX(Math.min(i + 1, n - 1));
+                const x1 = i < nVis - 1 ? toX(i + 1) : (padL + plotW);
                 const w = Math.max(1, x1 - x0);
-                ctx.fillRect(x0, padT + plotH - barH, w, barH);
+                ctx.fillRect(x0, y, w, barsH);
             }
+            ctx.fillStyle = "#8ca1b7";
+            ctx.font = "9px ui-monospace, Menlo, Consolas, monospace";
+            ctx.textAlign = "left";
+            ctx.fillText(label, padL + 2, y + barsH - 2);
             ctx.restore();
-        }
+        };
+
+        drawStateRow("charging on", chargingRowY, chargingOnVis, "rgba(78, 205, 196, 0.62)");
+        drawStateRow("switch on", switchRowY, switchOnVis, "rgba(102, 220, 128, 0.66)");
 
         const drawStep = (arr, color, dash) => {
             if (!arr.length) return;
@@ -444,7 +578,7 @@ function initConfiguration() {
             ctx.beginPath();
             let prevY = toY(arr[0]);
             ctx.moveTo(toX(0), prevY);
-            for (let i = 1; i < n; i++) {
+            for (let i = 1; i < nVis; i++) {
                 const val = i < arr.length ? arr[i] : arr[arr.length - 1];
                 const y = toY(val);
                 const x = toX(i);
@@ -458,17 +592,17 @@ function initConfiguration() {
             ctx.restore();
         };
 
-        drawStep(thresholdOff, "#ff7e67", [6, 4]);
-        drawStep(thresholdOn, "#4ecdc4", [3, 3]);
+        drawStep(thresholdOffVis, "#ff7e67", [6, 4]);
+        drawStep(thresholdOnVis, "#4ecdc4", [3, 3]);
 
-        if (battery.length) {
+        if (batteryVis.length) {
             ctx.save();
             ctx.strokeStyle = "#f2d66b";
             ctx.lineWidth = 1.8;
             ctx.beginPath();
             let started = false;
-            for (let i = 0; i < n; i++) {
-                const v = i < battery.length ? battery[i] : null;
+            for (let i = 0; i < nVis; i++) {
+                const v = batteryVis[i];
                 if (v == null || !Number.isFinite(Number(v))) continue;
                 const x = toX(i);
                 const y = toY(v);
@@ -491,6 +625,12 @@ function initConfiguration() {
             if (!r.ok) return;
             const payload = await r.json();
             drawBatteryHistoryGraph(payload && payload.chart ? payload.chart : {});
+        } catch (_) {}
+    }
+
+    async function requestBatterySampleNow() {
+        try {
+            await fetch("/api/battery/sample", { method: "POST", cache: "no-store" });
         } catch (_) {}
     }
 
@@ -1082,8 +1222,10 @@ function initConfiguration() {
         });
 
         if (els.batterySwitchRefreshBtn) {
-            els.batterySwitchRefreshBtn.addEventListener("click", () => {
-                refreshBatterySwitchState();
+            els.batterySwitchRefreshBtn.addEventListener("click", async () => {
+                await requestBatterySampleNow();
+                await refreshBatteryGraphFromInfo();
+                await refreshBatterySwitchState();
             });
         }
         if (els.batterySwitchToggleBtn) {

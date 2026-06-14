@@ -480,6 +480,30 @@
     if (el && el.parentNode) el.parentNode.removeChild(el);
   }
 
+  function copyTextToClipboard(text) {
+    if (!text) return Promise.reject(new Error("empty text"));
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(text);
+    }
+    return new Promise(function (resolve, reject) {
+      try {
+        var helper = document.createElement("textarea");
+        helper.value = text;
+        helper.setAttribute("readonly", "readonly");
+        helper.style.position = "fixed";
+        helper.style.left = "-9999px";
+        helper.style.top = "0";
+        document.body.appendChild(helper);
+        helper.select();
+        var ok = document.execCommand("copy");
+        if (helper.parentNode) helper.parentNode.removeChild(helper);
+        if (ok) resolve(); else reject(new Error("copy failed"));
+      } catch (err) {
+        reject(err);
+      }
+    });
+  }
+
   function renderQrOverlay(url) {
     hideQrOverlay();
 
@@ -496,6 +520,11 @@
       "display:flex;flex-direction:column;align-items:center;gap:16px;" +
       "max-width:90vmin;cursor:default;box-shadow:0 8px 32px rgba(0,0,0,0.5);";
     box.addEventListener("click", function (e) { e.stopPropagation(); });
+
+    var title = document.createElement("div");
+    title.textContent = "Remote pairing";
+    title.style.cssText = "font:600 14px ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,sans-serif;letter-spacing:0.04em;text-transform:uppercase;color:#12202f;";
+    box.appendChild(title);
 
     var qrHolder = document.createElement("div");
     qrHolder.style.cssText = "background:#fff;line-height:0;";
@@ -526,9 +555,42 @@
     var urlEl = document.createElement("div");
     urlEl.textContent = url;
     urlEl.style.cssText =
-      "font-family:ui-monospace,Menlo,Consolas,monospace;font-size:18px;" +
+      "font-family:ui-monospace,Menlo,Consolas,monospace;font-size:16px;" +
       "color:#000;word-break:break-all;text-align:center;user-select:all;";
     box.appendChild(urlEl);
+
+    var statusEl = document.createElement("div");
+    statusEl.style.cssText = "font:500 12px ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,sans-serif;color:#314055;text-align:center;max-width:min(70vmin,560px);line-height:1.35;";
+    statusEl.textContent = IS_REMOTE ? "Remote browser session active" : "This clock is ready to share";
+    box.appendChild(statusEl);
+
+    var actions = document.createElement("div");
+    actions.style.cssText = "display:flex;gap:8px;flex-wrap:wrap;justify-content:center;";
+
+    var copyBtn = document.createElement("button");
+    copyBtn.type = "button";
+    copyBtn.textContent = "Copy URL";
+    copyBtn.style.cssText = "background:#12202f;border:1px solid #12202f;color:#fff;border-radius:999px;padding:8px 14px;font:600 12px ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,sans-serif;cursor:pointer;";
+    copyBtn.addEventListener("click", function () {
+      copyTextToClipboard(url).then(function () {
+        copyBtn.textContent = "Copied";
+        window.setTimeout(function () {
+          copyBtn.textContent = "Copy URL";
+        }, 1400);
+      }).catch(function () {
+        urlEl.focus && urlEl.focus();
+      });
+    });
+    actions.appendChild(copyBtn);
+
+    var closeBtn = document.createElement("button");
+    closeBtn.type = "button";
+    closeBtn.textContent = "Close";
+    closeBtn.style.cssText = "background:#fff;border:1px solid #c3ced9;color:#12202f;border-radius:999px;padding:8px 14px;font:600 12px ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,sans-serif;cursor:pointer;";
+    closeBtn.addEventListener("click", hideQrOverlay);
+    actions.appendChild(closeBtn);
+
+    box.appendChild(actions);
 
     backdrop.appendChild(box);
     backdrop.addEventListener("click", hideQrOverlay);
@@ -1015,14 +1077,14 @@
           });
 
           var nameContainer = document.createElement("div");
-          nameContainer.style.cssText = "display: flex; flex-direction: column; min-width: 0;";
+          nameContainer.style.cssText = "display: flex; flex-direction: column; min-width: 0; cursor: pointer; user-select: none;";
 
           var nameSpan = document.createElement("span");
-          nameSpan.style.cssText = "font-size: 14px; color: " + (clk.isSelf ? "#888" : "#fff") + "; line-height: 1.2;";
+          nameSpan.style.cssText = "font-size: 14px; color: " + (clk.isSelf ? "#888" : "#fff") + "; line-height: 1.2; cursor: pointer; user-select: none; transition: color 0.15s;";
           nameSpan.textContent = clk.name;
 
           var detailsSpan = document.createElement("span");
-          detailsSpan.style.cssText = "font-size: 10px; color: #7f8794; line-height: 1.2; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;";
+          detailsSpan.style.cssText = "font-size: 10px; color: #7f8794; line-height: 1.2; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; user-select: none;";
           var detailsText = [];
           var macAddress = getClockMacAddress(clk);
           if (macAddress) detailsText.push("MAC " + macAddress);
@@ -1030,6 +1092,27 @@
 
           nameContainer.appendChild(nameSpan);
           nameContainer.appendChild(detailsSpan);
+          nameContainer.title = "Click to copy: " + (clk.url || "");
+          nameContainer.addEventListener("click", function () {
+            if (!clk.url) return;
+            var originalName = nameSpan.textContent;
+            var originalColor = nameSpan.style.color;
+            copyTextToClipboard(clk.url).then(function () {
+              nameSpan.textContent = "Copied!";
+              nameSpan.style.color = "#00cc66";
+              window.setTimeout(function () {
+                nameSpan.textContent = originalName;
+                nameSpan.style.color = originalColor;
+              }, 1200);
+            }).catch(function () {
+              nameSpan.textContent = "Copy failed";
+              nameSpan.style.color = "#ff4444";
+              window.setTimeout(function () {
+                nameSpan.textContent = originalName;
+                nameSpan.style.color = originalColor;
+              }, 1200);
+            });
+          });
 
           // Action buttons container
           var actionContainer = document.createElement("div");

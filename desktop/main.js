@@ -21,7 +21,7 @@ const BUILD_TIME = (() => {
 const activityLog = [{ timestampMs: SERVER_START_MS, isAwake: true }];
 
 const BATTERY_BUCKET_MS = 10 * 60 * 1000;
-const BATTERY_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+const BATTERY_RETENTION_MS = 8 * 24 * 60 * 60 * 1000;
 const BATTERY_MAX_POINTS = Math.floor(BATTERY_RETENTION_MS / BATTERY_BUCKET_MS);
 const BATTERY_SAMPLE_INTERVAL_MS = 60 * 1000;
 const AUTOMATION_MIN_COMMAND_INTERVAL_MS = 5 * 60 * 1000;
@@ -201,13 +201,14 @@ function recordThresholdSnapshot(settings, nowMs = Date.now()) {
   persistThresholdHistory();
 }
 
-function sampleSelfBattery(nowMs = Date.now()) {
+function sampleSelfBattery(nowMs = Date.now(), forcePoint = false) {
   const level = getSelfBattery();
   if (!Number.isFinite(level) || level < 0) return;
   const bucketMs = Math.floor(nowMs / BATTERY_BUCKET_MS) * BATTERY_BUCKET_MS;
-  if (bucketMs === lastBatterySampleBucketMs) return;
+  if (!forcePoint && bucketMs === lastBatterySampleBucketMs) return;
   lastBatterySampleBucketMs = bucketMs;
-  batteryHistory.push({ ts: bucketMs, battery: clampPct(level, 0) });
+  const sampleTs = forcePoint ? nowMs : bucketMs;
+  batteryHistory.push({ ts: sampleTs, battery: clampPct(level, 0) });
   trimBatteryHistory(nowMs);
   persistBatteryHistory();
 }
@@ -378,7 +379,7 @@ loadBatteryPersistence();
 sampleSelfBattery();
 
 function trimActivityLog() {
-  const cutoff = Date.now() - 7 * 24 * 3600 * 1000;
+  const cutoff = Date.now() - BATTERY_RETENTION_MS;
   const firstKeep = activityLog.findIndex(e => e.timestampMs > cutoff);
   if (firstKeep > 1) activityLog.splice(0, firstKeep - 1);
 }
@@ -433,6 +434,28 @@ function normalizeMacAddress(raw) {
   if (!/^([0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(normalized)) return '';
   if (normalized === '00:00:00:00:00:00') return '';
   return normalized;
+}
+
+function getBroadcastTargets() {
+  const targets = new Set([MULTICAST_ADDR]);
+  const interfaces = os.networkInterfaces();
+  for (const entries of Object.values(interfaces)) {
+    if (!Array.isArray(entries)) continue;
+    for (const entry of entries) {
+      if (!entry || entry.family !== 'IPv4' || entry.internal || !entry.address) continue;
+      if (typeof entry.broadcast === 'string' && entry.broadcast) {
+        targets.add(entry.broadcast);
+        continue;
+      }
+      if (!entry.netmask) continue;
+      const ipParts = entry.address.split('.').map((part) => Number(part));
+      const maskParts = entry.netmask.split('.').map((part) => Number(part));
+      if (ipParts.length !== 4 || maskParts.length !== 4 || ipParts.some(Number.isNaN) || maskParts.some(Number.isNaN)) continue;
+      const broadcastParts = ipParts.map((part, index) => ((part & maskParts[index]) | (~maskParts[index] & 255)) & 255);
+      targets.add(broadcastParts.join('.'));
+    }
+  }
+  return Array.from(targets);
 }
 
 function getMacForIp(targetIp) {
@@ -640,10 +663,15 @@ expressApp.post('/api/battery-switch/off', async (req, res) => {
   }
 });
 
+expressApp.post('/api/battery/sample', (req, res) => {
+  sampleSelfBattery(Date.now(), true);
+  res.json({ ok: true, points: batteryHistory.length });
+});
+
 /**
  * GET /api/info
  *
- * Returns device information and a 7-day activity history for one clock node.
+ * Returns device information and an 8-day activity history for one clock node.
  *
  * Response JSON schema:
  * {
@@ -681,6 +709,15 @@ expressApp.get('/api/info', (req, res) => {
   sampleSelfBattery(now);
   const batterySettings = getBatterySettingsFromState();
   recordThresholdSnapshot(batterySettings, now);
+  const batterySamplesInWindow = batteryHistory
+    .filter((p) => p && Number.isFinite(p.ts) && p.ts >= bucketZero && p.ts <= now)
+    .sort((a, b) => a.ts - b.ts);
+  const batterySampleCount = batterySamplesInWindow.length;
+  const batteryFirstSampleMs = batterySampleCount ? batterySamplesInWindow[0].ts : null;
+  const batteryLastSampleMs = batterySampleCount ? batterySamplesInWindow[batterySampleCount - 1].ts : null;
+  const batterySampleSpanMs = batterySampleCount
+    ? Math.max(bucketMs, (batteryLastSampleMs - batteryFirstSampleMs) + bucketMs)
+    : 0;
   const battery = buildBatterySeries(bucketZero, bucketCount, bucketMs);
   const thresholdOn = buildThresholdSeries(bucketZero, bucketCount, bucketMs, 'thresholdOnPct', batterySettings.thresholdOnPct);
   const thresholdOff = buildThresholdSeries(bucketZero, bucketCount, bucketMs, 'thresholdOffPct', batterySettings.thresholdOffPct);
@@ -706,6 +743,10 @@ expressApp.get('/api/info', (req, res) => {
       thresholdOn,
       thresholdOff,
       switchOn,
+      batterySampleCount,
+      batterySampleSpanMs,
+      batteryFirstSampleMs,
+      batteryLastSampleMs,
       nowBattery: getSelfBattery(),
       nowThresholdOn: batterySettings.thresholdOnPct,
       nowThresholdOff: batterySettings.thresholdOffPct,
@@ -743,7 +784,7 @@ expressApp.get('/api/time', (req, res) => {
 const SERVER_ID = `desktop-mac-${HOST_IP}`;
 
 // Serve index.html with remote-bridge.js injected (mirrors Android ClockServer).
-// When packaged, extraResources places web/ and remote-bridge.js under process.resourcesPath.
+// When packaged, extraResources places web/, remote-bridge.js, and qrcode.min.js under process.resourcesPath.
 const isPackaged = app.isPackaged;
 const WEB_DIR = isPackaged
   ? path.join(process.resourcesPath, 'web')
@@ -751,13 +792,16 @@ const WEB_DIR = isPackaged
 const BRIDGE_FILE = isPackaged
   ? path.join(process.resourcesPath, 'remote-bridge.js')
   : path.join(__dirname, '../mobile/wv-clock/app/src/main/assets/remote-bridge.js');
+const QR_CODE_FILE = isPackaged
+  ? path.join(process.resourcesPath, 'qrcode.min.js')
+  : path.join(__dirname, '../mobile/wv-clock/app/src/main/assets/qrcode.min.js');
 
 function serveIndex(req, res) {
   try {
     const html = fs.readFileSync(path.join(WEB_DIR, 'index.html'), 'utf8');
     const injected = html.replace(
       '</head>',
-      '<script src="/remote-bridge.js"></script></head>'
+      '<script src="/qrcode.min.js"></script><script src="/remote-bridge.js"></script></head>'
     );
     res.set('Cache-Control', 'no-store');
     res.type('html').send(injected);
@@ -772,6 +816,12 @@ expressApp.get('/remote-bridge.js', (req, res) => {
   res.type('application/javascript');
   res.set('Cache-Control', 'no-store');
   res.sendFile(BRIDGE_FILE);
+});
+
+expressApp.get('/qrcode.min.js', (req, res) => {
+  res.type('application/javascript');
+  res.set('Cache-Control', 'no-store');
+  res.sendFile(QR_CODE_FILE);
 });
 
 // Serve static assets from front-end folders
@@ -840,7 +890,9 @@ setInterval(() => {
     };
     const message = `WvClockDiscovery:${JSON.stringify(payload)}`;
     const buffer = Buffer.from(message);
-    udpSocket.send(buffer, 0, buffer.length, UDP_PORT, MULTICAST_ADDR);
+    for (const target of getBroadcastTargets()) {
+      udpSocket.send(buffer, 0, buffer.length, UDP_PORT, target);
+    }
   } catch (err) {
     console.error('[DESKTOP] UDP broadcast failure:', err);
   }
