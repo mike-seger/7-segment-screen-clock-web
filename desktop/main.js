@@ -734,6 +734,7 @@ expressApp.get('/api/info', (req, res) => {
     ],
     serverStartMs: SERVER_START_MS,
     nowMs: now,
+    milliWatts: -1,
     chart: {
       bucketMs,
       bucketZeroMs: bucketZero,

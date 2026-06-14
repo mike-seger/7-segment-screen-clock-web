@@ -170,6 +170,9 @@ function initConfiguration() {
         batterySwitchToggleBtn: document.getElementById("batterySwitchToggleBtn"),
         batteryHistoryCanvas: document.getElementById("batteryHistoryCanvas"),
 
+        batteryLiveCharge:   document.getElementById("batteryLiveCharge"),
+        batteryLiveCharging: document.getElementById("batteryLiveCharging"),
+
         profileName:       document.getElementById("profileName"),
         profileSelect:     document.getElementById("profileSelect"),
         saveProfileBtn:      document.getElementById("saveProfileBtn"),
@@ -592,8 +595,8 @@ function initConfiguration() {
             ctx.restore();
         };
 
-        drawStep(thresholdOffVis, "#ff7e67", [6, 4]);
-        drawStep(thresholdOnVis, "#4ecdc4", [3, 3]);
+        drawStep(thresholdOffVis, "rgba(255, 126, 103, 0.72)");
+        drawStep(thresholdOnVis, "rgba(78, 205, 196, 0.72)");
 
         if (batteryVis.length) {
             ctx.save();
@@ -617,6 +620,25 @@ function initConfiguration() {
             ctx.restore();
         }
 
+        const nowBattery = Number(chart && chart.nowBattery);
+        if (Number.isFinite(nowBattery)) {
+            const nowMsRaw = Number(chart && chart.nowMs);
+            const nowMs = Number.isFinite(nowMsRaw) ? nowMsRaw : visibleEndMs;
+            const ratioNow = Math.max(0, Math.min(1, (nowMs - visibleStartMs) / visibleSpanMs));
+            const xNow = padL + ratioNow * plotW;
+            const yNow = toY(nowBattery);
+
+            ctx.save();
+            ctx.fillStyle = "#f2d66b";
+            ctx.strokeStyle = "rgba(242, 214, 107, 0.35)";
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(xNow, yNow, 3.2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            ctx.restore();
+        }
+
     }
 
     async function refreshBatteryGraphFromInfo() {
@@ -625,6 +647,36 @@ function initConfiguration() {
             if (!r.ok) return;
             const payload = await r.json();
             drawBatteryHistoryGraph(payload && payload.chart ? payload.chart : {});
+            // Update live status row
+            const chart = payload && payload.chart ? payload.chart : {};
+            const nowBattery = Number(chart.nowBattery);
+            if (els.batteryLiveCharge) {
+                els.batteryLiveCharge.textContent = Number.isFinite(nowBattery) && nowBattery >= 0
+                    ? `${nowBattery}%`
+                    : "—%";
+            }
+            if (els.batteryLiveCharging) {
+                // Derive charging from milliWatts (>0 = charging) or nowBattery delta vs last sample
+                const mW = payload && payload.milliWatts != null ? Number(payload.milliWatts)
+                    : (payload && payload.power && payload.power.milliWatts != null ? Number(payload.power.milliWatts) : NaN);
+                let chargingText = "—";
+                let chargingColor = "#7f93a7";
+                if (Number.isFinite(mW)) {
+                    if (mW > 0) { chargingText = "Charging: YES ▲"; chargingColor = "#4ecdc4"; }
+                    else { chargingText = "Charging: NO"; chargingColor = "#7f93a7"; }
+                } else {
+                    // Fallback: look at last two battery samples
+                    const bArr = Array.isArray(chart.battery) ? chart.battery : [];
+                    const lastVals = bArr.filter(v => Number.isFinite(Number(v))).slice(-3);
+                    if (lastVals.length >= 2) {
+                        const rising = Number(lastVals[lastVals.length - 1]) > Number(lastVals[0]);
+                        chargingText = rising ? "Charging: YES ▲" : "Charging: NO";
+                        chargingColor = rising ? "#4ecdc4" : "#7f93a7";
+                    }
+                }
+                els.batteryLiveCharging.textContent = chargingText;
+                els.batteryLiveCharging.style.color = chargingColor;
+            }
         } catch (_) {}
     }
 
@@ -1218,6 +1270,12 @@ function initConfiguration() {
                 readFormIntoState(changedBy);
                 applyState();
                 saveCurrentState();
+                if (input === els.batterySettingsEnabled ||
+                    input === els.batterySwitchIp ||
+                    input === els.batteryThresholdOn ||
+                    input === els.batteryThresholdOff) {
+                    if (typeof saveBatterySettings === "function") saveBatterySettings();
+                }
             });
         });
 

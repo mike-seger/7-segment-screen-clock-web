@@ -56,6 +56,9 @@
     "screenClock_controlledClocks": true,
     "screenClock_timeMasterUrl": true
   };
+    // Battery settings are device-specific (different switch host, thresholds per tablet)
+    // and must NOT be synced across devices.
+    EXCLUDE_KEYS["screenClock_batterySettings"] = true;
 
   function isSyncedKey(k) {
     return typeof k === "string" && k.indexOf(SYNC_PREFIX) === 0 && !EXCLUDE_KEYS[k];

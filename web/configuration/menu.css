@@ -268,6 +268,30 @@
     background: rgba(4, 251, 98, 0.04);
 }
 
+.battery-threshold-label-off {
+    color: rgba(255, 126, 103, 0.9);
+}
+
+.battery-threshold-label-on {
+    color: rgba(78, 205, 196, 0.95);
+}
+
+.battery-threshold-value-off {
+    color: rgba(255, 126, 103, 0.95);
+}
+
+.battery-threshold-value-on {
+    color: rgba(78, 205, 196, 0.98);
+}
+
+#batteryThresholdOff {
+    accent-color: rgba(255, 126, 103, 0.92);
+}
+
+#batteryThresholdOn {
+    accent-color: rgba(78, 205, 196, 0.95);
+}
+
 #batteryThresholdControls.is-disabled {
     opacity: 0.55;
 }

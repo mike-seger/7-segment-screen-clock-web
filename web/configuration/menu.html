@@ -288,21 +288,27 @@
                         </span>
                     </label>
 
+                    <div id="batteryLiveStatus" style="display: flex; gap: 12px; align-items: center; margin-bottom: 10px; padding: 6px 10px; background: #0d1720; border-radius: 6px; border: 1px solid #1d2e40; font-size: 13px; font-family: ui-monospace, Menlo, Consolas, monospace;">
+                        <span id="batteryLiveCharge" style="color: #f2d66b; font-weight: bold;">—%</span>
+                        <span id="batteryLiveCharging" style="color: #7f93a7;">Charging: —</span>
+                    </div>
+
+
                     <label for="batterySwitchIp">Switch host (IP or DNS)</label>
                     <input type="text" id="batterySwitchIp" placeholder="e.g. 192.168.1.40 or sonoff.local">
 
                     <div id="batteryThresholdControls" class="battery-threshold-box">
-                        <label for="batteryThresholdOff">
+                        <label for="batteryThresholdOff" class="battery-threshold-label battery-threshold-label-off">
                             Turn OFF at / above
-                            <span class="valueBadge" id="batteryThresholdOffValue"></span>
+                            <span class="valueBadge battery-threshold-value-off" id="batteryThresholdOffValue"></span>
                         </label>
-                        <input type="range" id="batteryThresholdOff" min="1" max="100" step="1">
+                        <input type="range" id="batteryThresholdOff" class="battery-threshold-slider-off" min="1" max="100" step="1">
 
-                        <label for="batteryThresholdOn" style="margin-top: 8px;">
+                        <label for="batteryThresholdOn" class="battery-threshold-label battery-threshold-label-on" style="margin-top: 8px;">
                             Turn ON at / below
-                            <span class="valueBadge" id="batteryThresholdOnValue"></span>
+                            <span class="valueBadge battery-threshold-value-on" id="batteryThresholdOnValue"></span>
                         </label>
-                        <input type="range" id="batteryThresholdOn" min="0" max="99" step="1">
+                        <input type="range" id="batteryThresholdOn" class="battery-threshold-slider-on" min="0" max="99" step="1">
                     </div>
 
                     <div class="battery-switch-controls">
@@ -316,7 +322,7 @@
                 </div>
 
                 <div class="menu-subsection">
-                    <h3>Battery History (Last 8 Days)</h3>
+                    <h3>Battery History</h3>
                     <div id="batteryHistoryGraphWrap">
                         <canvas id="batteryHistoryCanvas" width="320" height="120"></canvas>
                     </div>

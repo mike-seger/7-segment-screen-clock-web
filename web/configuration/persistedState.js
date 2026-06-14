@@ -252,6 +252,17 @@ function loadCurrentState() {
     } catch (e) {
         console.warn("Failed to load stored state", e);
     }
+    // Battery settings are per-device and stored separately so they are never
+    // overwritten by cross-device state sync.
+    try {
+        const bsRaw = localStorage.getItem("screenClock_batterySettings");
+        if (bsRaw) {
+            const bsParsed = JSON.parse(bsRaw);
+            state.batterySettings = normalizeBatterySettings(bsParsed);
+        }
+    } catch (e) {
+        console.warn("Failed to load battery settings", e);
+    }
     state.showDebug = loadShowDebug();
     state.showGpuInfo = loadShowGpuInfo();
     state.container = loadContainer();
@@ -263,9 +274,22 @@ function saveCurrentState() {
         delete toSave.showDebug;
         delete toSave.showGpuInfo;
         delete toSave.container;
+        // Battery settings live in their own isolated key, not in the shared blob.
+        delete toSave.batterySettings;
         localStorage.setItem(STORAGE_KEY_CURRENT, JSON.stringify(toSave));
     } catch (e) {
         console.warn("Failed to save state", e);
+    }
+}
+
+function saveBatterySettings() {
+    try {
+        const bs = (state.batterySettings && typeof state.batterySettings === "object")
+            ? state.batterySettings
+            : {};
+        localStorage.setItem("screenClock_batterySettings", JSON.stringify(bs));
+    } catch (e) {
+        console.warn("Failed to save battery settings", e);
     }
 }
 
@@ -337,6 +361,11 @@ function loadProfile(name) {
         state.showDebug = loadShowDebug();
         state.showGpuInfo = loadShowGpuInfo();
         state.container = loadContainer();
+        // Preserve per-device battery settings — never overwrite with profile/default values.
+        try {
+            const bsRaw = localStorage.getItem("screenClock_batterySettings");
+            if (bsRaw) state.batterySettings = normalizeBatterySettings(JSON.parse(bsRaw));
+        } catch (_) {}
         applyLoadedStateUI();
         saveCurrentState();
         return;
@@ -350,6 +379,11 @@ function loadProfile(name) {
         state.showDebug = loadShowDebug();
         state.showGpuInfo = loadShowGpuInfo();
         state.container = loadContainer();
+        // Preserve per-device battery settings — never overwrite with profile/default values.
+        try {
+            const bsRaw = localStorage.getItem("screenClock_batterySettings");
+            if (bsRaw) state.batterySettings = normalizeBatterySettings(JSON.parse(bsRaw));
+        } catch (_) {}
         applyLoadedStateUI();
         saveCurrentState();
     } catch (e) {

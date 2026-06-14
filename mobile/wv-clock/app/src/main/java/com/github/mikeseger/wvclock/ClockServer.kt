@@ -1426,6 +1426,7 @@ class ClockServer(
             put("attrs", attrs)
             put("serverStartMs", serverStartMs)
             put("nowMs", now)
+            put("milliWatts", batteryMilliWattsProvider())
             put("power", JSONObject().apply {
                 put("batteryOptimizationIgnored", batteryOptimizationIgnored)
                 put("wifiLockHeld", wifiLockHeldProvider())
