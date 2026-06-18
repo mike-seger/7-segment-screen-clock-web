@@ -51,10 +51,14 @@
   // make the device open its menu too.
   // screenClock_controlledClocks is local to this client's control preferences and
   // should not be synchronized across clocks.
+  // screenClock_selectedTab + screenClock_menuPosition are per-client UI navigation
+  // state; syncing them would let any other client yank our visible tab/position.
   var EXCLUDE_KEYS = {
     "screenClock_menuOpen": true,
     "screenClock_controlledClocks": true,
-    "screenClock_timeMasterUrl": true
+    "screenClock_timeMasterUrl": true,
+    "screenClock_selectedTab": true,
+    "screenClock_menuPosition": true
   };
     // Battery settings are device-specific (different switch host, thresholds per tablet)
     // and must NOT be synced across devices.

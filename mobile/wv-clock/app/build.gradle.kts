@@ -1,4 +1,5 @@
 import org.gradle.api.tasks.Copy
+import java.io.ByteArrayOutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.TimeZone
@@ -115,21 +116,66 @@ tasks.register<Exec>("deployToDevice") {
     description = "Build, install and launch the debug APK. -Pdevice=<serial> targets one device; -Pdevice=- targets all."
     dependsOn("assembleDebug")
     doFirst {
+        val failOnAnyError = findProperty("deployFailOnAnyError")?.toString()?.toBoolean() == true
         val serials = resolveAdbSerials()
         val apk = layout.buildDirectory.file("outputs/apk/debug/app-debug.apk").get().asFile
+        val successful = mutableListOf<String>()
+        val failed = mutableListOf<Pair<String, String>>()
+
         serials.forEach { serial ->
             val adb = listOf("adb", "-s", serial)
             logger.lifecycle("Deploying to device: $serial")
-            project.exec {
-                commandLine(adb + listOf("install", "-r", "-d", "-g", apk.absolutePath))
+
+            val installOutput = ByteArrayOutputStream()
+            val installResult = project.exec {
+                commandLine(adb + listOf("install", "-r", "-d", apk.absolutePath))
+                isIgnoreExitValue = true
+                standardOutput = installOutput
+                errorOutput = installOutput
             }
+            if (installResult.exitValue != 0) {
+                val reason = installOutput.toString().trim().ifEmpty { "adb install failed" }
+                logger.warn("Install failed on $serial: $reason")
+                failed += serial to reason
+                return@forEach
+            }
+
             // Grant SYSTEM_ALERT_WINDOW (overlay permission) so the PowerVR watchdog
             // can add its invisible 1x1 BAL-exemption window.  This permission is
             // normally granted once by the user via Settings; pre-grant it here so
             // dev installs never redirect to the Settings screen on launch.
-            project.exec { commandLine(adb + listOf("shell", "appops", "set",
-                debugApplicationId, "SYSTEM_ALERT_WINDOW", "allow")) }
-            project.exec { commandLine(adb + listOf("shell", "am", "start", "-W", "-n", "$debugApplicationId/com.github.mikeseger.wvclock.MainActivity")) }
+            project.exec {
+                commandLine(adb + listOf("shell", "appops", "set", debugApplicationId, "SYSTEM_ALERT_WINDOW", "allow"))
+                isIgnoreExitValue = true
+            }
+
+            val startResult = project.exec {
+                commandLine(adb + listOf("shell", "am", "start", "-W", "-n", "$debugApplicationId/com.github.mikeseger.wvclock.MainActivity"))
+                isIgnoreExitValue = true
+            }
+
+            if (startResult.exitValue != 0) {
+                val reason = "install ok, launch failed"
+                logger.warn("Launch failed on $serial: $reason")
+                failed += serial to reason
+                return@forEach
+            }
+
+            successful += serial
+        }
+
+        logger.lifecycle("Deploy summary: ${successful.size}/${serials.size} device(s) succeeded")
+        if (successful.isNotEmpty()) {
+            logger.lifecycle("Successful: ${successful.joinToString(", ")}")
+        }
+        if (failed.isNotEmpty()) {
+            failed.forEach { (serial, reason) ->
+                logger.warn("Failed: $serial -> $reason")
+            }
+            if (successful.isEmpty() || failOnAnyError) {
+                error("Deployment failed for ${failed.size} device(s).")
+            }
+            logger.warn("Some devices failed. Continuing because at least one device deployed successfully. Set -PdeployFailOnAnyError=true to fail the task when any device fails.")
         }
     }
     commandLine("true")

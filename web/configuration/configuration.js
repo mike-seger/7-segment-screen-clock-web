@@ -248,6 +248,37 @@ function initConfiguration() {
         }
     }
 
+    let batteryAutomationSyncTimer = null;
+
+    async function syncBatteryAutomationConfigToServer() {
+        const bs = state && state.batterySettings ? state.batterySettings : {};
+        const payload = {
+            enabled: !!bs.enabled,
+            switchIp: String(bs.switchIp || "").trim(),
+            thresholdOffPct: clampBatteryThreshold(bs.thresholdOffPct, 85),
+            thresholdOnPct: clampBatteryThreshold(bs.thresholdOnPct, 40)
+        };
+        try {
+            await fetch("/api/battery-automation/config", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            });
+        } catch (_) {
+            // Non-fatal: automation still has fallback config paths.
+        }
+    }
+
+    function scheduleBatteryAutomationConfigSync() {
+        if (batteryAutomationSyncTimer) {
+            clearTimeout(batteryAutomationSyncTimer);
+        }
+        batteryAutomationSyncTimer = setTimeout(() => {
+            batteryAutomationSyncTimer = null;
+            syncBatteryAutomationConfigToServer();
+        }, 120);
+    }
+
     function syncBatteryUi() {
         normalizeBatterySettingsState();
         const bs = state.batterySettings;
@@ -656,24 +687,43 @@ function initConfiguration() {
                     : "—%";
             }
             if (els.batteryLiveCharging) {
-                // Derive charging from milliWatts (>0 = charging) or nowBattery delta vs last sample
+                // Charging status must respect switch state first; otherwise it can lie when switch is OFF.
+                const switchSeries = Array.isArray(chart.switchOn) ? chart.switchOn : [];
+                const switchFromChart = switchSeries.length ? (Number(switchSeries[switchSeries.length - 1]) > 0 ? "ON" : "OFF") : null;
+                const switchPower = batterySwitchPower || switchFromChart;
+
                 const mW = payload && payload.milliWatts != null ? Number(payload.milliWatts)
                     : (payload && payload.power && payload.power.milliWatts != null ? Number(payload.power.milliWatts) : NaN);
-                let chargingText = "—";
+                const bArr = Array.isArray(chart.battery) ? chart.battery : [];
+                const lastVals = bArr.filter(v => Number.isFinite(Number(v))).slice(-3);
+                const rising = lastVals.length >= 2
+                    ? Number(lastVals[lastVals.length - 1]) > Number(lastVals[0])
+                    : null;
+
+                let chargingText = "Charging: —";
                 let chargingColor = "#7f93a7";
-                if (Number.isFinite(mW)) {
-                    if (mW > 0) { chargingText = "Charging: YES ▲"; chargingColor = "#4ecdc4"; }
-                    else { chargingText = "Charging: NO"; chargingColor = "#7f93a7"; }
-                } else {
-                    // Fallback: look at last two battery samples
-                    const bArr = Array.isArray(chart.battery) ? chart.battery : [];
-                    const lastVals = bArr.filter(v => Number.isFinite(Number(v))).slice(-3);
-                    if (lastVals.length >= 2) {
-                        const rising = Number(lastVals[lastVals.length - 1]) > Number(lastVals[0]);
-                        chargingText = rising ? "Charging: YES ▲" : "Charging: NO";
-                        chargingColor = rising ? "#4ecdc4" : "#7f93a7";
+
+                if (switchPower === "OFF") {
+                    chargingText = "Charging: NO (switch OFF)";
+                    chargingColor = "#7f93a7";
+                } else if (Number.isFinite(mW)) {
+                    if (mW > 0) {
+                        chargingText = "Charging: YES ▲";
+                        chargingColor = "#4ecdc4";
+                    } else {
+                        chargingText = switchPower === "ON" ? "Charging: WAIT" : "Charging: NO";
+                        chargingColor = switchPower === "ON" ? "#f2d66b" : "#7f93a7";
+                    }
+                } else if (rising != null) {
+                    if (rising) {
+                        chargingText = "Charging: YES ▲";
+                        chargingColor = "#4ecdc4";
+                    } else {
+                        chargingText = switchPower === "ON" ? "Charging: WAIT" : "Charging: NO";
+                        chargingColor = switchPower === "ON" ? "#f2d66b" : "#7f93a7";
                     }
                 }
+
                 els.batteryLiveCharging.textContent = chargingText;
                 els.batteryLiveCharging.style.color = chargingColor;
             }
@@ -1275,6 +1325,7 @@ function initConfiguration() {
                     input === els.batteryThresholdOn ||
                     input === els.batteryThresholdOff) {
                     if (typeof saveBatterySettings === "function") saveBatterySettings();
+                    scheduleBatteryAutomationConfigSync();
                 }
             });
         });
@@ -1612,6 +1663,7 @@ function initConfiguration() {
     populateProfileSelect();
     applyState();
     saveCurrentState();
+    scheduleBatteryAutomationConfigSync();
 
     refreshBatteryGraphFromInfo();
     refreshBatterySwitchState();

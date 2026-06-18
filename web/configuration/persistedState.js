@@ -274,9 +274,19 @@ function saveCurrentState() {
         delete toSave.showDebug;
         delete toSave.showGpuInfo;
         delete toSave.container;
-        // Battery settings live in their own isolated key, not in the shared blob.
-        delete toSave.batterySettings;
-        localStorage.setItem(STORAGE_KEY_CURRENT, JSON.stringify(toSave));
+        // Keep battery settings in shared state so Android automation can read them.
+        toSave.batterySettings = normalizeBatterySettings(state.batterySettings || {});
+        const serialized = JSON.stringify(toSave);
+        localStorage.setItem(STORAGE_KEY_CURRENT, serialized);
+        // Fallback direct sync for cases where bridge localStorage hooks are not
+        // active yet during early initialization.
+        if (typeof fetch === "function") {
+            fetch("/api/state", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ key: STORAGE_KEY_CURRENT, value: serialized })
+            }).catch(() => {});
+        }
     } catch (e) {
         console.warn("Failed to save state", e);
     }
@@ -288,6 +298,8 @@ function saveBatterySettings() {
             ? state.batterySettings
             : {};
         localStorage.setItem("screenClock_batterySettings", JSON.stringify(bs));
+        // Also persist to screenClock_state so server receives updates immediately.
+        saveCurrentState();
     } catch (e) {
         console.warn("Failed to save battery settings", e);
     }

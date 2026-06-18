@@ -140,7 +140,30 @@ class ClockServer(
         Thread(r, "wv-clock-dynamic-sync").apply { isDaemon = true }
     }
 
+    private fun clearThresholdHistoryForFreshInstallIfNeeded() {
+        try {
+            val pm = context.packageManager
+            val pkgName = context.packageName
+            val packageInfo = pm.getPackageInfo(pkgName, 0)
+            val installMarker = packageInfo.lastUpdateTime
+
+            val prefs = context.getSharedPreferences("wv_clock_server", android.content.Context.MODE_PRIVATE)
+            val lastSeenMarker = prefs.getLong(PREF_KEY_LAST_INSTALL_MARKER, -1L)
+            if (lastSeenMarker == installMarker) return
+
+            thresholdHistory.clear()
+            try {
+                if (thresholdFile.exists()) thresholdFile.delete()
+            } catch (_: Exception) {}
+            prefs.edit().putLong(PREF_KEY_LAST_INSTALL_MARKER, installMarker).apply()
+            Log.i(TAG, "Threshold history cleared after app update/install marker change")
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not evaluate install/update marker for threshold cleanup", e)
+        }
+    }
+
     init {
+        clearThresholdHistoryForFreshInstallIfNeeded()
         loadActivityEvents()
         loadBatteryHistory()
         loadThresholdHistory()
@@ -461,6 +484,8 @@ class ClockServer(
                 uri == "/api/battery-switch/state" && session.method == Method.GET -> handleBatterySwitchState(session)
                 uri == "/api/battery-switch/on" && session.method == Method.POST -> handleBatterySwitchAction(session, "Power On", "ON")
                 uri == "/api/battery-switch/off" && session.method == Method.POST -> handleBatterySwitchAction(session, "Power Off", "OFF")
+                uri == "/api/battery-automation/config" && session.method == Method.POST -> handleBatteryAutomationConfig(session)
+                uri == "/api/battery-automation/debug" && session.method == Method.GET -> handleBatteryAutomationDebug()
                 uri == "/api/battery/sample" && session.method == Method.POST -> handleBatterySampleNow()
                 uri == "/api/events" && session.method == Method.GET -> handleSse()
                 uri == "/api/url" && session.method == Method.GET -> handleGetUrl()
@@ -604,6 +629,8 @@ class ClockServer(
     }
 
     private fun handleGetState(): Response {
+        // Scrub per-client UI keys defensively in case any historical value leaked in.
+        for (k in PER_CLIENT_UI_KEYS) state.remove(k)
         val json = JSONObject(state as Map<*, *>).toString()
         return newFixedLengthResponse(Response.Status.OK, "application/json", json).apply {
             addHeader("Cache-Control", "no-store")
@@ -617,6 +644,13 @@ class ClockServer(
         val obj = JSONObject(raw)
         val key = obj.getString("key")
         val value: String? = if (obj.isNull("value")) null else obj.optString("value", "")
+
+        if (PER_CLIENT_UI_KEYS.contains(key)) {
+            // Never store per-client UI navigation keys on the server.
+            state.remove(key)
+            return newFixedLengthResponse(Response.Status.OK, "application/json", "{\"ok\":true,\"ignored\":true}")
+        }
+
         if (value == null) state.remove(key) else state[key] = value
 
         if (key == "screenClock_timeMasterUrl" || key == "screenClock_ntpServer") {
@@ -636,20 +670,62 @@ class ClockServer(
         return value.coerceIn(0, 100)
     }
 
+    private fun parseBatterySettingsObject(src: JSONObject?): BatterySettings {
+        val fallback = BatterySettings(false, "", 40, 85)
+        if (src == null) return fallback
+        val enabled = src.optBoolean("enabled", false)
+        val switchIp = src.optString("switchIp", "").trim()
+        var thresholdOnPct = clampPct(src.optInt("thresholdOnPct", 40), 40)
+        val thresholdOffPct = clampPct(src.optInt("thresholdOffPct", 85), 85)
+        if (thresholdOnPct >= thresholdOffPct) thresholdOnPct = (thresholdOffPct - 1).coerceAtLeast(0)
+        return BatterySettings(enabled, switchIp, thresholdOnPct, thresholdOffPct)
+    }
+
     private fun getBatterySettingsFromState(): BatterySettings {
         val fallback = BatterySettings(false, "", 40, 85)
         return try {
+            val explicitRaw = state["screenClock_batteryAutomation"]
+            if (!explicitRaw.isNullOrBlank()) {
+                return parseBatterySettingsObject(JSONObject(explicitRaw))
+            }
+
             val raw = state["screenClock_state"] ?: return fallback
             val parsed = JSONObject(raw)
             val src = if (parsed.has("batterySettings")) parsed.optJSONObject("batterySettings") else null
-            val enabled = src?.optBoolean("enabled", false) ?: false
-            val switchIp = (src?.optString("switchIp", "") ?: "").trim()
-            var thresholdOnPct = clampPct(src?.optInt("thresholdOnPct", 40) ?: 40, 40)
-            val thresholdOffPct = clampPct(src?.optInt("thresholdOffPct", 85) ?: 85, 85)
-            if (thresholdOnPct >= thresholdOffPct) thresholdOnPct = (thresholdOffPct - 1).coerceAtLeast(0)
-            BatterySettings(enabled, switchIp, thresholdOnPct, thresholdOffPct)
+            parseBatterySettingsObject(src)
         } catch (_: Exception) {
             fallback
+        }
+    }
+
+    private fun handleBatteryAutomationConfig(session: IHTTPSession): Response {
+        return try {
+            val files = HashMap<String, String>()
+            session.parseBody(files)
+            val raw = files["postData"] ?: session.parms["postData"] ?: ""
+            val obj = JSONObject(raw)
+            val settings = parseBatterySettingsObject(obj)
+
+            val payload = JSONObject().apply {
+                put("enabled", settings.enabled)
+                put("switchIp", settings.switchIp)
+                put("thresholdOnPct", settings.thresholdOnPct)
+                put("thresholdOffPct", settings.thresholdOffPct)
+            }.toString()
+
+            state["screenClock_batteryAutomation"] = payload
+            recordThresholdSnapshot(settings, System.currentTimeMillis())
+            broadcast("screenClock_batteryAutomation", payload)
+            onStateChangedListener?.invoke("screenClock_batteryAutomation", payload)
+
+            val out = JSONObject().apply {
+                put("ok", true)
+                put("settings", JSONObject(payload))
+            }
+            newFixedLengthResponse(Response.Status.OK, "application/json", out.toString())
+        } catch (e: Exception) {
+            val out = JSONObject().put("ok", false).put("error", e.message ?: "Invalid payload")
+            newFixedLengthResponse(Response.Status.BAD_REQUEST, "application/json", out.toString())
         }
     }
 
@@ -802,7 +878,33 @@ class ClockServer(
         return newFixedLengthResponse(Response.Status.OK, "application/json", "{\"ok\":true}")
     }
 
+    private fun hasPersistedBatterySettingsInState(): Boolean {
+        val explicitRaw = state["screenClock_batteryAutomation"]
+        if (!explicitRaw.isNullOrBlank()) {
+            return try {
+                val obj = JSONObject(explicitRaw)
+                obj.has("thresholdOffPct") && obj.has("thresholdOnPct")
+            } catch (_: Exception) {
+                false
+            }
+        }
+
+        val sharedRaw = state["screenClock_state"]
+        if (!sharedRaw.isNullOrBlank()) {
+            return try {
+                val parsed = JSONObject(sharedRaw)
+                val bs = parsed.optJSONObject("batterySettings")
+                bs != null && bs.has("thresholdOffPct") && bs.has("thresholdOnPct")
+            } catch (_: Exception) {
+                false
+            }
+        }
+
+        return false
+    }
+
     private fun recordThresholdSnapshot(settings: BatterySettings, nowMs: Long = System.currentTimeMillis()) {
+        if (!hasPersistedBatterySettingsInState()) return
         val next = ThresholdPoint(nowMs, settings.thresholdOnPct, settings.thresholdOffPct)
         val prev = thresholdHistory.lastOrNull()
         if (prev != null && prev.thresholdOnPct == next.thresholdOnPct && prev.thresholdOffPct == next.thresholdOffPct) {
@@ -879,18 +981,96 @@ class ClockServer(
         }
         if (desiredAction.isBlank()) return
 
+        val desiredPower = if (desiredAction == "on") "ON" else "OFF"
+        var currentPower: String? = null
+        try {
+            val currentRaw = tasmotaCommand(settings.switchIp, "Power")
+            currentPower = normalizedPower(currentRaw)
+            if (currentPower != null) recordSwitchState(currentPower)
+            if (currentPower == desiredPower) return
+        } catch (_: Exception) {
+            // Non-fatal: continue to command path below.
+        }
+
         val now = System.currentTimeMillis()
-        if (desiredAction == lastAutomationAction && now - lastAutomationActionAtMs < minAutomationActionIntervalMs) {
+        val sameActionCooldown = desiredAction == lastAutomationAction && now - lastAutomationActionAtMs < minAutomationActionIntervalMs
+        if (sameActionCooldown && (currentPower == null || currentPower == desiredPower)) {
             return
         }
         try {
             val raw = tasmotaCommand(settings.switchIp, if (desiredAction == "on") "Power On" else "Power Off")
-            val power = normalizedPower(raw) ?: if (desiredAction == "on") "ON" else "OFF"
+            val power = normalizedPower(raw) ?: desiredPower
             recordSwitchState(power)
             lastAutomationAction = desiredAction
             lastAutomationActionAtMs = now
         } catch (e: Exception) {
             Log.w(TAG, "Battery automation command failed", e)
+        }
+    }
+
+    private fun handleBatteryAutomationDebug(): Response {
+        val now = System.currentTimeMillis()
+        val settings = getBatterySettingsFromState()
+        val battery = batteryLevelProvider()
+        val desiredAction = when {
+            battery < 0 -> ""
+            battery >= settings.thresholdOffPct -> "off"
+            battery <= settings.thresholdOnPct -> "on"
+            else -> ""
+        }
+        val cooldownRemainingMs = (minAutomationActionIntervalMs - (now - lastAutomationActionAtMs)).coerceAtLeast(0L)
+        val blockedByCooldown = desiredAction.isNotBlank() && desiredAction == lastAutomationAction && cooldownRemainingMs > 0L
+
+        val reason = when {
+            !settings.enabled -> "disabled"
+            settings.switchIp.isBlank() -> "missing-switch-ip"
+            battery < 0 -> "battery-unavailable"
+            desiredAction.isBlank() -> "within-hysteresis-band"
+            blockedByCooldown -> "cooldown-blocked"
+            else -> "would-send-${desiredAction.uppercase()}"
+        }
+
+        var queriedSwitchPower: String? = null
+        var queryError: String? = null
+        if (settings.switchIp.isNotBlank()) {
+            try {
+                val raw = tasmotaCommand(settings.switchIp, "Power")
+                queriedSwitchPower = normalizedPower(raw)
+                if (queriedSwitchPower != null) recordSwitchState(queriedSwitchPower)
+            } catch (e: Exception) {
+                queryError = e.message ?: "switch-query-failed"
+            }
+        }
+
+        val out = JSONObject().apply {
+            put("ok", true)
+            put("nowMs", now)
+            put("batteryPct", battery)
+            put("settings", JSONObject().apply {
+                put("enabled", settings.enabled)
+                put("switchIp", settings.switchIp)
+                put("thresholdOnPct", settings.thresholdOnPct)
+                put("thresholdOffPct", settings.thresholdOffPct)
+            })
+            put("decision", JSONObject().apply {
+                put("desiredAction", if (desiredAction.isBlank()) JSONObject.NULL else desiredAction)
+                put("reason", reason)
+                put("blockedByCooldown", blockedByCooldown)
+            })
+            put("cooldown", JSONObject().apply {
+                put("lastAutomationAction", if (lastAutomationAction.isBlank()) JSONObject.NULL else lastAutomationAction)
+                put("lastAutomationActionAtMs", lastAutomationActionAtMs)
+                put("minIntervalMs", minAutomationActionIntervalMs)
+                put("remainingMs", cooldownRemainingMs)
+            })
+            put("switchState", JSONObject().apply {
+                put("queriedPower", queriedSwitchPower ?: JSONObject.NULL)
+                put("queryError", queryError ?: JSONObject.NULL)
+            })
+        }
+
+        return newFixedLengthResponse(Response.Status.OK, "application/json", out.toString()).apply {
+            addHeader("Cache-Control", "no-store")
         }
     }
 
@@ -933,6 +1113,8 @@ class ClockServer(
             val raw = tasmotaCommand(host, command)
             val power = normalizedPower(raw) ?: fallbackPower
             recordSwitchState(power)
+            // Allow next automation cycle to re-evaluate immediately after a manual action.
+            lastAutomationActionAtMs = 0L
             val out = JSONObject().put("ok", true).put("power", power).put("raw", raw)
             newFixedLengthResponse(Response.Status.OK, "application/json", out.toString())
         } catch (e: Exception) {
@@ -1464,6 +1646,16 @@ class ClockServer(
 
     companion object {
         private const val TAG = "ClockServer"
+        private const val PREF_KEY_LAST_INSTALL_MARKER = "last_install_marker"
+
+        // Per-client UI keys that must never live in server state — they describe a
+        // single browser's local navigation and would otherwise be broadcast back to
+        // other clients via snapshot/SSE and yank their open tab/position.
+        private val PER_CLIENT_UI_KEYS = setOf(
+            "screenClock_selectedTab",
+            "screenClock_menuPosition",
+            "screenClock_menuOpen"
+        )
     }
 }
 

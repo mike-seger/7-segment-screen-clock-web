@@ -157,33 +157,67 @@ function clampPct(value, fallback) {
   return Math.max(0, Math.min(100, Math.round(n)));
 }
 
+function parseBatterySettingsObject(src) {
+  const fallback = { enabled: false, switchIp: '', thresholdOnPct: 40, thresholdOffPct: 85 };
+  const input = (src && typeof src === 'object') ? src : {};
+  let thresholdOnPct = clampPct(input.thresholdOnPct, fallback.thresholdOnPct);
+  let thresholdOffPct = clampPct(input.thresholdOffPct, fallback.thresholdOffPct);
+  if (thresholdOnPct >= thresholdOffPct) {
+    thresholdOnPct = Math.max(0, thresholdOffPct - 1);
+  }
+  return {
+    enabled: !!input.enabled,
+    switchIp: String(input.switchIp || '').trim(),
+    thresholdOnPct,
+    thresholdOffPct
+  };
+}
+
 function getBatterySettingsFromState() {
   const fallback = { enabled: false, switchIp: '', thresholdOnPct: 40, thresholdOffPct: 85 };
   try {
+    const explicitRaw = systemState['screenClock_batteryAutomation'];
+    if (explicitRaw) {
+      const explicitParsed = typeof explicitRaw === 'string' ? JSON.parse(explicitRaw) : explicitRaw;
+      return parseBatterySettingsObject(explicitParsed);
+    }
+
     const raw = systemState['screenClock_state'];
     if (!raw) return fallback;
     const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
     const src = (parsed && typeof parsed === 'object' && parsed.batterySettings && typeof parsed.batterySettings === 'object')
       ? parsed.batterySettings
       : {};
-    let thresholdOnPct = clampPct(src.thresholdOnPct, fallback.thresholdOnPct);
-    let thresholdOffPct = clampPct(src.thresholdOffPct, fallback.thresholdOffPct);
-    if (thresholdOnPct >= thresholdOffPct) {
-      thresholdOnPct = Math.max(0, thresholdOffPct - 1);
-    }
-    return {
-      enabled: !!src.enabled,
-      switchIp: String(src.switchIp || '').trim(),
-      thresholdOnPct,
-      thresholdOffPct
-    };
+    return parseBatterySettingsObject(src);
   } catch (_) {
     return fallback;
   }
 }
 
+function hasPersistedBatterySettingsInState() {
+  try {
+    const explicitRaw = systemState['screenClock_batteryAutomation'];
+    if (explicitRaw) {
+      const explicitParsed = typeof explicitRaw === 'string' ? JSON.parse(explicitRaw) : explicitRaw;
+      return Number.isFinite(Number(explicitParsed && explicitParsed.thresholdOnPct))
+        && Number.isFinite(Number(explicitParsed && explicitParsed.thresholdOffPct));
+    }
+
+    const raw = systemState['screenClock_state'];
+    if (!raw) return false;
+    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    const bs = parsed && typeof parsed === 'object' ? parsed.batterySettings : null;
+    if (!bs || typeof bs !== 'object') return false;
+    return Number.isFinite(Number(bs.thresholdOnPct))
+      && Number.isFinite(Number(bs.thresholdOffPct));
+  } catch (_) {
+    return false;
+  }
+}
+
 function recordThresholdSnapshot(settings, nowMs = Date.now()) {
   if (!settings) return;
+  if (!hasPersistedBatterySettingsInState()) return;
   const next = {
     ts: nowMs,
     thresholdOnPct: clampPct(settings.thresholdOnPct, 40),
@@ -296,14 +330,27 @@ async function evaluateBatteryAutomation() {
   else if (battery <= settings.thresholdOnPct) desiredAction = 'on';
   if (!desiredAction) return;
 
+  const desiredPower = desiredAction === 'on' ? 'ON' : 'OFF';
+  let currentPower = null;
+  try {
+    const currentRaw = await tasmotaCommand(settings.switchIp, 'Power');
+    currentPower = normalizePowerPayload(currentRaw);
+    if (currentPower) recordSwitchState(currentPower);
+    if (currentPower === desiredPower) return;
+  } catch (_) {
+    // Non-fatal: fall back to command path below.
+  }
+
   const now = Date.now();
-  if (desiredAction === lastAutomationAction && (now - lastAutomationActionAt) < AUTOMATION_MIN_COMMAND_INTERVAL_MS) {
+  const sameActionCooldown = desiredAction === lastAutomationAction
+    && (now - lastAutomationActionAt) < AUTOMATION_MIN_COMMAND_INTERVAL_MS;
+  if (sameActionCooldown && (currentPower == null || currentPower === desiredPower)) {
     return;
   }
 
   try {
     const raw = await tasmotaCommand(settings.switchIp, desiredAction === 'on' ? 'Power On' : 'Power Off');
-    const power = normalizePowerPayload(raw) || (desiredAction === 'on' ? 'ON' : 'OFF');
+    const power = normalizePowerPayload(raw) || desiredPower;
     recordSwitchState(power);
     lastAutomationAction = desiredAction;
     lastAutomationActionAt = now;
@@ -523,6 +570,15 @@ expressApp.use(express.json());
 // In memory state
 let systemState = {};
 
+// Per-client UI keys that must never live in server state — they describe a
+// single browser's local navigation and would otherwise be broadcast back to
+// other clients via snapshot/SSE and yank their open tab/position.
+const PER_CLIENT_UI_KEYS = new Set([
+  'screenClock_selectedTab',
+  'screenClock_menuPosition',
+  'screenClock_menuOpen'
+]);
+
 let calculatedOffsetMs = 0;
 let lastNtpSyncTime = 0;
 let lastP2pSyncTime = 0;
@@ -531,12 +587,22 @@ const P2P_SYNC_INTERVAL = 2000;   // 2 seconds P2P sync
 
 // Handle state synchronisation endpoints
 expressApp.get('/api/state', (req, res) => {
+  // Scrub per-client UI keys defensively in case any historical value leaked in.
+  for (const k of PER_CLIENT_UI_KEYS) {
+    if (k in systemState) delete systemState[k];
+  }
   res.json(systemState);
 });
 
 expressApp.post('/api/state', (req, res) => {
   const { key, value } = req.body;
   if (key) {
+    if (PER_CLIENT_UI_KEYS.has(key)) {
+      // Never store per-client UI navigation keys on the server.
+      delete systemState[key];
+      res.json({ success: true, ignored: true });
+      return;
+    }
     if (value === null) {
       delete systemState[key];
     } else {
@@ -641,6 +707,8 @@ expressApp.post('/api/battery-switch/on', async (req, res) => {
     const raw = await tasmotaCommand(host, 'Power On');
     const power = normalizePowerPayload(raw) || 'ON';
     recordSwitchState(power);
+    // Reset automation rate-limit tracker so next automation cycle can correct state if needed
+    lastAutomationActionAt = 0;
     res.json({ ok: true, power, raw });
   } catch (err) {
     res.status(502).json({ ok: false, error: err && err.message ? err.message : 'Switch ON failed' });
@@ -657,9 +725,23 @@ expressApp.post('/api/battery-switch/off', async (req, res) => {
     const raw = await tasmotaCommand(host, 'Power Off');
     const power = normalizePowerPayload(raw) || 'OFF';
     recordSwitchState(power);
+    // Reset automation rate-limit tracker so next automation cycle can correct state if needed
+    lastAutomationActionAt = 0;
     res.json({ ok: true, power, raw });
   } catch (err) {
     res.status(502).json({ ok: false, error: err && err.message ? err.message : 'Switch OFF failed' });
+  }
+});
+
+expressApp.post('/api/battery-automation/config', (req, res) => {
+  try {
+    const settings = parseBatterySettingsObject(req.body || {});
+    const payload = JSON.stringify(settings);
+    systemState['screenClock_batteryAutomation'] = payload;
+    recordThresholdSnapshot(settings);
+    res.json({ ok: true, settings });
+  } catch (err) {
+    res.status(400).json({ ok: false, error: err && err.message ? err.message : 'Invalid payload' });
   }
 });
 
