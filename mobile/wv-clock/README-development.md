@@ -9,36 +9,41 @@ wrapper on macOS.
 - Android SDK platform 34
 - Android build-tools 34.0.0
 - Android platform-tools
+- Android SDK command-line tools (current)
 
-## Homebrew setup
+## SDK setup
 
-Install the Android command-line tools:
-
-```bash
-brew install --cask android-commandlinetools
-```
-
-The cask installs the SDK root at:
+Use the same SDK root that Gradle resolves via `local.properties` or the
+`ANDROID_SDK_ROOT` environment variable. On macOS with Android Studio, that is
+usually:
 
 ```bash
-/opt/homebrew/share/android-commandlinetools
+$HOME/Library/Android/sdk
 ```
 
-Install the SDK components used by this project:
+Install the SDK components used by this project into that SDK root:
 
 ```bash
 source "$HOME/.sdkman/bin/sdkman-init.sh"
 sdk use java 17.0.19-librca
-yes | sdkmanager --sdk_root=/opt/homebrew/share/android-commandlinetools --licenses >/dev/null
-sdkmanager --sdk_root=/opt/homebrew/share/android-commandlinetools "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+yes | sdkmanager --sdk_root="$HOME/Library/Android/sdk" --licenses >/dev/null
+sdkmanager --sdk_root="$HOME/Library/Android/sdk" \
+  "cmdline-tools;latest" \
+  "platform-tools" \
+  "platforms;android-34" \
+  "build-tools;34.0.0"
 ```
+
+If you prefer a Homebrew-managed SDK, use that path consistently for both the
+SDK packages and `sdk.dir`. Mixing an older `sdkmanager` with newer SDK package
+metadata is what typically produces the SDK XML version warning.
 
 ## Project SDK path
 
 Gradle needs a `local.properties` file in this directory with:
 
 ```properties
-sdk.dir=/opt/homebrew/share/android-commandlinetools
+sdk.dir=/Users/<you>/Library/Android/sdk
 ```
 
 If you move the SDK, update this path or set `ANDROID_HOME` / `ANDROID_SDK_ROOT`.
@@ -71,7 +76,10 @@ harmless and does not block the next deploy.
 
 - The repo README still describes the broader project layout and runtime
   behavior.
-- The current setup works with the Homebrew SDK root above and JDK 17 from
-  SDKMAN.
-- Gradle may print a warning about SDK XML version differences; the build still
-  succeeds.
+- The build on this machine resolves the SDK from `ANDROID_SDK_ROOT` when it is
+  set, even if `local.properties` is absent.
+- If Gradle prints `This version only understands SDK XML versions up to 3 but
+  an SDK XML file of version 4 was encountered`, the build can still succeed,
+  but the local SDK installation is stale or mixed-version. Install
+  `cmdline-tools;latest` into the active SDK root, or update Android Studio and
+  let it refresh the SDK components there.

@@ -294,8 +294,10 @@
                     </div>
 
 
-                    <label for="batterySwitchIp">Switch host (IP or DNS)</label>
-                    <input type="text" id="batterySwitchIp" placeholder="e.g. 192.168.1.40 or sonoff.local">
+                    <div id="batterySwitchHostGroup" class="battery-switch-host-group">
+                        <label for="batterySwitchIp" id="batterySwitchIpLabel">Switch host (IP or DNS)</label>
+                        <input type="text" id="batterySwitchIp" placeholder="e.g. 192.168.1.40 or sonoff.local">
+                    </div>
 
                     <div id="batteryThresholdControls" class="battery-threshold-box">
                         <label for="batteryThresholdOff" class="battery-threshold-label battery-threshold-label-off">

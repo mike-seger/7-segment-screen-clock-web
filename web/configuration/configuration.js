@@ -160,6 +160,7 @@ function initConfiguration() {
         recenterLeadingOne:document.getElementById("recenterLeadingOne"),
 
         batterySettingsEnabled: document.getElementById("batterySettingsEnabled"),
+        batterySwitchHostGroup: document.getElementById("batterySwitchHostGroup"),
         batterySwitchIp:        document.getElementById("batterySwitchIp"),
         batteryThresholdOn:     document.getElementById("batteryThresholdOn"),
         batteryThresholdOff:    document.getElementById("batteryThresholdOff"),
@@ -279,13 +280,38 @@ function initConfiguration() {
         }, 120);
     }
 
+    function isBatteryAutomationEnabled() {
+        return !!(state.batterySettings && state.batterySettings.enabled);
+    }
+
+    function getBatterySwitchHost() {
+        return String(state.batterySettings && state.batterySettings.switchIp || "").trim();
+    }
+
+    function isBatterySwitchInteractionEnabled() {
+        return isBatteryAutomationEnabled() && !!getBatterySwitchHost();
+    }
+
+    function setBatterySwitchDisabledState(note) {
+        batterySwitchPower = null;
+        if (!els.batterySwitchToggleBtn) return;
+        const btn = els.batterySwitchToggleBtn;
+        btn.classList.remove("is-on", "is-off", "is-unknown");
+        btn.classList.add("is-disabled");
+        btn.textContent = note ? `Switch: ${note}` : "Switch: Disabled";
+    }
+
     function syncBatteryUi() {
         normalizeBatterySettingsState();
         const bs = state.batterySettings;
-        const isEnabled = !!bs.enabled;
+        const isEnabled = isBatteryAutomationEnabled();
+        const hasSwitchHost = !!getBatterySwitchHost();
 
         if (els.batterySettingsEnabled) {
             els.batterySettingsEnabled.checked = isEnabled;
+        }
+        if (els.batterySwitchHostGroup) {
+            els.batterySwitchHostGroup.classList.toggle("is-disabled", !isEnabled);
         }
         if (els.batterySwitchIp) {
             els.batterySwitchIp.value = bs.switchIp || "";
@@ -302,9 +328,34 @@ function initConfiguration() {
         if (els.batteryThresholdControls) {
             els.batteryThresholdControls.classList.toggle("is-disabled", !isEnabled);
         }
-        const switchActionsEnabled = isEnabled && !!(bs.switchIp || "").trim();
-        if (els.batterySwitchRefreshBtn) els.batterySwitchRefreshBtn.disabled = !switchActionsEnabled;
-        if (els.batterySwitchToggleBtn) els.batterySwitchToggleBtn.disabled = !switchActionsEnabled;
+        const switchActionsEnabled = isEnabled && hasSwitchHost;
+        if (els.batterySwitchRefreshBtn) {
+            els.batterySwitchRefreshBtn.disabled = !switchActionsEnabled;
+        }
+        if (els.batterySwitchToggleBtn) {
+            els.batterySwitchToggleBtn.disabled = !switchActionsEnabled;
+        }
+        if (els.batterySwitchToggleBtn && !switchActionsEnabled) {
+            els.batterySwitchToggleBtn.classList.add("is-disabled");
+        }
+        if (els.batterySwitchToggleBtn) {
+            els.batterySwitchToggleBtn.classList.toggle("is-disabled", !switchActionsEnabled);
+        }
+        if (els.batterySwitchRefreshBtn) {
+            els.batterySwitchRefreshBtn.classList.toggle("is-disabled", !switchActionsEnabled);
+        }
+        if (els.batterySwitchToggleBtn && !isEnabled) {
+            setBatterySwitchDisabledState("Disabled");
+        } else if (els.batterySwitchToggleBtn && !hasSwitchHost) {
+            setBatterySwitchDisabledState("Unconfigured");
+        } else if (els.batterySwitchToggleBtn && batterySwitchPower == null) {
+            setBatterySwitchState(null);
+        }
+        const switchControlsDisabled = !switchActionsEnabled;
+        const switchControls = document.querySelector(".battery-switch-controls");
+        if (switchControls) {
+            switchControls.classList.toggle("is-disabled", switchControlsDisabled);
+        }
     }
 
     function setBatterySwitchState(power, note) {
@@ -312,7 +363,7 @@ function initConfiguration() {
         batterySwitchPower = (up === "ON" || up === "OFF") ? up : null;
         if (!els.batterySwitchToggleBtn) return;
         const btn = els.batterySwitchToggleBtn;
-        btn.classList.remove("is-on", "is-off", "is-unknown");
+        btn.classList.remove("is-on", "is-off", "is-unknown", "is-disabled");
         if (batterySwitchPower === "ON") {
             btn.classList.add("is-on");
             btn.textContent = note ? `Switch: ON (${note})` : "Switch: ON";
@@ -325,6 +376,31 @@ function initConfiguration() {
         }
         btn.classList.add("is-unknown");
         btn.textContent = note ? `Switch: Unknown (${note})` : "Switch: Unknown";
+    }
+
+    function computeBatteryChargeTrend(chart) {
+        const series = Array.isArray(chart && chart.battery) ? chart.battery : [];
+        const values = series
+            .map(v => Number(v))
+            .filter(v => Number.isFinite(v));
+        if (values.length < 2) return null;
+
+        const movingAverage = (arr) => arr.reduce((sum, value) => sum + value, 0) / arr.length;
+        const windowSize = Math.min(3, Math.max(1, Math.floor(values.length / 2)));
+        const recent = values.slice(-windowSize);
+        const previous = values.slice(-(windowSize * 2), -windowSize);
+
+        if (previous.length === windowSize) {
+            const delta = movingAverage(recent) - movingAverage(previous);
+            if (delta > 0.05) return "rising";
+            if (delta < -0.05) return "falling";
+            return "flat";
+        }
+
+        const delta = values[values.length - 1] - values[0];
+        if (delta > 0) return "rising";
+        if (delta < 0) return "falling";
+        return "flat";
     }
 
     async function batterySwitchRequest(path, options) {
@@ -351,6 +427,14 @@ function initConfiguration() {
 
     async function refreshBatterySwitchState(options) {
         const opts = options || {};
+        if (!isBatteryAutomationEnabled()) {
+            setBatterySwitchDisabledState("Disabled");
+            return false;
+        }
+        if (!getBatterySwitchHost()) {
+            setBatterySwitchDisabledState("Unconfigured");
+            return false;
+        }
         try {
             setBatterySwitchState(null, "Checking");
             const payload = await batterySwitchRequest("/api/battery-switch/state");
@@ -370,10 +454,14 @@ function initConfiguration() {
 
     async function sendBatterySwitchAction(action) {
         const endpoint = action === "on" ? "/api/battery-switch/on" : "/api/battery-switch/off";
+        if (!isBatteryAutomationEnabled()) {
+            setBatterySwitchDisabledState("Disabled");
+            return;
+        }
         const bs = state.batterySettings || {};
         const ip = String(bs.switchIp || "").trim();
         if (!ip) {
-            setBatterySwitchState(null, "Missing switch IP");
+            setBatterySwitchDisabledState("Unconfigured");
             return;
         }
         try {
@@ -395,6 +483,11 @@ function initConfiguration() {
     }
 
     async function toggleBatterySwitchState() {
+        if (!isBatterySwitchInteractionEnabled()) {
+            if (!isBatteryAutomationEnabled()) setBatterySwitchDisabledState("Disabled");
+            else setBatterySwitchDisabledState("Unconfigured");
+            return;
+        }
         if (batterySwitchPower == null) {
             await refreshBatterySwitchState({ suppressError: true });
         }
@@ -687,41 +780,35 @@ function initConfiguration() {
                     : "—%";
             }
             if (els.batteryLiveCharging) {
-                // Charging status must respect switch state first; otherwise it can lie when switch is OFF.
+                const automationEnabled = isBatteryAutomationEnabled();
                 const switchSeries = Array.isArray(chart.switchOn) ? chart.switchOn : [];
                 const switchFromChart = switchSeries.length ? (Number(switchSeries[switchSeries.length - 1]) > 0 ? "ON" : "OFF") : null;
-                const switchPower = batterySwitchPower || switchFromChart;
+                const switchPower = automationEnabled ? (batterySwitchPower || switchFromChart) : null;
+                const chargeTrend = computeBatteryChargeTrend(chart);
 
                 const mW = payload && payload.milliWatts != null ? Number(payload.milliWatts)
                     : (payload && payload.power && payload.power.milliWatts != null ? Number(payload.power.milliWatts) : NaN);
-                const bArr = Array.isArray(chart.battery) ? chart.battery : [];
-                const lastVals = bArr.filter(v => Number.isFinite(Number(v))).slice(-3);
-                const rising = lastVals.length >= 2
-                    ? Number(lastVals[lastVals.length - 1]) > Number(lastVals[0])
-                    : null;
 
                 let chargingText = "Charging: —";
                 let chargingColor = "#7f93a7";
 
-                if (switchPower === "OFF") {
+                if (automationEnabled && switchPower === "OFF") {
                     chargingText = "Charging: NO (switch OFF)";
                     chargingColor = "#7f93a7";
-                } else if (Number.isFinite(mW)) {
-                    if (mW > 0) {
-                        chargingText = "Charging: YES ▲";
-                        chargingColor = "#4ecdc4";
+                } else if (chargeTrend === "rising") {
+                    chargingText = "Charging: YES ▲";
+                    chargingColor = "#4ecdc4";
+                } else if (chargeTrend === "flat" || chargeTrend === "falling") {
+                    if (automationEnabled && switchPower === "ON") {
+                        chargingText = "Charging: WAIT";
+                        chargingColor = "#f2d66b";
                     } else {
-                        chargingText = switchPower === "ON" ? "Charging: WAIT" : "Charging: NO";
-                        chargingColor = switchPower === "ON" ? "#f2d66b" : "#7f93a7";
+                        chargingText = "Charging: NO";
+                        chargingColor = "#7f93a7";
                     }
-                } else if (rising != null) {
-                    if (rising) {
-                        chargingText = "Charging: YES ▲";
-                        chargingColor = "#4ecdc4";
-                    } else {
-                        chargingText = switchPower === "ON" ? "Charging: WAIT" : "Charging: NO";
-                        chargingColor = switchPower === "ON" ? "#f2d66b" : "#7f93a7";
-                    }
+                } else if (Number.isFinite(mW) && mW > 0) {
+                    chargingText = "Charging: YES ▲";
+                    chargingColor = "#4ecdc4";
                 }
 
                 els.batteryLiveCharging.textContent = chargingText;

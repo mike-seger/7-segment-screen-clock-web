@@ -296,6 +296,14 @@
     opacity: 0.55;
 }
 
+.battery-switch-host-group.is-disabled {
+    opacity: 0.55;
+}
+
+.battery-switch-host-group.is-disabled label {
+    color: #7f8891;
+}
+
 #batteryHistoryGraphWrap {
     border: 1px solid #2a3441;
     border-radius: 6px;
@@ -313,6 +321,10 @@
     margin-top: 10px;
 }
 
+.battery-switch-controls.is-disabled {
+    opacity: 0.55;
+}
+
 .battery-refresh-icon-btn {
     width: 34px;
     min-width: 34px;
@@ -321,6 +333,21 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
+}
+
+.battery-refresh-icon-btn:disabled,
+.battery-switch-toggle:disabled {
+    cursor: default;
+    color: #97a2ac;
+    border-color: #43484d;
+    background: #25282b;
+}
+
+.battery-refresh-icon-btn:disabled:hover,
+.battery-switch-toggle:disabled:hover {
+    color: #97a2ac;
+    border-color: #43484d;
+    background: #25282b;
 }
 
 .battery-refresh-icon-btn .symbol {
@@ -355,6 +382,12 @@
     border-color: #4a5563;
     background: #1e2733;
     color: #b9c6d3;
+}
+
+.battery-switch-toggle.is-disabled {
+    border-color: #43484d;
+    background: #25282b;
+    color: #97a2ac;
 }
 
 
