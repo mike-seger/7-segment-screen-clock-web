@@ -544,7 +544,7 @@ function initConfiguration() {
         const bucketZeroMs = Number(chart && chart.bucketZeroMs) || (Date.now() - (n - 1) * 10 * 60 * 1000);
         const bucketMs = Number(chart && chart.bucketMs) || (10 * 60 * 1000);
 
-        const zoomLevelsDays = [1, 3, 5, 7];
+        const zoomLevelsDays = [0.125, 0.25, 0.5, 1, 3, 5, 7];
         const dayMs = 24 * 60 * 60 * 1000;
         let firstDataIdx = -1;
         let lastDataIdx = -1;
@@ -555,7 +555,7 @@ function initConfiguration() {
             lastDataIdx = i;
         }
 
-        let visibleDays = 1;
+        let visibleDays = zoomLevelsDays[0];
         if (firstDataIdx >= 0 && lastDataIdx >= firstDataIdx) {
             const sampleSpanFromChart = Number(chart && chart.batterySampleSpanMs);
             const sampleCountFromChart = Number(chart && chart.batterySampleCount);
@@ -572,7 +572,7 @@ function initConfiguration() {
                 collectedSpanMs = Math.max(bucketMs, fallbackPoints * bucketMs);
             }
             const collectedDays = collectedSpanMs > 0 ? (collectedSpanMs / dayMs) : 0;
-            visibleDays = 1;
+            visibleDays = zoomLevelsDays[0];
             for (const d of zoomLevelsDays) {
                 if (collectedDays >= d) visibleDays = d;
             }
@@ -633,39 +633,63 @@ function initConfiguration() {
         ctx.strokeStyle = "#1e2e42";
         ctx.fillStyle = "#8ca1b7";
         ctx.font = "10px ui-monospace, Menlo, Consolas, monospace";
-        const majorTickMs = visibleDays <= 1 ? (3 * 60 * 60 * 1000) : dayMs;
+        let majorTickMs;
+        if (visibleDays < 0.25) {
+            majorTickMs = 30 * 60 * 1000;  // 30 min for 0-6 hours
+        } else if (visibleDays < 0.5) {
+            majorTickMs = 60 * 60 * 1000;  // 1 hour for 6-12 hours
+        } else if (visibleDays < 1) {
+            majorTickMs = 2 * 60 * 60 * 1000;  // 2 hours for 12-24 hours
+        } else if (visibleDays <= 1) {
+            majorTickMs = 3 * 60 * 60 * 1000;  // 3 hours for 1 day
+        } else {
+            majorTickMs = dayMs;  // 1 day for multi-day views
+        }
+        const maxTickMarks = 8;
         const maxTickLabels = 4;
         const highestValidTickMs = Math.floor(visibleEndMs / majorTickMs) * majorTickMs;
         const ticksInRange = highestValidTickMs >= visibleStartMs
             ? Math.floor((highestValidTickMs - visibleStartMs) / majorTickMs) + 1
             : 0;
-        const stepMultiplier = ticksInRange > maxTickLabels
-            ? Math.ceil(ticksInRange / maxTickLabels)
+        const stepMultiplier = ticksInRange > maxTickMarks
+            ? Math.ceil(ticksInRange / maxTickMarks)
             : 1;
         const tickStepMs = majorTickMs * stepMultiplier;
         const tickTimesDesc = [];
         if (ticksInRange > 0) {
-            for (let t = highestValidTickMs; t >= visibleStartMs && tickTimesDesc.length < maxTickLabels; t -= tickStepMs) {
+            for (let t = highestValidTickMs; t >= visibleStartMs && tickTimesDesc.length < maxTickMarks; t -= tickStepMs) {
                 tickTimesDesc.push(t);
             }
         }
         const tickTimes = tickTimesDesc.reverse();
         if (!tickTimes.length) tickTimes.push(visibleEndMs);
+        const labelCount = Math.min(maxTickLabels, tickTimes.length);
+        const labelIndices = new Set();
+        if (labelCount === 1) {
+            labelIndices.add(0);
+        } else {
+            for (let i = 0; i < labelCount; i++) {
+                labelIndices.add(Math.round((i * (tickTimes.length - 1)) / (labelCount - 1)));
+            }
+        }
 
-        for (const ts of tickTimes) {
+        for (let tickIndex = 0; tickIndex < tickTimes.length; tickIndex++) {
+            const ts = tickTimes[tickIndex];
             const ratio = Math.max(0, Math.min(1, (ts - visibleStartMs) / visibleSpanMs));
             const x = padL + ratio * plotW;
             ctx.beginPath();
             ctx.moveTo(x, padT);
             ctx.lineTo(x, padT + dataPlotH);
             ctx.stroke();
-            const d = new Date(ts);
-            const label = visibleDays <= 1
-                ? `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`
-                : `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}`;
-            const labelX = Math.max(padL + 14, Math.min(padL + plotW - 14, x));
-            ctx.textAlign = "center";
-            ctx.fillText(label, labelX, height - 6);
+            if (labelIndices.has(tickIndex)) {
+                const d = new Date(ts);
+                const label = visibleDays <= 1
+                    ? `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`
+                    : `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}`;
+                const labelX = Math.max(padL + 14, Math.min(padL + plotW - 14, x));
+                ctx.textAlign = "center";
+                ctx.fillText(label, labelX, height - 6);
+            }
         }
         ctx.restore();
 
@@ -719,8 +743,10 @@ function initConfiguration() {
             ctx.restore();
         };
 
-        drawStep(thresholdOffVis, "rgba(255, 126, 103, 0.72)");
-        drawStep(thresholdOnVis, "rgba(78, 205, 196, 0.72)");
+        if (state.batterySettings && state.batterySettings.enabled) {
+            drawStep(thresholdOffVis, "rgba(255, 126, 103, 0.72)");
+            drawStep(thresholdOnVis, "rgba(78, 205, 196, 0.72)");
+        }
 
         if (batteryVis.length) {
             ctx.save();
