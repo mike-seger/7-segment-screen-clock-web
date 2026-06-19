@@ -646,7 +646,7 @@ function initConfiguration() {
             majorTickMs = dayMs;  // 1 day for multi-day views
         }
         const maxTickMarks = 8;
-        const maxTickLabels = 4;
+        const maxTickLabels = 3;
         const highestValidTickMs = Math.floor(visibleEndMs / majorTickMs) * majorTickMs;
         const ticksInRange = highestValidTickMs >= visibleStartMs
             ? Math.floor((highestValidTickMs - visibleStartMs) / majorTickMs) + 1
@@ -666,10 +666,11 @@ function initConfiguration() {
         const labelCount = Math.min(maxTickLabels, tickTimes.length);
         const labelIndices = new Set();
         if (labelCount === 1) {
-            labelIndices.add(0);
+            labelIndices.add(tickTimes.length - 1);
         } else {
+            const step = Math.ceil(tickTimes.length / labelCount);
             for (let i = 0; i < labelCount; i++) {
-                labelIndices.add(Math.round((i * (tickTimes.length - 1)) / (labelCount - 1)));
+                labelIndices.add(tickTimes.length - 1 - i * step);
             }
         }
 
