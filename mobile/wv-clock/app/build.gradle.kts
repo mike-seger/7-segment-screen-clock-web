@@ -5,6 +5,7 @@ import java.util.Date
 import java.util.TimeZone
 
 val debugApplicationId = "com.github.mikeseger.wvclock.dev"
+val appMinSdk = 26
 
 plugins {
     id("com.android.application")
@@ -17,7 +18,7 @@ android {
 
     defaultConfig {
         applicationId = "com.github.mikeseger.wvclock"
-        minSdk = 26
+        minSdk = appMinSdk
         targetSdk = 34
         versionCode = 1
         versionName = "1.0.0"
@@ -126,6 +127,23 @@ tasks.register<Exec>("deployToDevice") {
             val adb = listOf("adb", "-s", serial)
             logger.lifecycle("Deploying to device: $serial")
 
+            val sdkOutput = ByteArrayOutputStream()
+            val sdkResult = project.exec {
+                commandLine(adb + listOf("shell", "getprop", "ro.build.version.sdk"))
+                isIgnoreExitValue = true
+                standardOutput = sdkOutput
+                errorOutput = sdkOutput
+            }
+            if (sdkResult.exitValue == 0) {
+                val deviceSdk = sdkOutput.toString().trim().toIntOrNull()
+                if (deviceSdk != null && deviceSdk < appMinSdk) {
+                    val reason = "Device SDK $deviceSdk is lower than app minSdk $appMinSdk (INSTALL_FAILED_OLDER_SDK)."
+                    logger.warn("Skipping $serial: $reason")
+                    failed += serial to reason
+                    return@forEach
+                }
+            }
+
             val installOutput = ByteArrayOutputStream()
             val installResult = project.exec {
                 commandLine(adb + listOf("install", "-r", "-d", apk.absolutePath))
@@ -133,8 +151,12 @@ tasks.register<Exec>("deployToDevice") {
                 standardOutput = installOutput
                 errorOutput = installOutput
             }
-            if (installResult.exitValue != 0) {
-                val reason = installOutput.toString().trim().ifEmpty { "adb install failed" }
+            val installText = installOutput.toString().trim()
+            val installLooksBad = installText.contains("Failure", ignoreCase = true) ||
+                installText.contains("failed to install", ignoreCase = true)
+            val installLooksGood = installText.contains("Success", ignoreCase = true)
+            if (installResult.exitValue != 0 || installLooksBad || !installLooksGood) {
+                val reason = installText.ifEmpty { "adb install failed" }
                 logger.warn("Install failed on $serial: $reason")
                 failed += serial to reason
                 return@forEach
@@ -149,13 +171,22 @@ tasks.register<Exec>("deployToDevice") {
                 isIgnoreExitValue = true
             }
 
+            val startOutput = ByteArrayOutputStream()
             val startResult = project.exec {
                 commandLine(adb + listOf("shell", "am", "start", "-W", "-n", "$debugApplicationId/com.github.mikeseger.wvclock.MainActivity"))
                 isIgnoreExitValue = true
+                standardOutput = startOutput
+                errorOutput = startOutput
             }
 
-            if (startResult.exitValue != 0) {
-                val reason = "install ok, launch failed"
+            val startText = startOutput.toString().trim()
+            val startLooksBad = startText.contains("Error type", ignoreCase = true) ||
+                startText.contains("does not exist", ignoreCase = true) ||
+                startText.contains("Exception", ignoreCase = true)
+            val startLooksGood = startText.contains("Status: ok", ignoreCase = true) ||
+                startText.contains("Starting: Intent", ignoreCase = true)
+            if (startResult.exitValue != 0 || startLooksBad || !startLooksGood) {
+                val reason = if (startText.isNotEmpty()) startText else "install ok, launch failed"
                 logger.warn("Launch failed on $serial: $reason")
                 failed += serial to reason
                 return@forEach

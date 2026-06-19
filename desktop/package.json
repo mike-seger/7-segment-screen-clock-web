@@ -9,6 +9,7 @@
     "package:mac": "electron-builder --mac"
   },
   "build": {
+    "electronDist": "node_modules/electron/dist",
     "appId": "com.7segmentclock.desktop",
     "productName": "7-Segment Clock",
     "directories": {
