@@ -39,6 +39,19 @@ class ClockServer(
     // Last-known persisted state (mirrors localStorage keys that begin with screenClock_).
     val state = ConcurrentHashMap<String, String>()
 
+    private val perClientUiKeys = setOf(
+        "screenClock_selectedTab",
+        "screenClock_menuPosition",
+        "screenClock_menuOpen"
+    )
+
+    private val perDeviceKeys = setOf(
+        "screenClock_batteryAutomation",
+        "screenClock_batterySettings",
+        "screenClock_presenceSettings",
+        "screenClock_presenceNativeStatus"
+    )
+
     // Open SSE subscribers.
     private val sseClients = CopyOnWriteArrayList<SseClient>()
 
@@ -162,6 +175,24 @@ class ClockServer(
         }
     }
 
+    private fun publicStateSnapshot(): JSONObject {
+        val snapshot = JSONObject(state as Map<*, *>)
+        for (key in perClientUiKeys + perDeviceKeys) {
+            snapshot.remove(key)
+        }
+        val rawState = snapshot.optString("screenClock_state", "")
+        if (rawState.isNotBlank()) {
+            try {
+                val parsed = JSONObject(rawState)
+                parsed.remove("batterySettings")
+                parsed.remove("presenceSettings")
+                snapshot.put("screenClock_state", parsed.toString())
+            } catch (_: Exception) {
+            }
+        }
+        return snapshot
+    }
+
     init {
         clearThresholdHistoryForFreshInstallIfNeeded()
         loadActivityEvents()
@@ -174,7 +205,12 @@ class ClockServer(
         recordThresholdSnapshot(getBatterySettingsFromState(), serverStartMs)
         heartbeat.scheduleAtFixedRate({
             val bytes = ": ping\n\n".toByteArray()
-            for (c in sseClients) c.offer(bytes)
+            for (c in sseClients.toList()) {
+                if (!c.offer(bytes)) {
+                    try { c.close() } catch (_: Exception) {}
+                    sseClients.remove(c)
+                }
+            }
         }, 15, 15, TimeUnit.SECONDS)
         heartbeat.scheduleAtFixedRate({
             try {
@@ -630,8 +666,8 @@ class ClockServer(
 
     private fun handleGetState(): Response {
         // Scrub per-client UI keys defensively in case any historical value leaked in.
-        for (k in PER_CLIENT_UI_KEYS) state.remove(k)
-        val json = JSONObject(state as Map<*, *>).toString()
+        for (k in perClientUiKeys) state.remove(k)
+        val json = publicStateSnapshot().toString()
         return newFixedLengthResponse(Response.Status.OK, "application/json", json).apply {
             addHeader("Cache-Control", "no-store")
         }
@@ -645,13 +681,26 @@ class ClockServer(
         val key = obj.getString("key")
         val value: String? = if (obj.isNull("value")) null else obj.optString("value", "")
 
-        if (PER_CLIENT_UI_KEYS.contains(key)) {
+        if (perClientUiKeys.contains(key)) {
             // Never store per-client UI navigation keys on the server.
             state.remove(key)
             return newFixedLengthResponse(Response.Status.OK, "application/json", "{\"ok\":true,\"ignored\":true}")
         }
 
-        if (value == null) state.remove(key) else state[key] = value
+        val sanitizedValue = if (key == "screenClock_state" && value != null) {
+            try {
+                val parsed = JSONObject(value)
+                parsed.remove("batterySettings")
+                parsed.remove("presenceSettings")
+                parsed.toString()
+            } catch (_: Exception) {
+                value
+            }
+        } else {
+            value
+        }
+
+        if (sanitizedValue == null) state.remove(key) else state[key] = sanitizedValue
 
         if (key == "screenClock_timeMasterUrl" || key == "screenClock_ntpServer") {
             lastNtpSyncTime = 0L
@@ -661,8 +710,10 @@ class ClockServer(
             recordThresholdSnapshot(getBatterySettingsFromState(), System.currentTimeMillis())
         }
 
-        broadcast(key, value)
-        onStateChangedListener?.invoke(key, value)
+        if (!perDeviceKeys.contains(key)) {
+            broadcast(key, sanitizedValue)
+        }
+        onStateChangedListener?.invoke(key, sanitizedValue)
         return newFixedLengthResponse(Response.Status.OK, "application/json", "{\"ok\":true}")
     }
 
@@ -685,14 +736,7 @@ class ClockServer(
         val fallback = BatterySettings(false, "", 40, 85)
         return try {
             val explicitRaw = state["screenClock_batteryAutomation"]
-            if (!explicitRaw.isNullOrBlank()) {
-                return parseBatterySettingsObject(JSONObject(explicitRaw))
-            }
-
-            val raw = state["screenClock_state"] ?: return fallback
-            val parsed = JSONObject(raw)
-            val src = if (parsed.has("batterySettings")) parsed.optJSONObject("batterySettings") else null
-            parseBatterySettingsObject(src)
+            if (!explicitRaw.isNullOrBlank()) parseBatterySettingsObject(JSONObject(explicitRaw)) else fallback
         } catch (_: Exception) {
             fallback
         }
@@ -715,7 +759,6 @@ class ClockServer(
 
             state["screenClock_batteryAutomation"] = payload
             recordThresholdSnapshot(settings, System.currentTimeMillis())
-            broadcast("screenClock_batteryAutomation", payload)
             onStateChangedListener?.invoke("screenClock_batteryAutomation", payload)
 
             val out = JSONObject().apply {
@@ -888,18 +931,6 @@ class ClockServer(
                 false
             }
         }
-
-        val sharedRaw = state["screenClock_state"]
-        if (!sharedRaw.isNullOrBlank()) {
-            return try {
-                val parsed = JSONObject(sharedRaw)
-                val bs = parsed.optJSONObject("batterySettings")
-                bs != null && bs.has("thresholdOffPct") && bs.has("thresholdOnPct")
-            } catch (_: Exception) {
-                false
-            }
-        }
-
         return false
     }
 
@@ -1199,24 +1230,43 @@ class ClockServer(
      */
     private class SseClient : InputStream() {
         private val queue = LinkedBlockingQueue<ByteArray>()
+        private val pendingBytes = java.util.concurrent.atomic.AtomicInteger(0)
         private var current: ByteArray? = null
         private var pos = 0
         @Volatile private var closed = false
 
-        fun offer(data: ByteArray) {
-            if (closed || data.isEmpty()) return
-            queue.offer(data)
+        fun offer(data: ByteArray): Boolean {
+            if (closed || data.isEmpty()) return false
+            val queued = pendingBytes.addAndGet(data.size)
+            if (queued > MAX_SSE_QUEUE_BYTES) {
+                pendingBytes.addAndGet(-data.size)
+                close()
+                return false
+            }
+            val ok = queue.offer(data)
+            if (!ok) pendingBytes.addAndGet(-data.size)
+            return ok
+        }
+
+        fun isClosed(): Boolean = closed
+
+        private fun dequeueChunk(timeoutSeconds: Long): ByteArray? {
+            val next = try {
+                queue.poll(timeoutSeconds, TimeUnit.SECONDS)
+            } catch (e: InterruptedException) {
+                Thread.currentThread().interrupt()
+                return null
+            } ?: return null
+            if (next.isNotEmpty()) {
+                pendingBytes.addAndGet(-next.size)
+            }
+            return next
         }
 
         private fun ensureChunk(): Boolean {
             while (current == null || pos >= (current?.size ?: 0)) {
                 if (closed && queue.isEmpty()) return false
-                val next = try {
-                    queue.poll(30, TimeUnit.SECONDS)
-                } catch (e: InterruptedException) {
-                    Thread.currentThread().interrupt()
-                    return false
-                } ?: continue
+                val next = dequeueChunk(30) ?: continue
                 current = next
                 pos = 0
             }
@@ -1242,18 +1292,22 @@ class ClockServer(
         }
 
         override fun close() {
+            if (closed) return
             closed = true
+            pendingBytes.set(0)
+            queue.clear()
             queue.offer(ByteArray(0)) // unblock any pending poll
         }
     }
 
     private fun handleSse(): Response {
+        pruneSseClients()
         val client = SseClient()
         sseClients.add(client)
 
         // Opening comment + initial snapshot.
         client.offer(": connected\n\n".toByteArray())
-        val snapshot = JSONObject(state as Map<*, *>).toString()
+        val snapshot = publicStateSnapshot().toString()
         client.offer("event: snapshot\ndata: $snapshot\n\n".toByteArray())
 
         val r = newChunkedResponse(Response.Status.OK, "text/event-stream", client)
@@ -1269,12 +1323,28 @@ class ClockServer(
             if (value == null) put("value", JSONObject.NULL) else put("value", value)
         }.toString()
         val bytes = "event: state\ndata: $payload\n\n".toByteArray()
-        for (c in sseClients) c.offer(bytes)
+        for (c in sseClients.toList()) {
+            if (!c.offer(bytes)) {
+                try { c.close() } catch (_: Exception) {}
+                sseClients.remove(c)
+            }
+        }
     }
 
     private fun broadcastClocksUpdate() {
         val bytes = "event: clocks\ndata: \n\n".toByteArray()
-        for (c in sseClients) c.offer(bytes)
+        for (c in sseClients.toList()) {
+            if (!c.offer(bytes)) {
+                try { c.close() } catch (_: Exception) {}
+                sseClients.remove(c)
+            }
+        }
+    }
+
+    private fun pruneSseClients() {
+        for (c in sseClients.toList()) {
+            if (c.isClosed()) sseClients.remove(c)
+        }
     }
 
     override fun stop() {
@@ -1647,6 +1717,7 @@ class ClockServer(
     companion object {
         private const val TAG = "ClockServer"
         private const val PREF_KEY_LAST_INSTALL_MARKER = "last_install_marker"
+        private const val MAX_SSE_QUEUE_BYTES = 256 * 1024
 
         // Per-client UI keys that must never live in server state — they describe a
         // single browser's local navigation and would otherwise be broadcast back to

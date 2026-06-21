@@ -51,6 +51,7 @@ var SYMBOL_NAMES = [
   'menu_open',
   'more_horiz',
   'more_vert',
+  'nest_wake_on_approach',
   'open_in_browser',
   'open_in_new',
   'palette',

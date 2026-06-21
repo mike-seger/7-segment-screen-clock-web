@@ -40,6 +40,20 @@ html, body {
     inset: 0;
     width: 100vw;
     height: 100vh;
+    opacity: 1;
+    transition: opacity 220ms ease;
+}
+
+body.presence-display-bright #clockContainer {
+    opacity: 1;
+}
+
+body.presence-display-dim #clockContainer {
+    opacity: 0.33;
+}
+
+body.presence-display-dark #clockContainer {
+    opacity: 0;
 }
 
 #virtualClockPopup {

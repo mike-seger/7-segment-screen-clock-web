@@ -26,6 +26,9 @@
             <div class="menuTab" data-tab="system" title="System & Network">
                 <span class="symbol">settings_applications</span>
             </div>
+            <div class="menuTab" data-tab="presence" title="Presence Service">
+                <span class="symbol">nest_wake_on_approach</span>
+            </div>
             <div class="menuTab" data-tab="battery_settings" title="Battery Settings">
                 <span class="symbol">battery_charging_60</span>
             </div>
@@ -277,7 +280,86 @@
                 </div>
             </div>
 
-            <!-- 7. BATTERY SETTINGS -->
+            <!-- 7. PRESENCE SERVICE -->
+            <div class="menu-tab-content" id="tab-presence" style="display: none;">
+                <div class="menu-subsection">
+                    <h3>Presence Service</h3>
+                    <label style="margin: 4px 0 10px;">
+                        <span style="display: flex; align-items: center; gap: 6px;">
+                            <input type="checkbox" id="presenceEnabled">
+                            Enable
+                        </span>
+                    </label>
+
+                    <div id="presenceHistoryGraphWrap">
+                        <canvas id="presenceHistoryCanvas" width="320" height="120"></canvas>
+                    </div>
+
+                    <div class="presence-history-actions">
+                        <button id="presenceClearHistoryBtn" type="button">Clear spikes</button>
+                    </div>
+
+                    <div id="presenceLiveStatus" class="presence-live-status">
+                        <span id="presenceDisplayState">State: bright</span>
+                        <span id="presenceLastEvent">Last trigger: none</span>
+                        <span id="presenceSensorState">Sensors: -</span>
+                    </div>
+                </div>
+
+                <div class="menu-subsection">
+                    <div class="presence-tuning-header">
+                        <h3>Tuning</h3>
+                        <label for="presencePresetSelect" id="presencePresetControls" class="presence-preset-controls">
+                            <span class="presence-preset-label">Presets</span>
+                            <select id="presencePresetSelect">
+                                <option value="">Custom</option>
+                                <option value="min">Min</option>
+                                <option value="medium">Medium</option>
+                                <option value="max">Max</option>
+                            </select>
+                        </label>
+                    </div>
+                    <div id="presenceControls" class="presence-controls-box">
+                        <div class="presence-slider-row">
+                            <label for="presenceAudioSensitivity" class="presence-slider-label">Audio sens.</label>
+                            <input type="range" id="presenceAudioSensitivity" min="0" max="1" step="0.01">
+                            <span class="valueBadge" id="presenceAudioSensitivityValue"></span>
+                        </div>
+
+                        <div class="presence-slider-row">
+                            <label for="presenceCameraSensitivity" class="presence-slider-label">Camera sens.</label>
+                            <input type="range" id="presenceCameraSensitivity" min="0" max="1" step="0.01">
+                            <span class="valueBadge" id="presenceCameraSensitivityValue"></span>
+                        </div>
+
+                        <div class="presence-slider-row">
+                            <label for="presenceLightSensitivity" class="presence-slider-label">Light sens.</label>
+                            <input type="range" id="presenceLightSensitivity" min="0" max="1" step="0.01">
+                            <span class="valueBadge" id="presenceLightSensitivityValue"></span>
+                        </div>
+
+                        <div class="presence-slider-row">
+                            <label for="presenceDimTimeoutSec" class="presence-slider-label">Dim timeout</label>
+                            <input type="range" id="presenceDimTimeoutSec" min="5" max="600" step="1">
+                            <span class="valueBadge" id="presenceDimTimeoutSecValue"></span>
+                        </div>
+
+                        <div class="presence-slider-row">
+                            <label for="presenceDarkTimeoutSec" class="presence-slider-label">Dark timeout</label>
+                            <input type="range" id="presenceDarkTimeoutSec" min="10" max="1200" step="1">
+                            <span class="valueBadge" id="presenceDarkTimeoutSecValue"></span>
+                        </div>
+
+                        <div class="presence-slider-row">
+                            <label for="presenceDecaySec" class="presence-slider-label">Trigger decay</label>
+                            <input type="range" id="presenceDecaySec" min="0.2" max="10" step="0.1">
+                            <span class="valueBadge" id="presenceDecaySecValue"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 8. BATTERY SETTINGS -->
             <div class="menu-tab-content" id="tab-battery_settings" style="display: none;">
                 <div class="menu-subsection">
                     <h3>Battery Automation</h3>
@@ -331,7 +413,7 @@
                 </div>
             </div>
 
-            <!-- 8. DEBUG -->
+            <!-- 9. DEBUG -->
             <div class="menu-tab-content" id="tab-debug" style="display: none;">
                 <div class="menu-subsection">
                     <label style="margin: 4px 0;">

@@ -565,7 +565,8 @@ function getSelfBattery() {
 // Express server Setup
 const expressApp = express();
 expressApp.use(cors());
-expressApp.use(express.json());
+// Presence history/state snapshots can exceed the default 100kb parser limit.
+expressApp.use(express.json({ limit: '8mb' }));
 
 // In memory state
 let systemState = {};
@@ -579,6 +580,32 @@ const PER_CLIENT_UI_KEYS = new Set([
   'screenClock_menuOpen'
 ]);
 
+const PER_DEVICE_KEYS = new Set([
+  'screenClock_batteryAutomation',
+  'screenClock_batterySettings',
+  'screenClock_presenceSettings',
+  'screenClock_presenceNativeStatus'
+]);
+
+function getPublicStateSnapshot() {
+  const snapshot = { ...systemState };
+  for (const k of PER_CLIENT_UI_KEYS) delete snapshot[k];
+  for (const k of PER_DEVICE_KEYS) delete snapshot[k];
+  if (snapshot.screenClock_state) {
+    try {
+      const parsed = typeof snapshot.screenClock_state === 'string'
+        ? JSON.parse(snapshot.screenClock_state)
+        : snapshot.screenClock_state;
+      if (parsed && typeof parsed === 'object') {
+        delete parsed.batterySettings;
+        delete parsed.presenceSettings;
+        snapshot.screenClock_state = JSON.stringify(parsed);
+      }
+    } catch (_) {}
+  }
+  return snapshot;
+}
+
 let calculatedOffsetMs = 0;
 let lastNtpSyncTime = 0;
 let lastP2pSyncTime = 0;
@@ -591,7 +618,7 @@ expressApp.get('/api/state', (req, res) => {
   for (const k of PER_CLIENT_UI_KEYS) {
     if (k in systemState) delete systemState[k];
   }
-  res.json(systemState);
+  res.json(getPublicStateSnapshot());
 });
 
 expressApp.post('/api/state', (req, res) => {
@@ -603,10 +630,21 @@ expressApp.post('/api/state', (req, res) => {
       res.json({ success: true, ignored: true });
       return;
     }
-    if (value === null) {
+      if (value === null) {
       delete systemState[key];
     } else {
-      systemState[key] = value;
+        let nextValue = value;
+        if (key === 'screenClock_state' && typeof value === 'string') {
+          try {
+            const parsed = JSON.parse(value);
+            if (parsed && typeof parsed === 'object') {
+              delete parsed.batterySettings;
+              delete parsed.presenceSettings;
+              nextValue = JSON.stringify(parsed);
+            }
+          } catch (_) {}
+        }
+        systemState[key] = nextValue;
     }
     if (key === "screenClock_timeMasterUrl" || key === "screenClock_ntpServer") {
       lastNtpSyncTime = 0;
@@ -849,7 +887,7 @@ expressApp.get('/api/events', (req, res) => {
   res.flushHeaders();
   res.write(': connected\n\n');
   // Send a snapshot of the current state
-  res.write(`event: snapshot\ndata: ${JSON.stringify(systemState)}\n\n`);
+  res.write(`event: snapshot\ndata: ${JSON.stringify(getPublicStateSnapshot())}\n\n`);
   sseClients.add(res);
   req.on('close', () => sseClients.delete(res));
 });

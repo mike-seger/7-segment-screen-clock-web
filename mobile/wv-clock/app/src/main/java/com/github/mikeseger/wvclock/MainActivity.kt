@@ -2,27 +2,39 @@ package com.github.mikeseger.wvclock
 
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.content.pm.PackageManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
+import android.media.MediaRecorder
 import android.net.wifi.WifiManager
 import android.opengl.EGL14
 import android.opengl.GLES20
 import android.os.BatteryManager
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.os.Process
 import android.provider.Settings
 import android.util.Log
 import android.view.View
 import android.view.WindowInsets
 import android.view.WindowInsetsController
+import android.webkit.PermissionRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
+import java.io.File
 import java.net.BindException
 import java.net.NetworkInterface
+import kotlin.math.abs
+import kotlin.math.sqrt
 
 class MainActivity : Activity() {
 
@@ -35,6 +47,65 @@ class MainActivity : Activity() {
         private var wifiLock: WifiManager.WifiLock? = null
 
     private var sleepOverlayView: View? = null
+    private var pendingWebPermissionRequest: PermissionRequest? = null
+    private var pendingWebPermissionResources: Array<String> = emptyArray()
+
+    private var nativePresenceEnabled = false
+    private var nativeAudioSensitivity = 0.22f
+    private var nativeMotionSensitivity = 0.18f
+    private var nativeLightSensitivity = 0.2f
+    private var nativeDecayMs = 1400L
+    private var nativeLastEmitTs = 0L
+
+    private val nativePresenceHandler = Handler(Looper.getMainLooper())
+    private var nativeAudioRecorder: MediaRecorder? = null
+    private var nativeAudioFile: File? = null
+    private var nativeAudioBaseline = 200f
+    private var nativeLightBaseline = -1f
+    private var nativeMotionBaseline = 0f
+
+    private var sensorManager: SensorManager? = null
+    private var lightSensor: Sensor? = null
+    private var motionSensor: Sensor? = null
+    private var nativeSensorsRegistered = false
+
+    private val nativeSensorListener = object : SensorEventListener {
+        override fun onSensorChanged(event: SensorEvent?) {
+            if (!nativePresenceEnabled || event == null) return
+            when (event.sensor?.type) {
+                Sensor.TYPE_LIGHT -> handleNativeLight(event.values)
+                Sensor.TYPE_GYROSCOPE,
+                Sensor.TYPE_ACCELEROMETER,
+                Sensor.TYPE_ROTATION_VECTOR -> handleNativeMotion(event.values)
+            }
+        }
+
+        override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
+        }
+    }
+
+    private val nativeAudioPoll = object : Runnable {
+        override fun run() {
+            if (!nativePresenceEnabled) return
+            try {
+                val amp = nativeAudioRecorder?.maxAmplitude?.toFloat() ?: 0f
+                if (amp > 0f) {
+                    if (nativeAudioBaseline <= 0f) nativeAudioBaseline = amp
+                    nativeAudioBaseline = nativeAudioBaseline * 0.92f + amp * 0.08f
+
+                    val ratio = if (nativeAudioBaseline > 1f) amp / nativeAudioBaseline else 0f
+                    val ratioThreshold = 2.2f - nativeAudioSensitivity * 1.5f
+                    val absThreshold = 4500f - nativeAudioSensitivity * 3200f
+                    if (ratio > ratioThreshold || amp > absThreshold) {
+                        maybeEmitNativePresence("audio")
+                    }
+                }
+            } catch (_: Exception) {
+            } finally {
+                nativePresenceHandler.postDelayed(this, 160)
+            }
+        }
+    }
 
     // Set to true once the background EGL probe confirms a PowerVR GPU.
     private var isPowerVR = false
@@ -106,6 +177,12 @@ class MainActivity : Activity() {
                     Log.w(TAG, "JS: ${msg.message()} [${msg.sourceId()}:${msg.lineNumber()}]")
                     return true
                 }
+
+                override fun onPermissionRequest(request: PermissionRequest) {
+                    runOnUiThread {
+                        handleWebPermissionRequest(request)
+                    }
+                }
             }
             webViewClient = object : WebViewClient() {
                 override fun onRenderProcessGone(
@@ -126,6 +203,7 @@ class MainActivity : Activity() {
                         if (stateStr != null) {
                             val obj = org.json.JSONObject(stateStr)
                             sleepTimeoutMinutes = obj.optInt("sleepTimeout", 0)
+                            applyNativePresenceFromStateObject(obj)
                             Log.i(TAG, "Initial sleep timeout loaded: $sleepTimeoutMinutes minutes")
                         }
                     } catch (e: Exception) {
@@ -183,6 +261,8 @@ class MainActivity : Activity() {
             requestPermissions(arrayOf(android.Manifest.permission.READ_PHONE_STATE), 1)
         }
 
+        ensureMediaRuntimePermissions()
+
         // Helpful one-time hint with the LAN URL for remote control.
         val ip = getWifiIpv4()
         if (ip != null) {
@@ -197,6 +277,57 @@ class MainActivity : Activity() {
         }
 
         maybeRequestBatteryOptimizationExemption()
+    }
+
+    private fun ensureMediaRuntimePermissions() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
+        val needed = mutableListOf<String>()
+        if (checkSelfPermission(android.Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            needed.add(android.Manifest.permission.CAMERA)
+        }
+        if (checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            needed.add(android.Manifest.permission.RECORD_AUDIO)
+        }
+        if (needed.isNotEmpty()) {
+            requestPermissions(needed.toTypedArray(), REQUEST_MEDIA_PERMISSIONS)
+        }
+    }
+
+    private fun hasRuntimePermission(permission: String): Boolean {
+        return Build.VERSION.SDK_INT < Build.VERSION_CODES.M ||
+            checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun handleWebPermissionRequest(request: PermissionRequest) {
+        val resources = request.resources ?: emptyArray()
+        if (resources.isEmpty()) {
+            request.deny()
+            return
+        }
+
+        val requiredPermissions = mutableSetOf<String>()
+        if (resources.contains(PermissionRequest.RESOURCE_VIDEO_CAPTURE)) {
+            requiredPermissions.add(android.Manifest.permission.CAMERA)
+        }
+        if (resources.contains(PermissionRequest.RESOURCE_AUDIO_CAPTURE)) {
+            requiredPermissions.add(android.Manifest.permission.RECORD_AUDIO)
+        }
+
+        val missing = requiredPermissions.filterNot { hasRuntimePermission(it) }
+        if (missing.isNotEmpty()) {
+            pendingWebPermissionRequest?.deny()
+            pendingWebPermissionRequest = request
+            pendingWebPermissionResources = resources
+            requestPermissions(missing.toTypedArray(), REQUEST_WEBVIEW_MEDIA_PERMISSION_REQUEST)
+            return
+        }
+
+        try {
+            request.grant(resources)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed granting WebView permission request", e)
+            request.deny()
+        }
     }
 
     private val screenOnReceiver = object : BroadcastReceiver() {
@@ -223,13 +354,46 @@ class MainActivity : Activity() {
         }
         maybeStartWatchdog()
         server?.notifyAppResumed()
+        if (nativePresenceEnabled) {
+            startNativePresenceFallback()
+        }
     }
 
     override fun onPause() {
         super.onPause()
         server?.notifyAppPaused()
+        stopNativePresenceFallback()
         try { unregisterReceiver(screenOnReceiver) } catch (_: Exception) {}
         try { unregisterReceiver(restartReceiver) } catch (_: Exception) {}
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+
+        if (requestCode == REQUEST_WEBVIEW_MEDIA_PERMISSION_REQUEST) {
+            val request = pendingWebPermissionRequest
+            val resources = pendingWebPermissionResources
+            pendingWebPermissionRequest = null
+            pendingWebPermissionResources = emptyArray()
+
+            if (request == null) return
+
+            val allGranted = grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }
+            if (allGranted) {
+                try {
+                    request.grant(resources)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed granting deferred WebView permission request", e)
+                    request.deny()
+                }
+            } else {
+                request.deny()
+            }
+        }
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -250,7 +414,173 @@ class MainActivity : Activity() {
         } catch (_: Exception) {}
         multicastLock = null
             wifiLock = null
+        stopNativePresenceFallback()
         super.onDestroy()
+    }
+
+    private fun maybeEmitNativePresence(type: String) {
+        if (!nativePresenceEnabled) return
+        val now = System.currentTimeMillis()
+        if (now - nativeLastEmitTs < nativeDecayMs) return
+        nativeLastEmitTs = now
+        publishNativePresenceStatus()
+        webView.post {
+            webView.evaluateJavascript("window.PresenceService && window.PresenceService.forceWake('${type}')", null)
+        }
+    }
+
+    private fun publishNativePresenceStatus() {
+        val payload = org.json.JSONObject()
+        payload.put("enabled", nativePresenceEnabled)
+        payload.put("audio", nativeAudioRecorder != null)
+        payload.put("sensors", nativeSensorsRegistered)
+        payload.put("ts", System.currentTimeMillis())
+        val jsValue = org.json.JSONObject.quote(payload.toString())
+        webView.post {
+            webView.evaluateJavascript("try{localStorage.setItem('screenClock_presenceNativeStatus', ${jsValue});}catch(e){}", null)
+        }
+    }
+
+    private fun handleNativeLight(values: FloatArray?) {
+        if (values == null || values.isEmpty()) return
+        val lux = values[0]
+        if (!lux.isFinite()) return
+
+        if (nativeLightBaseline < 0f) nativeLightBaseline = lux
+        val baseline = nativeLightBaseline
+        val delta = abs(lux - baseline)
+
+        val deltaThreshold = 18f - nativeLightSensitivity * 14f
+        val brightThreshold = 120f - nativeLightSensitivity * 90f
+        if (delta > deltaThreshold || lux > brightThreshold) {
+            maybeEmitNativePresence("light")
+        }
+        nativeLightBaseline = baseline * 0.88f + lux * 0.12f
+    }
+
+    private fun handleNativeMotion(values: FloatArray?) {
+        if (values == null || values.size < 3) return
+        val x = values[0]
+        val y = values[1]
+        val z = values[2]
+        if (!x.isFinite() || !y.isFinite() || !z.isFinite()) return
+
+        val mag = sqrt(x * x + y * y + z * z)
+        if (!mag.isFinite()) return
+
+        if (nativeMotionBaseline <= 0f) nativeMotionBaseline = mag
+        val delta = abs(mag - nativeMotionBaseline)
+        val motionThreshold = 0.9f - nativeMotionSensitivity * 0.65f
+        if (delta > motionThreshold || mag > (1.4f - nativeMotionSensitivity * 0.9f)) {
+            maybeEmitNativePresence("gyro")
+        }
+        nativeMotionBaseline = nativeMotionBaseline * 0.9f + mag * 0.1f
+    }
+
+    private fun startNativeAudioFallback() {
+        if (checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) return
+        if (nativeAudioRecorder != null) return
+
+        try {
+            val outFile = File(cacheDir, "presence-native-audio.3gp")
+            nativeAudioFile = outFile
+            val recorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                MediaRecorder(this)
+            } else {
+                @Suppress("DEPRECATION")
+                MediaRecorder()
+            }
+            recorder.setAudioSource(MediaRecorder.AudioSource.MIC)
+            recorder.setOutputFormat(MediaRecorder.OutputFormat.THREE_GPP)
+            recorder.setAudioEncoder(MediaRecorder.AudioEncoder.AMR_NB)
+            recorder.setOutputFile(outFile.absolutePath)
+            recorder.prepare()
+            recorder.start()
+            nativeAudioRecorder = recorder
+            nativeAudioBaseline = 200f
+            nativePresenceHandler.removeCallbacks(nativeAudioPoll)
+            nativePresenceHandler.post(nativeAudioPoll)
+        } catch (e: Exception) {
+            Log.w(TAG, "Native audio fallback unavailable", e)
+            stopNativeAudioFallback()
+        }
+    }
+
+    private fun stopNativeAudioFallback() {
+        nativePresenceHandler.removeCallbacks(nativeAudioPoll)
+        try {
+            nativeAudioRecorder?.stop()
+        } catch (_: Exception) {
+        }
+        try {
+            nativeAudioRecorder?.release()
+        } catch (_: Exception) {
+        }
+        nativeAudioRecorder = null
+    }
+
+    private fun startNativeSensorFallback() {
+        if (nativeSensorsRegistered) return
+        val sm = sensorManager ?: getSystemService(Context.SENSOR_SERVICE) as? SensorManager
+        sensorManager = sm
+        if (sm == null) return
+
+        lightSensor = sm.getDefaultSensor(Sensor.TYPE_LIGHT)
+        motionSensor = sm.getDefaultSensor(Sensor.TYPE_GYROSCOPE)
+            ?: sm.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+            ?: sm.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
+
+        var registeredAny = false
+        lightSensor?.let {
+            registeredAny = sm.registerListener(nativeSensorListener, it, SensorManager.SENSOR_DELAY_NORMAL) || registeredAny
+        }
+        motionSensor?.let {
+            registeredAny = sm.registerListener(nativeSensorListener, it, SensorManager.SENSOR_DELAY_GAME) || registeredAny
+        }
+        nativeSensorsRegistered = registeredAny
+    }
+
+    private fun stopNativeSensorFallback() {
+        if (!nativeSensorsRegistered) return
+        try {
+            sensorManager?.unregisterListener(nativeSensorListener)
+        } catch (_: Exception) {
+        }
+        nativeSensorsRegistered = false
+    }
+
+    private fun startNativePresenceFallback() {
+        if (!nativePresenceEnabled) return
+        startNativeSensorFallback()
+        startNativeAudioFallback()
+        publishNativePresenceStatus()
+    }
+
+    private fun stopNativePresenceFallback() {
+        stopNativeAudioFallback()
+        stopNativeSensorFallback()
+        publishNativePresenceStatus()
+    }
+
+    private fun applyNativePresenceFromStateObject(root: org.json.JSONObject) {
+        try {
+            val ps = root.optJSONObject("presenceSettings") ?: root
+            nativePresenceEnabled = ps.optBoolean("enabled", nativePresenceEnabled)
+            nativeAudioSensitivity = ps.optDouble("audioSensitivity", nativeAudioSensitivity.toDouble()).toFloat().coerceIn(0f, 1f)
+            nativeMotionSensitivity = ps.optDouble("cameraSensitivity", nativeMotionSensitivity.toDouble()).toFloat().coerceIn(0f, 1f)
+            nativeLightSensitivity = ps.optDouble("lightSensitivity", nativeLightSensitivity.toDouble()).toFloat().coerceIn(0f, 1f)
+            val decaySec = ps.optDouble("decaySec", nativeDecayMs.toDouble() / 1000.0)
+            nativeDecayMs = (decaySec * 1000.0).toLong().coerceIn(200L, 10000L)
+
+            if (nativePresenceEnabled) {
+                startNativePresenceFallback()
+            } else {
+                stopNativePresenceFallback()
+            }
+            publishNativePresenceStatus()
+        } catch (e: Exception) {
+            Log.w(TAG, "applyNativePresenceFromStateObject failed", e)
+        }
     }
 
     private fun startServer() {
@@ -291,6 +621,7 @@ class MainActivity : Activity() {
                     try {
                         val obj = org.json.JSONObject(value)
                         val timeout = obj.optInt("sleepTimeout", 0)
+                        applyNativePresenceFromStateObject(obj)
                         runOnUiThread {
                             if (sleepTimeoutMinutes != timeout) {
                                 sleepTimeoutMinutes = timeout
@@ -300,6 +631,12 @@ class MainActivity : Activity() {
                         }
                     } catch (e: Exception) {
                         Log.e(TAG, "Error parsing state json for sleepTimeout", e)
+                    }
+                } else if (key == "screenClock_presenceSettings" && value != null) {
+                    try {
+                        applyNativePresenceFromStateObject(org.json.JSONObject(value))
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error parsing presence settings json", e)
                     }
                 }
             }
@@ -630,10 +967,39 @@ class MainActivity : Activity() {
                 webView.loadUrl(homeUrl())
             }
         }
+
+        @android.webkit.JavascriptInterface
+        fun configureNativePresence(configJson: String?) {
+            runOnUiThread {
+                try {
+                    val obj = org.json.JSONObject(configJson ?: "{}")
+                    nativePresenceEnabled = obj.optBoolean("enabled", false)
+                    nativeAudioSensitivity = obj.optDouble("audioSensitivity", 0.22).toFloat().coerceIn(0f, 1f)
+                    nativeMotionSensitivity = obj.optDouble("cameraSensitivity", 0.18).toFloat().coerceIn(0f, 1f)
+                    nativeLightSensitivity = obj.optDouble("lightSensitivity", 0.2).toFloat().coerceIn(0f, 1f)
+                    val decaySec = obj.optDouble("decaySec", 1.4)
+                    nativeDecayMs = (decaySec * 1000.0).toLong().coerceIn(200L, 10000L)
+
+                    if (nativePresenceEnabled) startNativePresenceFallback() else stopNativePresenceFallback()
+                    publishNativePresenceStatus()
+                } catch (e: Exception) {
+                    Log.w(TAG, "configureNativePresence failed", e)
+                }
+            }
+        }
+
+        @android.webkit.JavascriptInterface
+        fun getNativePresenceStatus(): String {
+            val audio = if (nativeAudioRecorder != null) "on" else "off"
+            val sensors = if (nativeSensorsRegistered) "on" else "off"
+            return "native(enabled=${nativePresenceEnabled},audio=${audio},sensors=${sensors})"
+        }
     }
 
     companion object {
         private const val TAG = "WvClock"
+        private const val REQUEST_MEDIA_PERMISSIONS = 2001
+        private const val REQUEST_WEBVIEW_MEDIA_PERMISSION_REQUEST = 2002
         private const val PREFS_NAME = "wvclock_prefs"
         private const val PREFS_KEY_WAS_ASLEEP = "watchdog_was_asleep"
         private const val PREFS_KEY_OVERLAY_PROMPTED = "overlay_permission_prompted"

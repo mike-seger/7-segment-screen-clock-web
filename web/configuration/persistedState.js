@@ -39,6 +39,15 @@ const DEFAULT_STATE = {
         switchIp: "",
         thresholdOffPct: 85,
         thresholdOnPct: 40
+    },
+    presenceSettings: {
+        enabled: false,
+        audioSensitivity: 0.22,
+        cameraSensitivity: 0.18,
+        lightSensitivity: 0.2,
+        dimTimeoutSec: 45,
+        darkTimeoutSec: 180,
+        decaySec: 1.4
     }
 };
 
@@ -66,6 +75,8 @@ const STORAGE_KEY_PROFILES = "screenClock_profiles";   // JSON array of names
 const STORAGE_KEY_DEBUG     = "screenClock_debug";
 const STORAGE_KEY_GPU_INFO  = "screenClock_gpuInfo";
 const STORAGE_KEY_CONTAINER = "screenClock_container";
+const STORAGE_KEY_BATTERY_SETTINGS = "screenClock_batterySettings";
+const STORAGE_KEY_PRESENCE_SETTINGS = "screenClock_presenceSettings";
 const PROFILE_PREFIX        = "screenClock_profile_";
 
 
@@ -100,6 +111,32 @@ function normalizeBatterySettings(value) {
         thresholdOffPct,
         thresholdOnPct
     };
+}
+
+function normalizePresenceSettings(value) {
+    const src = (value && typeof value === "object") ? value : {};
+    const fallback = DEFAULT_STATE.presenceSettings;
+
+    const decaySecFromMs = Number(src.cooldownMs) / 1000;
+    const decaySecFallback = Number.isFinite(decaySecFromMs) && decaySecFromMs > 0
+        ? decaySecFromMs
+        : fallback.decaySec;
+
+    const normalized = {
+        enabled: !!src.enabled,
+        audioSensitivity: Math.max(0, Math.min(1, Number.isFinite(Number(src.audioSensitivity)) ? Number(src.audioSensitivity) : fallback.audioSensitivity)),
+        cameraSensitivity: Math.max(0, Math.min(1, Number.isFinite(Number(src.cameraSensitivity)) ? Number(src.cameraSensitivity) : fallback.cameraSensitivity)),
+        lightSensitivity: Math.max(0, Math.min(1, Number.isFinite(Number(src.lightSensitivity)) ? Number(src.lightSensitivity) : fallback.lightSensitivity)),
+        dimTimeoutSec: Math.round(Math.max(5, Math.min(3600, Number.isFinite(Number(src.dimTimeoutSec)) ? Number(src.dimTimeoutSec) : fallback.dimTimeoutSec))),
+        darkTimeoutSec: Math.round(Math.max(10, Math.min(7200, Number.isFinite(Number(src.darkTimeoutSec)) ? Number(src.darkTimeoutSec) : fallback.darkTimeoutSec))),
+        decaySec: Math.max(0.2, Math.min(10, Number.isFinite(Number(src.decaySec)) ? Number(src.decaySec) : decaySecFallback))
+    };
+
+    if (normalized.darkTimeoutSec <= normalized.dimTimeoutSec) {
+        normalized.darkTimeoutSec = normalized.dimTimeoutSec + 5;
+    }
+
+    return normalized;
 }
 
 function normalizeSizingState(inputState) {
@@ -188,6 +225,7 @@ function normalizeSizingState(inputState) {
         thresholdOnPct: source.batteryThresholdOnPct
     };
     next.batterySettings = normalizeBatterySettings(batterySettingsSource);
+    next.presenceSettings = normalizePresenceSettings(source.presenceSettings);
 
     return next;
 }
@@ -252,16 +290,25 @@ function loadCurrentState() {
     } catch (e) {
         console.warn("Failed to load stored state", e);
     }
-    // Battery settings are per-device and stored separately so they are never
-    // overwritten by cross-device state sync.
+    // Battery and presence settings are per-device and stored separately so
+    // they are never overwritten by cross-device state sync.
     try {
-        const bsRaw = localStorage.getItem("screenClock_batterySettings");
+        const bsRaw = localStorage.getItem(STORAGE_KEY_BATTERY_SETTINGS);
         if (bsRaw) {
             const bsParsed = JSON.parse(bsRaw);
             state.batterySettings = normalizeBatterySettings(bsParsed);
         }
     } catch (e) {
         console.warn("Failed to load battery settings", e);
+    }
+    try {
+        const psRaw = localStorage.getItem(STORAGE_KEY_PRESENCE_SETTINGS);
+        if (psRaw) {
+            const psParsed = JSON.parse(psRaw);
+            state.presenceSettings = normalizePresenceSettings(psParsed);
+        }
+    } catch (e) {
+        console.warn("Failed to load presence settings", e);
     }
     state.showDebug = loadShowDebug();
     state.showGpuInfo = loadShowGpuInfo();
@@ -270,12 +317,29 @@ function loadCurrentState() {
 
 function saveCurrentState() {
     try {
+        const batterySettings = normalizeBatterySettings(state.batterySettings || {});
+        const presenceSettings = normalizePresenceSettings(state.presenceSettings || {});
+        try {
+            localStorage.setItem(STORAGE_KEY_BATTERY_SETTINGS, JSON.stringify(batterySettings));
+        } catch (_) {}
+        try {
+            localStorage.setItem(STORAGE_KEY_PRESENCE_SETTINGS, JSON.stringify(presenceSettings));
+        } catch (_) {}
+
+        if (typeof fetch === "function") {
+            fetch("/api/state", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ key: STORAGE_KEY_PRESENCE_SETTINGS, value: JSON.stringify(presenceSettings) })
+            }).catch(() => {});
+        }
+
         const toSave = { ...state };
         delete toSave.showDebug;
         delete toSave.showGpuInfo;
         delete toSave.container;
-        // Keep battery settings in shared state so Android automation can read them.
-        toSave.batterySettings = normalizeBatterySettings(state.batterySettings || {});
+        delete toSave.batterySettings;
+        delete toSave.presenceSettings;
         const serialized = JSON.stringify(toSave);
         localStorage.setItem(STORAGE_KEY_CURRENT, serialized);
         // Fallback direct sync for cases where bridge localStorage hooks are not
@@ -297,11 +361,28 @@ function saveBatterySettings() {
         const bs = (state.batterySettings && typeof state.batterySettings === "object")
             ? state.batterySettings
             : {};
-        localStorage.setItem("screenClock_batterySettings", JSON.stringify(bs));
-        // Also persist to screenClock_state so server receives updates immediately.
-        saveCurrentState();
+        localStorage.setItem(STORAGE_KEY_BATTERY_SETTINGS, JSON.stringify(normalizeBatterySettings(bs)));
     } catch (e) {
         console.warn("Failed to save battery settings", e);
+    }
+}
+
+function savePresenceSettings() {
+    try {
+        const ps = (state.presenceSettings && typeof state.presenceSettings === "object")
+            ? state.presenceSettings
+            : {};
+        const normalized = normalizePresenceSettings(ps);
+        localStorage.setItem(STORAGE_KEY_PRESENCE_SETTINGS, JSON.stringify(normalized));
+        if (typeof fetch === "function") {
+            fetch("/api/state", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ key: STORAGE_KEY_PRESENCE_SETTINGS, value: JSON.stringify(normalized) })
+            }).catch(() => {});
+        }
+    } catch (e) {
+        console.warn("Failed to save presence settings", e);
     }
 }
 
@@ -354,6 +435,8 @@ function saveProfile(name) {
     delete toSave.showDebug;
     delete toSave.showGpuInfo;
     delete toSave.container;
+    delete toSave.batterySettings;
+    delete toSave.presenceSettings;
     localStorage.setItem(key, JSON.stringify(toSave));
     let names = loadProfileNames();
     if (!names.includes(name)) {
@@ -373,10 +456,14 @@ function loadProfile(name) {
         state.showDebug = loadShowDebug();
         state.showGpuInfo = loadShowGpuInfo();
         state.container = loadContainer();
-        // Preserve per-device battery settings — never overwrite with profile/default values.
+        // Preserve per-device battery/presence settings — never overwrite with profile/default values.
         try {
-            const bsRaw = localStorage.getItem("screenClock_batterySettings");
+            const bsRaw = localStorage.getItem(STORAGE_KEY_BATTERY_SETTINGS);
             if (bsRaw) state.batterySettings = normalizeBatterySettings(JSON.parse(bsRaw));
+        } catch (_) {}
+        try {
+            const psRaw = localStorage.getItem(STORAGE_KEY_PRESENCE_SETTINGS);
+            if (psRaw) state.presenceSettings = normalizePresenceSettings(JSON.parse(psRaw));
         } catch (_) {}
         applyLoadedStateUI();
         saveCurrentState();
@@ -391,10 +478,14 @@ function loadProfile(name) {
         state.showDebug = loadShowDebug();
         state.showGpuInfo = loadShowGpuInfo();
         state.container = loadContainer();
-        // Preserve per-device battery settings — never overwrite with profile/default values.
+        // Preserve per-device battery/presence settings — never overwrite with profile/default values.
         try {
-            const bsRaw = localStorage.getItem("screenClock_batterySettings");
+            const bsRaw = localStorage.getItem(STORAGE_KEY_BATTERY_SETTINGS);
             if (bsRaw) state.batterySettings = normalizeBatterySettings(JSON.parse(bsRaw));
+        } catch (_) {}
+        try {
+            const psRaw = localStorage.getItem(STORAGE_KEY_PRESENCE_SETTINGS);
+            if (psRaw) state.presenceSettings = normalizePresenceSettings(JSON.parse(psRaw));
         } catch (_) {}
         applyLoadedStateUI();
         saveCurrentState();

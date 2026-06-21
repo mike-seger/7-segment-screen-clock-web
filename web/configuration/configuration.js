@@ -171,6 +171,28 @@ function initConfiguration() {
         batterySwitchToggleBtn: document.getElementById("batterySwitchToggleBtn"),
         batteryHistoryCanvas: document.getElementById("batteryHistoryCanvas"),
 
+        presenceEnabled: document.getElementById("presenceEnabled"),
+        presencePresetControls: document.getElementById("presencePresetControls"),
+        presencePresetSelect: document.getElementById("presencePresetSelect"),
+        presenceControls: document.getElementById("presenceControls"),
+        presenceAudioSensitivity: document.getElementById("presenceAudioSensitivity"),
+        presenceAudioSensitivityValue: document.getElementById("presenceAudioSensitivityValue"),
+        presenceCameraSensitivity: document.getElementById("presenceCameraSensitivity"),
+        presenceCameraSensitivityValue: document.getElementById("presenceCameraSensitivityValue"),
+        presenceLightSensitivity: document.getElementById("presenceLightSensitivity"),
+        presenceLightSensitivityValue: document.getElementById("presenceLightSensitivityValue"),
+        presenceDimTimeoutSec: document.getElementById("presenceDimTimeoutSec"),
+        presenceDimTimeoutSecValue: document.getElementById("presenceDimTimeoutSecValue"),
+        presenceDarkTimeoutSec: document.getElementById("presenceDarkTimeoutSec"),
+        presenceDarkTimeoutSecValue: document.getElementById("presenceDarkTimeoutSecValue"),
+        presenceDecaySec: document.getElementById("presenceDecaySec"),
+        presenceDecaySecValue: document.getElementById("presenceDecaySecValue"),
+        presenceDisplayState: document.getElementById("presenceDisplayState"),
+        presenceLastEvent: document.getElementById("presenceLastEvent"),
+        presenceSensorState: document.getElementById("presenceSensorState"),
+        presenceHistoryCanvas: document.getElementById("presenceHistoryCanvas"),
+        presenceClearHistoryBtn: document.getElementById("presenceClearHistoryBtn"),
+
         batteryLiveCharge:   document.getElementById("batteryLiveCharge"),
         batteryLiveCharging: document.getElementById("batteryLiveCharging"),
 
@@ -213,6 +235,33 @@ function initConfiguration() {
         if (els.batteryThresholdOnValue) {
             const bs = state.batterySettings || {};
             els.batteryThresholdOnValue.textContent = `${bs.thresholdOnPct != null ? bs.thresholdOnPct : 40}%`;
+        }
+        if (els.presenceAudioSensitivityValue) {
+            const ps = state.presenceSettings || {};
+            els.presenceAudioSensitivityValue.textContent = (Number(ps.audioSensitivity || 0)).toFixed(2);
+        }
+        if (els.presenceCameraSensitivityValue) {
+            const ps = state.presenceSettings || {};
+            els.presenceCameraSensitivityValue.textContent = (Number(ps.cameraSensitivity || 0)).toFixed(2);
+        }
+        if (els.presenceLightSensitivityValue) {
+            const ps = state.presenceSettings || {};
+            els.presenceLightSensitivityValue.textContent = (Number(ps.lightSensitivity || 0)).toFixed(2);
+        }
+        if (els.presenceDimTimeoutSecValue) {
+            const ps = state.presenceSettings || {};
+            els.presenceDimTimeoutSecValue.textContent = `${Math.round(Number(ps.dimTimeoutSec || 45))}s`;
+        }
+        if (els.presenceDarkTimeoutSecValue) {
+            const ps = state.presenceSettings || {};
+            els.presenceDarkTimeoutSecValue.textContent = `${Math.round(Number(ps.darkTimeoutSec || 180))}s`;
+        }
+        if (els.presenceDecaySecValue) {
+            const ps = state.presenceSettings || {};
+            const decaySec = Number.isFinite(Number(ps.decaySec))
+                ? Number(ps.decaySec)
+                : (Number(ps.cooldownMs || 1400) / 1000);
+            els.presenceDecaySecValue.textContent = `${decaySec.toFixed(1)}s`;
         }
     }
 
@@ -356,6 +405,177 @@ function initConfiguration() {
         if (switchControls) {
             switchControls.classList.toggle("is-disabled", switchControlsDisabled);
         }
+    }
+
+    function normalizePresenceSettingsState(changedBy) {
+        if (!state.presenceSettings || typeof state.presenceSettings !== "object") {
+            state.presenceSettings = {
+                enabled: false,
+                audioSensitivity: 0.22,
+                cameraSensitivity: 0.18,
+                lightSensitivity: 0.2,
+                dimTimeoutSec: 45,
+                darkTimeoutSec: 180,
+                decaySec: 1.4
+            };
+        }
+
+        const ps = state.presenceSettings;
+        ps.enabled = !!ps.enabled;
+        ps.audioSensitivity = Math.max(0, Math.min(1, Number(ps.audioSensitivity) || 0));
+        ps.cameraSensitivity = Math.max(0, Math.min(1, Number(ps.cameraSensitivity) || 0));
+        ps.lightSensitivity = Math.max(0, Math.min(1, Number(ps.lightSensitivity) || 0));
+        ps.dimTimeoutSec = Math.round(Math.max(5, Math.min(3600, Number(ps.dimTimeoutSec) || 45)));
+        ps.darkTimeoutSec = Math.round(Math.max(10, Math.min(7200, Number(ps.darkTimeoutSec) || 180)));
+        const decayFromMs = Number(ps.cooldownMs) / 1000;
+        const decayCandidate = Number.isFinite(Number(ps.decaySec)) ? Number(ps.decaySec) : decayFromMs;
+        ps.decaySec = Math.max(0.2, Math.min(10, Number.isFinite(decayCandidate) ? decayCandidate : 1.4));
+        delete ps.cooldownMs;
+        delete ps.graphWindowMinutes;
+
+        if (ps.darkTimeoutSec <= ps.dimTimeoutSec) {
+            if (changedBy === "dimTimeout") {
+                ps.darkTimeoutSec = ps.dimTimeoutSec + 5;
+            } else {
+                ps.dimTimeoutSec = Math.max(5, ps.darkTimeoutSec - 5);
+            }
+        }
+    }
+
+    function syncPresenceUi() {
+        normalizePresenceSettingsState();
+        const ps = state.presenceSettings;
+
+        if (els.presenceEnabled) {
+            els.presenceEnabled.checked = !!ps.enabled;
+        }
+
+        const controlsDisabled = !ps.enabled;
+        if (els.presenceControls) {
+            els.presenceControls.classList.toggle("is-disabled", controlsDisabled);
+        }
+        if (els.presencePresetControls) {
+            els.presencePresetControls.classList.toggle("is-disabled", controlsDisabled);
+        }
+
+        [
+            els.presencePresetSelect,
+            els.presenceAudioSensitivity,
+            els.presenceCameraSensitivity,
+            els.presenceLightSensitivity,
+            els.presenceDimTimeoutSec,
+            els.presenceDarkTimeoutSec,
+            els.presenceDecaySec
+        ].forEach((el) => {
+            if (!el) return;
+            el.disabled = controlsDisabled;
+        });
+    }
+
+    function applyPresenceServiceConfig() {
+        if (!window.PresenceService || typeof window.PresenceService.setConfig !== "function") return;
+        const ps = state.presenceSettings || {};
+        const payload = {
+            enabled: !!ps.enabled,
+            audioSensitivity: Number(ps.audioSensitivity),
+            cameraSensitivity: Number(ps.cameraSensitivity),
+            lightSensitivity: Number(ps.lightSensitivity),
+            dimTimeoutSec: Number(ps.dimTimeoutSec),
+            darkTimeoutSec: Number(ps.darkTimeoutSec),
+            decaySec: Number(ps.decaySec)
+        };
+        window.PresenceService.setConfig(payload);
+
+        if (window.Android && typeof window.Android.configureNativePresence === "function") {
+            try {
+                window.Android.configureNativePresence(JSON.stringify(payload));
+            } catch (_) {
+                // Ignore Android bridge failures in non-Android contexts.
+            }
+        }
+    }
+
+    function renderPresenceHistoryGraph() {
+        if (!window.PresenceService || typeof window.PresenceService.renderGraph !== "function") return;
+        if (!els.presenceHistoryCanvas) return;
+        if (typeof window.PresenceService.reloadHistoryFromStorage === "function") {
+            window.PresenceService.reloadHistoryFromStorage();
+        }
+        window.PresenceService.renderGraph(els.presenceHistoryCanvas, {});
+    }
+
+    function updatePresenceStatusFromService() {
+        if (!els.presenceDisplayState || !els.presenceLastEvent) return;
+        if (!window.PresenceService || typeof window.PresenceService.getStatus !== "function") {
+            els.presenceDisplayState.textContent = "State: unavailable";
+            els.presenceLastEvent.textContent = "Last trigger: none";
+            if (els.presenceSensorState) {
+                els.presenceSensorState.textContent = "Sensors: unavailable";
+            }
+            return;
+        }
+
+        if (typeof window.PresenceService.reloadHistoryFromStorage === "function") {
+            window.PresenceService.reloadHistoryFromStorage();
+        }
+
+        const status = window.PresenceService.getStatus();
+        const stateName = status && status.displayState ? String(status.displayState) : "bright";
+        els.presenceDisplayState.textContent = `State: ${stateName}`;
+
+        if (els.presenceSensorState) {
+            const sensors = status && status.sensors ? status.sensors : {};
+            const health = status && status.sensorHealth ? status.sensorHealth : {};
+            const nativeBridge = !!(window.Android && typeof window.Android.configureNativePresence === "function");
+            let sharedNative = null;
+            try {
+                const raw = localStorage.getItem("screenClock_presenceNativeStatus");
+                if (raw) {
+                    const parsed = JSON.parse(raw);
+                    if (parsed && typeof parsed === "object") {
+                        sharedNative = parsed;
+                    }
+                }
+            } catch (_) {
+                sharedNative = null;
+            }
+            const marker = (key, value) => {
+                if (value) return "on";
+                const h = String(health[key] || "off");
+                if (nativeBridge && h.startsWith("unsupported:")) {
+                    return "native-fallback";
+                }
+                if (!nativeBridge && sharedNative && sharedNative.enabled && h.startsWith("unsupported:")) {
+                    if (key === "audio" && sharedNative.audio) return "native-fallback";
+                    if ((key === "camera" || key === "gyro") && sharedNative.sensors) return "native-fallback";
+                }
+                return h.startsWith("off:") || h.startsWith("unsupported:") || h.startsWith("needs-")
+                    ? h
+                    : "off";
+            };
+            let nativeInfo = "";
+            if (window.Android && typeof window.Android.getNativePresenceStatus === "function") {
+                try {
+                    nativeInfo = ` | ${String(window.Android.getNativePresenceStatus())}`;
+                } catch (_) {
+                    nativeInfo = "";
+                }
+            }
+            els.presenceSensorState.textContent =
+                `Sensors: audio ${marker("audio", !!sensors.audio)}, cam ${marker("camera", !!sensors.camera)}, touch ${marker("touch", !!sensors.touch)}, gyro ${marker("gyro", !!sensors.gyro)}${nativeInfo}`;
+        }
+
+        const evt = status && status.lastEvent ? status.lastEvent : null;
+        if (!evt) {
+            els.presenceLastEvent.textContent = "Last trigger: none";
+            return;
+        }
+
+        const ts = Number(evt.ts);
+        const timeText = Number.isFinite(ts)
+            ? new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+            : "--:--:--";
+        els.presenceLastEvent.textContent = `Last trigger: ${evt.type} @ ${timeText}`;
     }
 
     function setBatterySwitchState(power, note) {
@@ -1115,6 +1335,24 @@ function initConfiguration() {
         normalizeBatterySettingsState();
         syncBatteryUi();
 
+        normalizePresenceSettingsState();
+        if (els.presenceEnabled) els.presenceEnabled.checked = !!state.presenceSettings.enabled;
+        if (els.presenceAudioSensitivity) els.presenceAudioSensitivity.value = state.presenceSettings.audioSensitivity;
+        if (els.presenceCameraSensitivity) els.presenceCameraSensitivity.value = state.presenceSettings.cameraSensitivity;
+        if (els.presenceLightSensitivity) els.presenceLightSensitivity.value = state.presenceSettings.lightSensitivity;
+        if (els.presenceDimTimeoutSec) els.presenceDimTimeoutSec.value = state.presenceSettings.dimTimeoutSec;
+        if (els.presenceDarkTimeoutSec) els.presenceDarkTimeoutSec.value = state.presenceSettings.darkTimeoutSec;
+        if (els.presenceDecaySec) {
+            const decaySec = Number.isFinite(Number(state.presenceSettings.decaySec))
+                ? Number(state.presenceSettings.decaySec)
+                : (Number(state.presenceSettings.cooldownMs || 1400) / 1000);
+            els.presenceDecaySec.value = decaySec;
+        }
+        if (els.presencePresetSelect) {
+            els.presencePresetSelect.value = getPresencePresetLevel(state.presenceSettings);
+        }
+        syncPresenceUi();
+
         // Font selects: set whenever fonts are already populated (e.g. profile switch).
         // On first load populateFontSelects() handles this; setting here is harmless
         // if options aren't ready yet (no matching option → value stays unchanged).
@@ -1125,6 +1363,77 @@ function initConfiguration() {
         syncMultiFontUi();
 
         updateBadgesFromState();
+    }
+
+    const PRESENCE_PRESETS = {
+        min: {
+            audioSensitivity: 0.05,
+            cameraSensitivity: 0.05,
+            lightSensitivity: 0.05,
+            dimTimeoutSec: 120,
+            darkTimeoutSec: 600,
+            decaySec: 5.0
+        },
+        medium: {
+            audioSensitivity: 0.22,
+            cameraSensitivity: 0.18,
+            lightSensitivity: 0.20,
+            dimTimeoutSec: 45,
+            darkTimeoutSec: 180,
+            decaySec: 1.4
+        },
+        max: {
+            audioSensitivity: 1.0,
+            cameraSensitivity: 1.0,
+            lightSensitivity: 1.0,
+            dimTimeoutSec: 20,
+            darkTimeoutSec: 60,
+            decaySec: 0.2
+        }
+    };
+
+    function getPresencePresetLevel(ps) {
+        if (!ps || typeof ps !== "object") return "";
+
+        const current = {
+            audioSensitivity: Number(ps.audioSensitivity),
+            cameraSensitivity: Number(ps.cameraSensitivity),
+            lightSensitivity: Number(ps.lightSensitivity),
+            dimTimeoutSec: Math.round(Number(ps.dimTimeoutSec)),
+            darkTimeoutSec: Math.round(Number(ps.darkTimeoutSec)),
+            decaySec: Number(ps.decaySec)
+        };
+
+        const matchesPreset = (preset) => (
+            Math.abs(current.audioSensitivity - preset.audioSensitivity) < 0.0001
+            && Math.abs(current.cameraSensitivity - preset.cameraSensitivity) < 0.0001
+            && Math.abs(current.lightSensitivity - preset.lightSensitivity) < 0.0001
+            && current.dimTimeoutSec === preset.dimTimeoutSec
+            && current.darkTimeoutSec === preset.darkTimeoutSec
+            && Math.abs(current.decaySec - preset.decaySec) < 0.0001
+        );
+
+        if (matchesPreset(PRESENCE_PRESETS.min)) return "min";
+        if (matchesPreset(PRESENCE_PRESETS.medium)) return "medium";
+        if (matchesPreset(PRESENCE_PRESETS.max)) return "max";
+        return "";
+    }
+
+    function applyPresencePreset(level) {
+        const preset = PRESENCE_PRESETS[level];
+        if (!preset) return;
+
+        if (els.presenceAudioSensitivity) els.presenceAudioSensitivity.value = preset.audioSensitivity;
+        if (els.presenceCameraSensitivity) els.presenceCameraSensitivity.value = preset.cameraSensitivity;
+        if (els.presenceLightSensitivity) els.presenceLightSensitivity.value = preset.lightSensitivity;
+        if (els.presenceDimTimeoutSec) els.presenceDimTimeoutSec.value = preset.dimTimeoutSec;
+        if (els.presenceDarkTimeoutSec) els.presenceDarkTimeoutSec.value = preset.darkTimeoutSec;
+        if (els.presenceDecaySec) els.presenceDecaySec.value = preset.decaySec;
+        if (els.presencePresetSelect) els.presencePresetSelect.value = level;
+
+        readFormIntoState();
+        applyState();
+        saveCurrentState();
     }
 
     function readFormIntoState(changedBy) {
@@ -1169,6 +1478,21 @@ function initConfiguration() {
         };
         normalizeBatterySettingsState(changedBy);
         syncBatteryUi();
+
+        state.presenceSettings = {
+            enabled: els.presenceEnabled ? !!els.presenceEnabled.checked : !!(state.presenceSettings && state.presenceSettings.enabled),
+            audioSensitivity: els.presenceAudioSensitivity ? Number(els.presenceAudioSensitivity.value) : 0.22,
+            cameraSensitivity: els.presenceCameraSensitivity ? Number(els.presenceCameraSensitivity.value) : 0.18,
+            lightSensitivity: els.presenceLightSensitivity ? Number(els.presenceLightSensitivity.value) : 0.2,
+            dimTimeoutSec: els.presenceDimTimeoutSec ? Number(els.presenceDimTimeoutSec.value) : 45,
+            darkTimeoutSec: els.presenceDarkTimeoutSec ? Number(els.presenceDarkTimeoutSec.value) : 180,
+            decaySec: els.presenceDecaySec ? Number(els.presenceDecaySec.value) : 1.4
+        };
+        normalizePresenceSettingsState(changedBy);
+        syncPresenceUi();
+        if (els.presencePresetSelect) {
+            els.presencePresetSelect.value = getPresencePresetLevel(state.presenceSettings);
+        }
 
         state.visibility = {
             weekday:  els.visWeekday  ? els.visWeekday.checked  : true,
@@ -1385,6 +1709,10 @@ function initConfiguration() {
         } else if (typeof window.applyClockTransform === "function") {
             window.applyClockTransform();
         }
+
+        applyPresenceServiceConfig();
+        updatePresenceStatusFromService();
+        renderPresenceHistoryGraph();
     }
 
     function attachFormListeners() {
@@ -1406,7 +1734,14 @@ function initConfiguration() {
             els.batterySettingsEnabled,
             els.batterySwitchIp,
             els.batteryThresholdOn,
-            els.batteryThresholdOff
+            els.batteryThresholdOff,
+            els.presenceEnabled,
+            els.presenceAudioSensitivity,
+            els.presenceCameraSensitivity,
+            els.presenceLightSensitivity,
+            els.presenceDimTimeoutSec,
+            els.presenceDarkTimeoutSec,
+            els.presenceDecaySec
         ].filter(Boolean);
 
         function attachSelectArrowKeys(selectEl) {
@@ -1431,6 +1766,8 @@ function initConfiguration() {
                 let changedBy = null;
                 if (input === els.batteryThresholdOn) changedBy = "thresholdOn";
                 if (input === els.batteryThresholdOff) changedBy = "thresholdOff";
+                if (input === els.presenceDimTimeoutSec) changedBy = "dimTimeout";
+                if (input === els.presenceDarkTimeoutSec) changedBy = "darkTimeout";
                 readFormIntoState(changedBy);
                 applyState();
                 saveCurrentState();
@@ -1440,6 +1777,14 @@ function initConfiguration() {
                     input === els.batteryThresholdOff) {
                     if (typeof saveBatterySettings === "function") saveBatterySettings();
                     scheduleBatteryAutomationConfigSync();
+                }
+                if (input === els.presenceEnabled ||
+                    input === els.presenceAudioSensitivity ||
+                    input === els.presenceCameraSensitivity ||
+                    input === els.presenceLightSensitivity ||
+                    input === els.presenceDimTimeoutSec ||
+                    input === els.presenceDarkTimeoutSec ||
+                    input === els.presenceDecaySec) {
                 }
             });
         });
@@ -1454,6 +1799,23 @@ function initConfiguration() {
         if (els.batterySwitchToggleBtn) {
             els.batterySwitchToggleBtn.addEventListener("click", () => {
                 toggleBatterySwitchState();
+            });
+        }
+
+        if (els.presencePresetSelect) {
+            els.presencePresetSelect.addEventListener("change", () => {
+                const level = String(els.presencePresetSelect.value || "").toLowerCase();
+                if (!level) return;
+                applyPresencePreset(level);
+            });
+        }
+
+        if (els.presenceClearHistoryBtn) {
+            els.presenceClearHistoryBtn.addEventListener("click", () => {
+                if (!window.PresenceService || typeof window.PresenceService.clearHistory !== "function") return;
+                window.PresenceService.clearHistory();
+                updatePresenceStatusFromService();
+                renderPresenceHistoryGraph();
             });
         }
 
@@ -1614,6 +1976,8 @@ function initConfiguration() {
             delete data.showDebug;
             delete data.showGpuInfo;
             delete data.container;
+            delete data.batterySettings;
+            delete data.presenceSettings;
             if (els.sizeBudget) data.sizeBudget = Math.min(1, Math.max(0.5, Number(els.sizeBudget.value) || 0.95));
             const entry = { name, data };
             const js = `${JSON.stringify(entry, null, 2)}\n`;
@@ -1779,6 +2143,30 @@ function initConfiguration() {
     saveCurrentState();
     scheduleBatteryAutomationConfigSync();
 
+    if (window.PresenceService && typeof window.PresenceService.init === "function") {
+        window.PresenceService.init(state.presenceSettings || {});
+    }
+
+    window.addEventListener("presence-service-event", () => {
+        updatePresenceStatusFromService();
+        renderPresenceHistoryGraph();
+    });
+    window.addEventListener("presence-service-state", () => {
+        updatePresenceStatusFromService();
+        renderPresenceHistoryGraph();
+    });
+    window.addEventListener("presence-service-tick", () => {
+        updatePresenceStatusFromService();
+        renderPresenceHistoryGraph();
+    });
+    window.addEventListener("presence-service-history-cleared", () => {
+        updatePresenceStatusFromService();
+        renderPresenceHistoryGraph();
+    });
+
+    updatePresenceStatusFromService();
+    renderPresenceHistoryGraph();
+
     refreshBatteryGraphFromInfo();
     refreshBatterySwitchState();
     setInterval(() => {
@@ -1787,6 +2175,10 @@ function initConfiguration() {
     setInterval(() => {
         refreshBatterySwitchState();
     }, 60 * 1000);
+    setInterval(() => {
+        updatePresenceStatusFromService();
+        renderPresenceHistoryGraph();
+    }, 5 * 1000);
 
     // Expose a single entry point that re-reads localStorage (e.g. after a
     // remote control client pushed a new state) and refreshes both the
