@@ -1,8 +1,63 @@
+#!/bin/bash
+
+set -euo pipefail
+
+usage() {
+    cat >&2 <<EOF
+Usage: $0 [adb-device] [interval-seconds]
+
+  adb-device        ADB device serial (default: samsung-t220:5555)
+  interval-seconds  Positive integer (default: 30)
+EOF
+    exit 1
+}
+
+# ------------------------------------------------------------------------------
+
+[[ $# -le 2 ]] || usage
+
+adb_connection="${1:-samsung-t220:5555}"
+interval="${2:-30}"
+
+echo $interval
+
+[[ "$interval" =~ ^[1-9][0-9]*$ ]] || {
+    echo "Error: interval must be a positive integer." >&2
+    exit 1
+}
+
+command -v adb >/dev/null || {
+    echo "Error: adb not found in PATH." >&2
+    exit 1
+}
+
+adb get-state >/dev/null 2>&1 || true
+
+adb -s "$adb_connection" get-state >/dev/null 2>&1 || {
+    echo "Error: ADB device '$adb_connection' is not connected." >&2
+    exit 1
+}
+
+adb -s "$adb_connection" shell su -c true >/dev/null 2>&1 || {
+    echo "Error: Root (su) is not available on '$adb_connection'." >&2
+    exit 1
+}
+
+# ------------------------------------------------------------------------------
+
 while true; do
-  iso="$(date -Iseconds)"
-  epoch="$(date +%s)"
-  current="$(adb -s samsung-t220:5555 shell su -c 'cat /sys/class/power_supply/battery/current_now' | tr -d '\r\n')"
-  level="$(adb -s samsung-t220:5555 shell dumpsys battery | awk "/level:/ {print \$2}")"
-  echo "$iso,$epoch,$level,$current"
-  sleep 30
+    iso="$(date -Iseconds)"
+    current="$(
+        adb -s "$adb_connection" shell \
+            su -c 'cat /sys/class/power_supply/battery/current_now' |
+        tr -d '\r\n'
+    )"
+    level="$(
+        adb -s "$adb_connection" shell dumpsys battery |
+        awk '/level:/ {print $2}'
+    )"
+
+    echo "$iso,$level,$current"
+sleep 2
+#    sleep "$interval"
 done
