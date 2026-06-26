@@ -1,0 +1,8 @@
+while true; do
+  iso="$(date -Iseconds)"
+  epoch="$(date +%s)"
+  current="$(adb -s samsung-t220:5555 shell su -c 'cat /sys/class/power_supply/battery/current_now' | tr -d '\r\n')"
+  level="$(adb -s samsung-t220:5555 shell dumpsys battery | awk "/level:/ {print \$2}")"
+  echo "$iso,$epoch,$level,$current"
+  sleep 30
+done
