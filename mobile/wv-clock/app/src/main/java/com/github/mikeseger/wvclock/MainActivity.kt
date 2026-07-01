@@ -164,6 +164,17 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+            setShowWhenLocked(true)
+            setTurnScreenOn(true)
+        } else {
+            @Suppress("DEPRECATION")
+            window.addFlags(
+                android.view.WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
+                    android.view.WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
+            )
+        }
+
         webView = WebView(this).apply {
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
@@ -340,6 +351,12 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
+
+        // Reassert these every time the activity becomes active.
+        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        applyImmersive()
+        webView.onResume()
+
         registerReceiver(screenOnReceiver, IntentFilter(Intent.ACTION_SCREEN_ON))
         // Re-register the restart receiver (may have been unregistered on pause).
         @Suppress("UnspecifiedRegisterReceiverFlag")
@@ -357,10 +374,15 @@ class MainActivity : Activity() {
         if (nativePresenceEnabled) {
             startNativePresenceFallback()
         }
+
+        if (!isAsleep) resetSleepTimer()
     }
 
     override fun onPause() {
         super.onPause()
+
+        webView.onPause()
+
         server?.notifyAppPaused()
         stopNativePresenceFallback()
         try { unregisterReceiver(screenOnReceiver) } catch (_: Exception) {}
